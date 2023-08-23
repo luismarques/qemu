@@ -39,7 +39,7 @@ jobs:
           ninja qemu-img
       - name: Create binary archive
         run: |
-          ./scripts/opentitan/make_release.sh "$RELEASE_BIN_ARCHIVE" "$BUILD_DIR" .
+          ./scripts/opentitan/make_release.sh "$RELEASE_BIN_ARCHIVE" . "$BUILD_DIR"
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}

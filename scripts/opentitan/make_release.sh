@@ -7,20 +7,15 @@
 set -e
 
 if [ $# -ne 3 ]; then
-    echo "Usage: $0 /path/to/output/tarball /path/to/build/dir /path/to/src/dir" >&2
+    echo "Usage: $0 /path/to/output/tarball /path/to/src/dir build_dirname" >&2
     exit 1
 fi
 
 OUT_TARBALL="$1"
-QEMU_BUILD_DIR="$2"
-QEMU_SRC_DIR="$3"
-# Create a temporary directory that we will tar.
-TMP_DIR=$(mktemp -d)
-trap 'rm -rf "$TMP_DIR"' EXIT
-# Copy some binaries
-cp "$QEMU_BUILD_DIR/qemu-system-riscv32" "$TMP_DIR/"
-cp "$QEMU_BUILD_DIR/qemu-img" "$TMP_DIR/"
-cp "$QEMU_SRC_DIR/scripts/opentitan/otpconv.py" "$TMP_DIR/"
-cp "$QEMU_SRC_DIR/scripts/opentitan/flashgen.py" "$TMP_DIR/"
+QEMU_DIR="$2"
+QEMU_BUILD="$3"
 # Create archive.
-tar --create --auto-compress --verbose --file="$OUT_TARBALL" --directory "$TMP_DIR/" .
+tar --create --auto-compress --verbose --file="$OUT_TARBALL" \
+    --directory="$QEMU_DIR" \
+    "$QEMU_BUILD"/qemu-{system-riscv32,img} \
+    scripts/opentitan/{otpconv,flashgen}.py

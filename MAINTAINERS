@@ -1495,14 +1495,16 @@ F: pc-bios/vof*
 RISC-V Machines
 ---------------
 
-EarlGrey OpenTitan platform
+EarlGrey and Darjeeling OpenTitan platforms
 M: Emmanuel Blot <eblot@rivosinc.com>
 M: Loïc Lefort <loic@rivosinc.com>
 S: Supported
 F: hw/opentitan/*
 F: include/hw/opentitan/*
 F: scripts/opentitan/*
+F: hw/riscv/ot_darjeeling.c
 F: hw/riscv/ot_earlgrey.c
+F: include/hw/riscv/ot_darjeeling.h
 F: include/hw/riscv/ot_earlgrey.h
 
 Ibex platforms and utilities

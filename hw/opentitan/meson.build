@@ -6,6 +6,7 @@ libtomcrypt_dep = subproject('libtomcrypt').get_variable('libtomcrypt_dep')
 
 softmmu_ss.add(when: 'CONFIG_OT_AES', if_true: [files('ot_aes.c'), libtomcrypt_dep])
 softmmu_ss.add(when: 'CONFIG_OT_ALERT', if_true: files('ot_alert.c'))
+softmmu_ss.add(when: 'CONFIG_OT_ALERT_DARJEELING', if_true: files('ot_alert_darjeeling.c'))
 softmmu_ss.add(when: 'CONFIG_OT_ALERT_EARLGREY', if_true: files('ot_alert_earlgrey.c'))
 softmmu_ss.add(when: 'CONFIG_OT_AON_TIMER', if_true: files('ot_aon_timer.c'))
 softmmu_ss.add(when: 'CONFIG_OT_AST_EARLGREY', if_true: files('ot_ast_earlgrey.c'))

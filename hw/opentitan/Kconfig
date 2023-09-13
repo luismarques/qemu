@@ -37,6 +37,9 @@ config OT_COMMON
 config OT_CSRNG
     bool
 
+config OT_DEV_PROXY
+    bool
+
 config OT_DMA
     select OT_ADDRESS_SPACE
     bool

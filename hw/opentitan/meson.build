@@ -15,6 +15,7 @@ softmmu_ss.add(when: 'CONFIG_OT_AST_EARLGREY', if_true: files('ot_ast_earlgrey.c
 softmmu_ss.add(when: 'CONFIG_OT_CLKMGR', if_true: files('ot_clkmgr.c'))
 softmmu_ss.add(when: 'CONFIG_OT_COMMON', if_true: files('ot_common.c'))
 softmmu_ss.add(when: 'CONFIG_OT_CSRNG', if_true: [files('ot_csrng.c'), libtomcrypt_dep])
+softmmu_ss.add(when: 'CONFIG_OT_DEV_PROXY', if_true: files('ot_dev_proxy.c'))
 softmmu_ss.add(when: 'CONFIG_OT_DMA', if_true: [files('ot_dma.c'), libtomcrypt_dep])
 softmmu_ss.add(when: 'CONFIG_OT_EDN', if_true: files('ot_edn.c'))
 softmmu_ss.add(when: 'CONFIG_OT_ENTROPY_SRC', if_true: [files('ot_entropy_src.c'), libtomcrypt_dep])

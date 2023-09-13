@@ -24,6 +24,7 @@ softmmu_ss.add(when: 'CONFIG_OT_IBEX_WRAPPER_DARJEELING', if_true: files('ot_ibe
 softmmu_ss.add(when: 'CONFIG_OT_IBEX_WRAPPER_EARLGREY', if_true: files('ot_ibex_wrapper_earlgrey.c'))
 softmmu_ss.add(when: 'CONFIG_OT_KMAC', if_true: [files('ot_kmac.c'), libtomcrypt_dep])
 softmmu_ss.add(when: 'CONFIG_OT_LIFECYCLE', if_true: files('ot_lifecycle.c'))
+softmmu_ss.add(when: 'CONFIG_OT_MBX', if_true: files('ot_mbx.c'))
 softmmu_ss.add(when: 'CONFIG_OT_OTBN', if_true: files('ot_otbn.c'))
 softmmu_ss.add(when: 'CONFIG_OT_OTP', if_true: files('ot_otp.c'))
 softmmu_ss.add(when: 'CONFIG_OT_OTP_DARJEELING', if_true: files('ot_otp_darjeeling.c'))

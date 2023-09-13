@@ -67,6 +67,10 @@ config OT_KMAC
 config OT_LIFECYCLE
     bool
 
+config OT_MBX
+    select OT_COMMON
+    bool
+
 config OT_OTBN
     bool
     select OPENTITAN_BIGNUMBER

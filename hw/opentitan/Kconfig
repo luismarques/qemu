@@ -37,6 +37,10 @@ config OT_COMMON
 config OT_CSRNG
     bool
 
+config OT_DMA
+    select OT_ADDRESS_SPACE
+    bool
+
 config OT_EDN
     bool
 

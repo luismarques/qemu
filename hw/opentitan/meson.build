@@ -4,6 +4,7 @@ libtomcrypt_dep = subproject('libtomcrypt').get_variable('libtomcrypt_dep')
 
 # OpenTitan devices
 
+softmmu_ss.add(when: 'CONFIG_OT_ADDRESS_SPACE', if_true: files('ot_address_space.c'))
 softmmu_ss.add(when: 'CONFIG_OT_AES', if_true: [files('ot_aes.c'), libtomcrypt_dep])
 softmmu_ss.add(when: 'CONFIG_OT_ALERT', if_true: files('ot_alert.c'))
 softmmu_ss.add(when: 'CONFIG_OT_ALERT_DARJEELING', if_true: files('ot_alert_darjeeling.c'))

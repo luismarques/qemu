@@ -54,6 +54,7 @@
 #include "hw/opentitan/ot_rom_ctrl.h"
 #include "hw/opentitan/ot_rstmgr.h"
 #include "hw/opentitan/ot_sensor.h"
+#include "hw/opentitan/ot_spi_device.h"
 #include "hw/opentitan/ot_spi_host.h"
 #include "hw/opentitan/ot_sram_ctrl.h"
 #include "hw/opentitan/ot_timer.h"
@@ -699,11 +700,23 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
     },
     [OT_DARJEELING_SOC_DEV_SPI_DEVICE] = {
-        .type = TYPE_UNIMPLEMENTED_DEVICE,
-        .name = "ot-spi_device",
-        .cfg = &ibex_unimp_configure,
+        .type = TYPE_OT_SPI_DEVICE,
         .memmap = MEMMAPENTRIES(
             { 0x30310000u, 0x2000u }
+        ),
+        .gpio = IBEXGPIOCONNDEFS(
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 41),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 42),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(2, PLIC, 43),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(3, PLIC, 44),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(4, PLIC, 45),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(5, PLIC, 46),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(6, PLIC, 47),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(7, PLIC, 48),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(8, PLIC, 49),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(9, PLIC, 50),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(10, PLIC, 51),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(11, PLIC, 52)
         ),
     },
     [OT_DARJEELING_SOC_DEV_PWRMGR] = {

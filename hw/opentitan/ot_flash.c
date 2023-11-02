@@ -1058,7 +1058,7 @@ static void ot_flash_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         break;
     case R_DIS:
         val32 &= R_DIS_VAL_MASK;
-        s->regs[reg] &= val32; /* rw0c, multibitbool4 */
+        s->regs[reg] = ot_multibitbool_w1s_write(s->regs[reg], val32, 4u);
         if (ot_flash_is_disabled(s)) {
 #if ABORT_ON_DISABLEMENT
             error_setg(&error_fatal, "flash controller disabled by SW");

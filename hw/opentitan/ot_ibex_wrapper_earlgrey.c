@@ -33,6 +33,7 @@
 #include "qapi/error.h"
 #include "chardev/char-fe.h"
 #include "exec/address-spaces.h"
+#include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
 #include "hw/opentitan/ot_ibex_wrapper_earlgrey.h"
@@ -40,6 +41,7 @@
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
 #include "hw/riscv/ibex_common.h"
+#include "hw/riscv/ibex_irq.h"
 #include "hw/sysbus.h"
 #include "trace.h"
 
@@ -106,6 +108,10 @@ REG32(DV_SIM_WIN6, 0x98u)
 REG32(DV_SIM_WIN7, 0x9cu)
 
 /* clang-format on */
+
+#define ALERT_TEST_MASK \
+    (R_ALERT_TEST_FATAL_SW_MASK | R_ALERT_TEST_RECOV_SW_MASK | \
+     R_ALERT_TEST_FATAL_HW_MASK | R_ALERT_TEST_RECOV_HW_MASK)
 
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
@@ -218,6 +224,7 @@ struct OtIbexWrapperEgState {
 
     MemoryRegion mmio;
     MemoryRegion remappers[PARAM_NUM_REGIONS];
+    IbexIRQ alerts[PARAM_NUM_ALERTS];
 
     uint32_t *regs;
     OtIbexTestLogEngine *log_engine;
@@ -752,6 +759,14 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
     trace_ot_ibex_wrapper_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
 
     switch (reg) {
+    case R_ALERT_TEST:
+        val32 &= ALERT_TEST_MASK;
+        if (val32) {
+            for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
+                ibex_irq_set(&s->alerts[ix], (int)((val32 >> ix) & 0x1u));
+            }
+        }
+        break;
     case R_SW_FATAL_ERR:
         if ((val32 >> 16u) == 0xC0DEu) {
             /* guest should now use DV_SIM_STATUS register */
@@ -770,6 +785,9 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
         }
         val32 &= R_SW_FATAL_ERR_VAL_MASK;
         s->regs[reg] = ot_multibitbool_w1s_write(s->regs[reg], val32, 4u);
+        if (s->regs[reg] != OT_MULTIBITBOOL4_FALSE) {
+            ibex_irq_set(&s->alerts[R_SW_FATAL_ERR_VAL_SHIFT], 1);
+        }
         break;
     case R_IBUS_REGWEN_0:
     case R_IBUS_REGWEN_1:
@@ -901,6 +919,9 @@ static void ot_ibex_wrapper_eg_init(Object *obj)
     memory_region_init_io(&s->mmio, obj, &ot_ibex_wrapper_eg_regs_ops, s,
                           TYPE_OT_IBEX_WRAPPER_EARLGREY, REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
+    for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+    }
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
     s->log_engine = g_new0(OtIbexTestLogEngine, 1u);

@@ -93,11 +93,13 @@ ot_dm_tl_capture(uint32_t addr, uint32_t value) "0x%x: %u"
 # ot_dma.c
 
 ot_dma_abort(const char *did) "%s"
+ot_dma_change_state(int line, const char *state, int stateval) "@%d: %s [%d]"
 ot_dma_check_device(const char *did, const char *dir, const char *asname, uint64_t addr, uint64_t size, const char *rootname, unsigned ram) "%s: %s as=%s addr=0x%" PRIx64 " size:0x%" PRIx64 " %s ram:%u"
 ot_dma_complete(const char *did, int res) "%s: %d"
 ot_dma_io_read_out(const char *did, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
 ot_dma_io_write(const char *did, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
 ot_dma_new_op(const char *did, const char *dir, const char *asname, const char *mname, uint64_t addr, uint64_t size) "%s: %s as:%s m:%s a:0x%" PRIx64 " s:0x%" PRIx64
+ot_dma_operation(const char *op, bool init) "%s: %u"
 ot_dma_set_error(const char *did, const char *func, int line, unsigned err) "%s: %s:%d err:%u"
 ot_dma_transfer(const char *did, const char *dir, const char *asname, uint64_t addr, uint64_t size) "%s: %s as=%s addr=0x%" PRIx64 " size:0x%" PRIx64
 

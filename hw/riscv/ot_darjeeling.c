@@ -90,6 +90,10 @@ static void ot_darjeeling_soc_uart_configure(
 /* Darjeeling AON clock is 62.5 MHz */
 #define OT_DARJEELING_AON_CLK_HZ 62500000u
 
+/* CTN RAM (1MB) */
+#define OT_DARJEELING_CTN_RAM_ADDR 0x41000000u
+#define OT_DARJEELING_CTN_RAM_SIZE (1u << 20u)
+
 enum OtDarjeelingSocDevice {
     OT_DARJEELING_SOC_DEV_AES,
     OT_DARJEELING_SOC_DEV_ALERT_HANDLER,
@@ -1055,6 +1059,10 @@ static void ot_darjeeling_board_realize(DeviceState *dev, Error **errp)
     BusState *bus = sysbus_get_default();
     qdev_realize_and_unref(DEVICE(soc), bus, &error_fatal);
 
+    /* CTN RAM */
+    MachineState *ms = MACHINE(qdev_get_machine());
+    memory_region_add_subregion(s->sys, OT_DARJEELING_CTN_RAM_ADDR, ms->ram);
+
     DeviceState *spihost = s->devices[OT_DARJEELING_SOC_DEV_SPI_HOST0];
     DeviceState *flash = board->devices[OT_DARJEELING_BOARD_DEV_FLASH];
     BusState *spibus = qdev_get_child_bus(spihost, "spi0");
@@ -1155,6 +1163,8 @@ static void ot_darjeeling_machine_class_init(ObjectClass *oc, void *data)
     mc->init = ot_darjeeling_machine_init;
     mc->max_cpus = 1u;
     mc->default_cpus = 1u;
+    mc->default_ram_id = "ctn-ram";
+    mc->default_ram_size = OT_DARJEELING_CTN_RAM_SIZE;
 }
 
 static const TypeInfo ot_darjeeling_machine_type_info = {

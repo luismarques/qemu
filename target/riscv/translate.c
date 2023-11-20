@@ -1268,7 +1268,8 @@ static void riscv_tr_disas_log(const DisasContextBase *dcbase,
     CPURISCVState *env = &rvcpu->env;
 #endif
 
-    fprintf(logfile, "IN: %s\n", lookup_symbol(dcbase->pc_first));
+    fprintf(logfile, "IN[%d]: %s\n", cpu->cpu_index,
+            lookup_symbol(dcbase->pc_first));
 #ifndef CONFIG_USER_ONLY
     fprintf(logfile, "Priv: "TARGET_FMT_ld"; Virt: %d\n",
             env->priv, env->virt_enabled);

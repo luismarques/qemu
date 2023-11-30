@@ -27,5 +27,5 @@ otbn_lib = static_library('otbn',
 
 otbn_dep = declare_dependency(link_with: otbn_lib)
 
-softmmu_ss.add(when: 'CONFIG_OPENTITAN_BIGNUMBER',
-               if_true: otbn_dep)
+system_ss.add(when: 'CONFIG_OPENTITAN_BIGNUMBER',
+              if_true: otbn_dep)

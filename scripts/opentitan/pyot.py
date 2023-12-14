@@ -769,13 +769,17 @@ class QEMUContextWorker:
                         self._log.error(qline)
                 else:
                     self._log.debug(qline)
-            xret = proc.poll()
-            if xret is not None:
+            if proc.poll() is not None:
+                # worker has exited on its own
                 self._resume = False
-                self._ret = xret
-                self._log.debug('"%s" completed with %d', self.command, xret)
                 break
-        if self._ret is None:
+        try:
+            # give some time for the process to complete on its own
+            proc.wait(0.2)
+            self._ret = proc.returncode
+            self._log.debug('"%s" completed with %d', self.command, self._ret)
+        except TimeoutExpired:
+            # still executing
             proc.terminate()
             try:
                 # leave 1 second for QEMU to cleanly complete...
@@ -914,15 +918,21 @@ class QEMUContext:
             return ret
         return 0
 
-    def finalize(self) -> None:
+    def finalize(self) -> int:
         """Terminate any running background command, in reverse order.
+
+           :return: a non-zero value if one or more workers have reported an
+                    error
         """
+        rets = {0}
         while self._workers:
             worker = self._workers.pop()
             ret = worker.stop()
+            rets.add(ret)
             if ret:
-                self._clog.warning('Fail to finalize "%s" command for "%s": %d',
+                self._clog.warning('Command "%s" has failed for "%s": %d',
                                    worker.command, self._test_name, ret)
+        return max(rets)
 
 
 class QEMUExecuter:
@@ -940,6 +950,7 @@ class QEMUExecuter:
         6: 'ABORT',
         11: 'CRASH',
         QEMUWrapper.GUEST_ERROR_OFFSET + 1: 'FAIL',
+        99: 'CONTEXT',
         124: 'TIMEOUT',
         125: 'DEADLOCK',
         126: 'CONTEXT',
@@ -1019,8 +1030,16 @@ class QEMUExecuter:
                     ctx.execute('pre')
                     tret, xtime, err = qot.run(qemu_cmd, timeout, test_name,
                                                ctx)
-                    ctx.finalize()
+                    cret = ctx.finalize()
                     ctx.execute('post', tret)
+                    if tret == 0 and cret != 0:
+                        tret = 99
+                # pylint: disable=broad-except
+                except Exception as exc:
+                    self._log.critical('%s', str(exc))
+                    tret = 99
+                    xtime = 0.0
+                    err = str(exc)
                 finally:
                     self._qfm.cleanup_transient()
                 results[tret] += 1
@@ -1116,9 +1135,7 @@ class QEMUExecuter:
         qemu_args = [
             args.qemu,
             '-M',
-            args.machine,
-            '-display',
-            'none'
+            args.machine
         ]
         if args.rom:
             rom_path = self.abspath(args.rom)
@@ -1190,6 +1207,7 @@ class QEMUExecuter:
             if not 0 < port < 65536:
                 raise ValueError('Invalid serial TCP port')
             tcpdev = (devdesc[0], port)
+            qemu_args.extend(('-display', 'none'))
             qemu_args.extend(('-chardev',
                               f'socket,id=serial0,host={devdesc[0]},'
                               f'port={port},{mux},server=on,wait=on'))

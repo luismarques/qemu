@@ -95,6 +95,8 @@ REG32(RND_STATUS, 0x5cu)
     FIELD(RND_STATUS, RND_DATA_FIPS, 1u, 1u)
 REG32(FPGA_INFO, 0x60u)
 REG32(DV_SIM_STATUS, 0x80u)
+    FIELD(DV_SIM_STATUS, CODE, 0u, 16u)
+    FIELD(DV_SIM_STATUS, INFO, 16u, 16u)
 REG32(DV_SIM_LOG, 0x84u)
 REG32(DV_SIM_WIN2, 0x88u)
 REG32(DV_SIM_WIN3, 0x8cu)
@@ -818,13 +820,22 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
         ot_ibex_wrapper_eg_status_report(s, val32);
         switch (val32) {
         case TEST_STATUS_PASSED:
-            xtrace_ot_ibex_wrapper_info("DV SIM success, exiting");
+            trace_ot_ibex_wrapper_exit("DV SIM success, exiting", 0);
             exit(0);
             break;
-        case TEST_STATUS_FAILED:
-            xtrace_ot_ibex_wrapper_info("DV SIM failure, exiting");
-            exit(1);
+        case TEST_STATUS_FAILED: {
+            uint32_t info = FIELD_EX32(val32, DV_SIM_STATUS, INFO);
+            int ret;
+            if (info == 0) {
+                /* no extra info */
+                ret = 1;
+            } else {
+                ret = (int)(info & 0x7fu);
+            }
+            trace_ot_ibex_wrapper_exit("DV SIM failure, exiting", ret);
+            exit(ret);
             break;
+        }
         default:
             s->regs[reg] = val32;
             break;

@@ -57,13 +57,8 @@ enum {
 /* JTAG */
 /* ------------------------------------------------------------------------ */
 
-#define JTAG_IDCODE(_mfid_, _pnum_, _ver_) \
-    ((((_ver_)&0xfu) << 28u) | (((_pnum_)&0xffffu) << 12u) | \
-     (((_mfid_)&0x7ffu) << 1u) | 0b1)
 #define IBEX_JTAG_PART_NUM(_part_, _tap_) \
     ((((_part_)&0xfffu) << 4u) | ((_tap_)&0xfu))
-#define JEDEC_MANUFACTURER_ID(_tbl_, _id_) \
-    (((((_tbl_)-1u) & 0xfu) << 7u) | ((_id_)&0x7fu))
 
 #define LOWRISC_JEDEC_MANUFACTURER_ID 0x6fu /* MSB is parity bit, ignored */
 #define LOWRISC_JEDEC_TABLE           13u

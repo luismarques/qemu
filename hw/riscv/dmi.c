@@ -122,8 +122,6 @@ struct RISCVDMIState {
     bool jtag_ok; /* JTAG server initialized */
 
     /* properties */
-    unsigned tap_ir_length;
-    unsigned tap_idcode;
     unsigned abits; /* address bit count */
 };
 
@@ -444,8 +442,6 @@ static void riscv_dmi_sort_dms(RISCVDMIState *s)
 }
 
 static Property riscv_dmi_properties[] = {
-    DEFINE_PROP_UINT32("tap_ir_length", RISCVDMIState, tap_ir_length, 5u),
-    DEFINE_PROP_UINT32("tap_idcode", RISCVDMIState, tap_idcode, 0x0u),
     DEFINE_PROP_UINT32("abits", RISCVDMIState, abits, 0x7u),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -467,21 +463,13 @@ static void riscv_dmi_realize(DeviceState *dev, Error **errp)
 {
     RISCVDMIState *s = RISCV_DMI(dev);
 
-    if (s->tap_ir_length > 8u) {
-        error_setg(errp, "Unsupported IR length");
-        return;
-    }
-    if (s->tap_idcode == 0u) {
-        error_setg(errp, "Invalid IDCODE");
-        return;
-    }
     if (s->abits < 7u || s->abits > 30u) {
         error_setg(errp, "Invalid address bit count");
         return;
     }
 
     /* may fail if no JTAG server is active */
-    s->jtag_ok = jtag_configure_tap(s->tap_ir_length, s->tap_idcode) == 0;
+    s->jtag_ok = jtag_tap_enabled();
 
     if (s->jtag_ok) {
         (void)riscv_dmi_register_tap_handlers(s);

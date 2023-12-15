@@ -44,6 +44,26 @@ struct _TAPDataHandler {
 #define JTAG_MEMTX_REQUESTER_ID UINT16_MAX
 
 /*
+ * Create TAP IDCODE
+ *
+ * @_mfid_ Manufacturer ID
+ * @_pnum_ Part number
+ * @_ver_  Version
+ */
+#define JTAG_IDCODE(_mfid_, _pnum_, _ver_) \
+    ((((_ver_)&0xfu) << 28u) | (((_pnum_)&0xffffu) << 12u) | \
+     (((_mfid_)&0x7ffu) << 1u) | 0b1)
+
+/*
+ * Create JEDEC Manufacturer ID
+ *
+ * @_tbl_ JEDEC table
+ * @_id_ Entry in JEDEC table
+ */
+#define JEDEC_MANUFACTURER_ID(_tbl_, _id_) \
+    (((((_tbl_)-1u) & 0xfu) << 7u) | ((_id_)&0x7fu))
+
+/*
  * JTAGserver_start: start the JTAG server
  * @port_or_device: connection spec for JTAG
  */
@@ -60,9 +80,15 @@ void jtagserver_exit(int code);
  *
  * @irlength the length in bits of the instruction register
  * @idcode the unique identifier code of the device
- * @return non-zero on error
  */
-int jtag_configure_tap(size_t irlength, uint32_t idcode);
+void jtag_configure_tap(size_t irlength, uint32_t idcode);
+
+/**
+ * Report whether TAP is configured and available.
+ *
+ * @return @c true if the TAP can be used.
+ */
+bool jtag_tap_enabled(void);
 
 /*
  * Register TAP data handler

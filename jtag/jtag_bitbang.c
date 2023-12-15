@@ -608,19 +608,31 @@ int jtag_register_handler(unsigned code, const TAPDataHandler *tdh)
     return 0;
 }
 
-int jtag_configure_tap(size_t irlength, uint32_t idcode)
+void jtag_configure_tap(size_t irlength, uint32_t idcode)
 {
+    if (irlength > 8u) {
+        error_setg(&error_fatal, "Unsupported IR length");
+        return;
+    }
+
+    if (idcode == 0u) {
+        error_setg(&error_fatal, "Invalid IDCODE");
+        return;
+    }
+
     if (tapserver_state.init) {
         if (!tapserver_state.tap) {
             TAPController *tap = g_new0(TAPController, 1);
             tapctrl_init(tap, irlength, idcode);
             tapserver_state.tap = tap;
             qemu_chr_fe_accept_input(&tapserver_state.chr);
-            return 0;
         }
     }
+}
 
-    return -1;
+bool jtag_tap_enabled(void)
+{
+    return tapserver_state.init && tapserver_state.tap;
 }
 
 static void register_types(void)

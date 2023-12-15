@@ -28,6 +28,7 @@
 #include "qapi/error.h"
 #include "cpu.h"
 #include "exec/address-spaces.h"
+#include "exec/jtagstub.h"
 #include "hw/boards.h"
 #include "hw/intc/sifive_plic.h"
 #include "hw/misc/unimp.h"
@@ -250,8 +251,6 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_DMI] = {
         .type = TYPE_RISCV_DMI,
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_UINT_PROP("tap_ir_length", IBEX_TAP_IR_LENGTH),
-            IBEX_DEV_UINT_PROP("tap_idcode", DARJEELING_TAP_IDCODE),
             /* should be a constant, need to encode 0x500 */
             IBEX_DEV_UINT_PROP("abits", 11u)
         ),
@@ -1112,6 +1111,8 @@ static void ot_darjeeling_soc_realize(DeviceState *dev, Error **errp)
 static void ot_darjeeling_soc_init(Object *obj)
 {
     OtDarjeelingSoCState *s = RISCV_OT_DARJEELING_SOC(obj);
+
+    jtag_configure_tap(IBEX_TAP_IR_LENGTH, DARJEELING_TAP_IDCODE);
 
     s->devices =
         ibex_create_devices(ot_darjeeling_soc_devices,

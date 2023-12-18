@@ -250,6 +250,7 @@ static void ot_pwrmgr_rom_done(void *opaque, int irq, int level)
             CPUState *cpu = ot_common_get_local_cpu(DEVICE(s));
             if (cpu) {
                 cpu->halted = 0;
+                resettable_release_reset(OBJECT(cpu), RESET_TYPE_COLD);
                 cpu_resume(cpu);
             } else {
                 error_report("ot_pwrmgr: Could not find a vCPU to start!");

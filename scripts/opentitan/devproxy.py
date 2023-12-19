@@ -1208,7 +1208,12 @@ class ProxyEngine:
             devhdr = devices[0:devlen]
             devices = devices[devlen:]
             doff, dnum, daddr, dcount, dname = sunpack(devfmt, devhdr)
-            devname = dname.rstrip(b'\x00').decode().lower()
+            try:
+                devname = dname.rstrip(b'\x00').decode().lower()
+            except UnicodeDecodeError as exc:
+                self._log.critical('Malformed device name (%s): %s',
+                                   str(exc), hexlify(dname).decode())
+                continue
             if devname in self._devices:
                 self._log.error("Multiple devices w/ identical identifier: "
                                 "'%s'", devname)

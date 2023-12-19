@@ -177,7 +177,8 @@ class QEMUWrapper:
         self._otlog = getLogger('pyot.ot')
 
     def run(self, qemu_args: List[str], timeout: int, name: str,
-            ctx: Optional['QEMUContext']) -> Tuple[int, ExecTime, str]:
+            ctx: Optional['QEMUContext'], start_delay: float) -> \
+            Tuple[int, ExecTime, str]:
         """Execute the specified QEMU command, aborting execution if QEMU does
            not exit after the specified timeout.
 
@@ -186,10 +187,12 @@ class QEMUWrapper:
                             is aborted
            :param name: the tested application name
            :param ctx: execution context, if any
+           :param start_delay: start up delay
            :return: a 3-uple of exit code, execution time, and last guest error
         """
-        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-arguments
         # pylint: disable=too-many-branches
+        # pylint: disable=too-many-locals
         # pylint: disable=too-many-statements
 
         # stdout and stderr belongs to QEMU VM
@@ -216,7 +219,8 @@ class QEMUWrapper:
             try:
                 # ensure that QEMU starts and give some time for it to set up
                 # its VCP before attempting to connect to it
-                proc.wait(0.9)
+                self._log.debug(f'Waiting {start_delay:.1f}s for VM init')
+                proc.wait(start_delay)
             except TimeoutExpired:
                 pass
             else:
@@ -973,7 +977,7 @@ class QEMUExecuter:
 
            :raise ValueError: if some argument is invalid
         """
-        self._qemu_cmd, self._vcp, _ = self._build_qemu_command(self._args)
+        self._qemu_cmd, self._vcp = self._build_qemu_command(self._args)[:2]
         self._argdict = dict(self._args.__dict__)
         self._suffixes = []
         suffixes = self._config.get('suffixes', [])
@@ -1024,12 +1028,12 @@ class QEMUExecuter:
                         'UTDIR': normpath(dirname(test)),
                         'UTFILE': basename(test),
                     })
-                    qemu_cmd, targs, timeout, temp_files, ctx = \
+                    qemu_cmd, targs, timeout, temp_files, ctx, sdelay = \
                         self._build_qemu_test_command(test)
                     test_name = self.get_test_radix(test)
                     ctx.execute('pre')
                     tret, xtime, err = qot.run(qemu_cmd, timeout, test_name,
-                                               ctx)
+                                               ctx, sdelay)
                     cret = ctx.finalize()
                     ctx.execute('post', tret)
                     if tret == 0 and cret != 0:
@@ -1118,14 +1122,15 @@ class QEMUExecuter:
 
     def _build_qemu_command(self, args: Namespace,
                             opts: Optional[List[str]] = None) \
-            -> Tuple[List[str], Tuple[str, int], Dict[str, Set[str]]]:
+            -> Tuple[List[str], Tuple[str, int], Dict[str, Set[str]], float]:
         """Build QEMU command line from argparser values.
 
            :param args: the parsed arguments
            :param opts: any QEMU-specific additional options
            :return: a tuple of a list of QEMU command line,
-                    the TCP device descriptor to connect to the QEMU VCP, and
-                    a dictionary of generated temporary files
+                    the TCP device descriptor to connect to the QEMU VCP,
+                    a dictionary of generated temporary files and the start
+                    delay
         """
         # pylint: disable=too-many-branches
         # pylint: disable=too-many-locals
@@ -1200,6 +1205,11 @@ class QEMUExecuter:
             if args.icount is not None:
                 qemu_args.extend(('-icount', f'{args.icount}'))
         mux = f'mux={"on" if args.muxserial else "off"}'
+        try:
+            start_delay = float(getattr(args, 'start_delay', 1.0))
+        except ValueError as exc:
+            raise ValueError(f'Invalid start up delay {args.start_delay}') \
+                from exc
         device = args.device
         devdesc = device.split(':')
         try:
@@ -1216,16 +1226,17 @@ class QEMUExecuter:
             raise ValueError('Invalid TCP serial device') from exc
         if opts:
             qemu_args.extend((str(o) for o in opts))
-        return qemu_args, tcpdev, temp_files
+        return qemu_args, tcpdev, temp_files, start_delay
 
     def _build_qemu_test_command(self, filename: str) -> \
-            Tuple[List[str], Namespace, int, Dict[str, Set[str]], QEMUContext]:
+            Tuple[List[str], Namespace, int, Dict[str, Set[str]], QEMUContext,
+                  float]:
         test_name = self.get_test_radix(filename)
         args, opts, timeout = self._build_test_args(test_name)
         setattr(args, 'exec', filename)
-        qemu_cmd, _, temp_files = self._build_qemu_command(args, opts)
+        qemu_cmd, _, temp_files, sdelay = self._build_qemu_command(args, opts)
         ctx = self._build_test_context(test_name)
-        return qemu_cmd, args, timeout, temp_files, ctx
+        return qemu_cmd, args, timeout, temp_files, ctx, sdelay
 
     def _build_test_list(self, alphasort: bool = True) -> List[str]:
         # pylint: disable=too-many-branches
@@ -1430,6 +1441,8 @@ def main():
                          default=None,
                          help='enable multiple virtual UARTs to be muxed into '
                               'same host output channel')
+        qvm.add_argument('-D', '--start-delay', type=float, metavar='DELAY',
+                         help='QEMU start up delay before initial comm')
         files = argparser.add_argument_group(title='Files')
         files.add_argument('-c', '--config', metavar='JSON',
                            type=FileType('rt', encoding='utf-8'),

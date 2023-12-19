@@ -6,7 +6,7 @@
 
 ````text
 usage: pyot.py [-h] [-q QEMU] [-Q OPTS] [-m MACHINE] [-p DEVICE] [-L LOG_FILE]
-               [-M LOG] [-t TRACE] [-i N] [-s] [-T SECS] [-U] [-c JSON]
+               [-M LOG] [-t TRACE] [-i N] [-s] [-T SECS] [-U] [-D] [-c JSON]
                [-w CSV] [-K] [-r ELF] [-O RAW] [-o VMEM] [-f RAW] [-x file]
                [-b file] [-R] [-k SECONDS] [-F TEST] [-v] [-d]
 
@@ -35,6 +35,8 @@ Virtual machine:
                         timeout factor
   -U, --muxserial       enable multiple virtual UARTs to be muxed into same
                         host output channel
+  -D DELAY, --start-delay DELAY
+                        QEMU start up delay before initial comm
 
 Files:
   -c JSON, --config JSON
@@ -118,6 +120,8 @@ This tool may be used in two ways, which can be combined:
   it can be greater to increase timeouts or lower than 1 to decrease timeouts.
 * `-U` / `--muxserial` enable muxing QEMU VCP. This option is required when several virtual UARTs
   are routed to the same host output channel.
+* `-D` / `--start-delay` VM start up delay. Grace period to wait for the VM to start up before
+  attempting to communicate with its char devices.
 
 ### File options:
 

@@ -1079,8 +1079,8 @@ static uint64_t ot_edn_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_RESEED_CMD:
     case R_GENERATE_CMD:
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "W/O register 0x%02" HWADDR_PRIx " (%s)\n", addr,
-                      REG_NAME(reg));
+                      "%s: W/O register 0x%02" HWADDR_PRIx " (%s)\n", __func__,
+                      addr, REG_NAME(reg));
         val32 = 0;
         break;
     default:
@@ -1243,8 +1243,8 @@ static void ot_edn_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     case R_ERR_CODE:
     case R_MAIN_SM_STATE:
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "R/O register 0x%02" HWADDR_PRIx " (%s)\n", addr,
-                      REG_NAME(reg));
+                      "%s: R/O register 0x%02" HWADDR_PRIx " (%s)\n", __func__,
+                      addr, REG_NAME(reg));
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x%" HWADDR_PRIx "\n",

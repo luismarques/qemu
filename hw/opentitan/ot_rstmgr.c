@@ -310,8 +310,8 @@ static uint64_t ot_rstmgr_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     case R_ALERT_TEST:
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "W/O register 0x02%" HWADDR_PRIx " (%s)\n", addr,
-                      REG_NAME(reg));
+                      "%s: W/O register 0x02%" HWADDR_PRIx " (%s)\n", __func__,
+                      addr, REG_NAME(reg));
         val32 = 0;
         break;
     default:
@@ -429,8 +429,8 @@ static void ot_rstmgr_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     case R_CPU_INFO:
     case R_ERR_CODE:
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "R/O register 0x02%" HWADDR_PRIx " (%s)\n", addr,
-                      REG_NAME(reg));
+                      "%s: R/O register 0x02%" HWADDR_PRIx " (%s)\n", __func__,
+                      addr, REG_NAME(reg));
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x%" HWADDR_PRIx "\n",

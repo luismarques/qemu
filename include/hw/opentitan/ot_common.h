@@ -43,6 +43,115 @@
 #define OT_MULTIBITBOOL16_TRUE  0x9696u
 #define OT_MULTIBITBOOL16_FALSE 0x6969u
 
+/*
+ * Performs a logical OR operation between two multibit values.
+ * This treats "act" as logical 1, and all other values are treated as 0.
+ * Truth table:
+ *
+ *  A    | B    | OUT
+ * ------+------+-----
+ *  !act | !act | !act
+ *  act  | !act | act
+ *  !act | act  | act
+ *  act  | act  | act
+ */
+static inline uint32_t
+ot_multibitbool_or(uint32_t a, uint32_t b, uint32_t act, uint32_t size)
+{
+    uint32_t mask = (1u << size) - 1u;
+    return (((a | b) & act) | ((a & b) & ~act)) & mask;
+}
+
+/*
+ * Performs a logical AND operation between two multibit values.
+ * This treats "act" as logical 1, and all other values are treated as 0.
+ * Truth table:
+ *
+ *  A    | B    | OUT
+ * ------+------+-----
+ *  !act | !act | !act
+ *  act  | !act | !act
+ *  !act | act  | !act
+ *  act  | act  | act
+ */
+static inline uint32_t
+ot_multibitbool_and(uint32_t a, uint32_t b, uint32_t act, uint32_t size)
+{
+    uint32_t mask = (1u << size) - 1u;
+    return (((a & b) & act) | ((a | b) & ~act)) & mask;
+}
+
+/*
+ * Performs a logical OR operation between two multibit values.
+ * This treats "True" as logical 1, and all other values are
+ * treated as 0.
+ */
+static inline uint32_t
+ot_multibitbool_or_hi(uint32_t a, uint32_t b, uint32_t size)
+{
+    return ot_multibitbool_or(a, b, OT_MULTIBITBOOL16_TRUE, size);
+}
+
+/*
+ * Performs a logical AND operation between two multibit values.
+ * This treats "True" as logical 1, and all other values are
+ * treated as 0.
+ */
+static inline uint32_t
+ot_multibitbool_and_hi(uint32_t a, uint32_t b, uint32_t size)
+{
+    return ot_multibitbool_and(a, b, OT_MULTIBITBOOL16_TRUE, size);
+}
+
+/*
+ * Performs a logical OR operation between two multibit values.
+ * This treats "False" as logical 1, and all other values are
+ * treated as 0.
+ */
+static inline uint32_t
+ot_multibitbool_or_lo(uint32_t a, uint32_t b, uint32_t size)
+{
+    return ot_multibitbool_or(a, b, OT_MULTIBITBOOL16_FALSE, size);
+}
+
+/*
+ * Performs a logical AND operation between two multibit values.
+ * This treats "False" as logical 1, and all other values are
+ * treated as 0.
+ */
+static inline uint32_t
+ot_multibitbool_and_lo(uint32_t a, uint32_t b, uint32_t size)
+{
+    return ot_multibitbool_and(a, b, OT_MULTIBITBOOL16_FALSE, size);
+}
+
+/*
+ * Computes the new multibit register value when writing to a W1S register field.
+ */
+static inline uint32_t
+ot_multibitbool_w1s_write(uint32_t old, uint32_t val, uint32_t size)
+{
+    return ot_multibitbool_or_hi(old, val, size);
+}
+
+/*
+ * Computes the new multibit register value when writing to a W1C register field.
+ */
+static inline uint32_t
+ot_multibitbool_w1c_write(uint32_t old, uint32_t val, uint32_t size)
+{
+    return ot_multibitbool_and_hi(old, ~val, size);
+}
+
+/*
+ * Computes the new multibit register value when writing to a W0C register field.
+ */
+static inline uint32_t
+ot_multibitbool_w0c_write(uint32_t old, uint32_t val, uint32_t size)
+{
+    return ot_multibitbool_and_hi(old, val, size);
+}
+
 /* ------------------------------------------------------------------------ */
 /* Extended memory transactions (MemTxAttrs can be tained with .role attr)  */
 /* ------------------------------------------------------------------------ */

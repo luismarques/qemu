@@ -293,6 +293,7 @@ static void ot_dev_proxy_enumerate_devices(OtDevProxyState *s)
         const OtDevProxyItem *item = &s->items[ix];
         const OtDevProxyCaps *caps = &item->caps;
         struct entry *entry = &entries[count];
+        memset(entry, 0, sizeof(*entry));
         if (object_dynamic_cast(item->obj, TYPE_OT_MBX)) {
             memcpy(&entry->desc[0u], item->prefix, 4u);
             const char *oid =

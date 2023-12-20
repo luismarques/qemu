@@ -1318,6 +1318,8 @@ static void ot_ibex_wrapper_dj_regs_write(void *opaque, hwaddr addr,
             }
             exit((int)val32);
         }
+        val32 &= R_SW_FATAL_ERR_VAL_MASK;
+        s->regs[reg] = ot_multibitbool_w1s_write(s->regs[reg], val32, 4u);
         break;
     case CASE_RANGE(R_IBUS_REGWEN_0, PARAM_NUM_REGIONS):
     case CASE_RANGE(R_DBUS_REGWEN_0, PARAM_NUM_REGIONS):

@@ -394,7 +394,7 @@ static void ot_mbx_host_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         break;
     case R_HOST_ADDRESS_RANGE_REGWEN:
         val32 &= R_HOST_ADDRESS_RANGE_REGWEN_EN_MASK;
-        hregs[reg] &= val32; /* RW0C */
+        hregs[reg] = ot_multibitbool_w0c_write(hregs[reg], val32, 4u);
         break;
     case R_HOST_ADDRESS_RANGE_VALID: {
         val32 &= R_HOST_ADDRESS_RANGE_VALID_VALID_MASK;

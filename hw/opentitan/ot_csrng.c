@@ -427,17 +427,16 @@ int ot_csrng_push_command(OtCSRNGState *s, unsigned app_id,
             /*
              * Very special hacky case:
              *
-             * Uninstanciation is requested before instanciation has been
+             * Uninstantiation is requested before instantiation has been
              * completed (instantiation command in still in the command queue).
              * Flush the command queue to discard the instantiation command,
              * which stays uncompleted on the client side, and resume (the
-             * uninstanciation request should complete this new command).
+             * uninstantiation request should complete this new command).
              *
              * It might be useful to implement a "cancel outstanding request"
              * API so that the EDN can tell CSRNG its last command needs to be
              * cancelled before completion - and remove this workaround.
              */
-            OtCSRNGState *s = inst->parent;
             QSIMPLEQ_REMOVE(&s->cmd_requests, inst, OtCSRNGInstance,
                             cmd_request);
 
@@ -921,7 +920,7 @@ static void ot_csrng_handle_enable(OtCSRNGState *s)
 
         /* reset all instances */
         for (unsigned ix = 0u; ix < OT_CSRNG_HW_APP_MAX + 1u; ix++) {
-            OtCSRNGInstance *inst = &s->instances[ix];
+            inst = &s->instances[ix];
             ot_csrng_drng_uninstantiate(inst);
             ot_fifo32_reset(&inst->cmd_fifo);
             if (ix == SW_INSTANCE_ID) {

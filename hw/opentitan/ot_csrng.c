@@ -1410,7 +1410,6 @@ static void ot_csrng_command_scheduler(void *opaque)
 
     if (!ot_csrng_instance_is_command_ready(inst)) {
         xtrace_ot_csrng_error("cannot execute an incomplete command");
-        uint32_t command = ot_fifo32_peek(&inst->cmd_fifo);
         uint32_t length = FIELD_EX32(command, OT_CSNRG_CMD, CLEN) + 1u;
         qemu_log_mask(LOG_GUEST_ERROR, "empty: %u, length %u, exp: %u\n",
                       ot_fifo32_is_empty(&inst->cmd_fifo),

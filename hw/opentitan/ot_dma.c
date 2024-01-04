@@ -618,6 +618,7 @@ static bool ot_dma_go(OtDMAState *s)
     case TRANSACTION_WIDTH_HALF:
     case TRANSACTION_WIDTH_WORD:
         break;
+    default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Invalid transaction width for hashing\n",
                       __func__, s->dma_id);

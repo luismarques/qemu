@@ -582,9 +582,8 @@ static MemTxResult ot_mbx_sys_regs_read_with_attrs(
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
     trace_ot_mbx_sys_io_read_out(s->mbx_id, (unsigned)addr, REG_NAME(SYS, reg),
-                                 (uint64_t)val32, pc);
+                                 (uint64_t)val32);
 
     *val64 = (uint64_t)val32;
 
@@ -604,9 +603,8 @@ static MemTxResult ot_mbx_sys_regs_write_with_attrs(
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
     trace_ot_mbx_sys_io_write(s->mbx_id, (unsigned)addr, REG_NAME(SYS, reg),
-                              val64, pc);
+                              val64);
 
     switch (reg) {
     case R_SYS_INTR_MSG_ADDR:

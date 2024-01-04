@@ -210,8 +210,8 @@ ot_mbx_host_io_read_out(const char * mid, unsigned int addr, const char * regnam
 ot_mbx_host_io_write(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
 ot_mbx_host_update_irq(int prev, int next) "%d -> %d"
 ot_mbx_status(const char *mbx_id, int line, bool abort, bool error, bool busy) "%s: [%d] abort:%u error:%u busy:%u"
-ot_mbx_sys_io_read_out(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_mbx_sys_io_write(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_mbx_sys_io_read_out(const char * mid, unsigned int addr, const char * regname, uint64_t val) "%s: addr=0x%02x (%s), val=0x%" PRIx64
+ot_mbx_sys_io_write(const char * mid, unsigned int addr, const char * regname, uint64_t val) "%s: addr=0x%02x (%s), val=0x%" PRIx64
 
 # ot_otbn.c
 

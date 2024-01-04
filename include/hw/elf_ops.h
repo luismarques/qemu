@@ -345,43 +345,43 @@ static ssize_t glue(load_elf, SZ)(const char *name, int fd,
     }
 
     switch (elf_machine) {
-    case EM_PPC64:
-        if (ehdr.e_machine != EM_PPC64) {
-            if (ehdr.e_machine != EM_PPC) {
+        case EM_PPC64:
+            if (ehdr.e_machine != EM_PPC64) {
+                if (ehdr.e_machine != EM_PPC) {
+                    ret = ELF_LOAD_WRONG_ARCH;
+                    goto fail;
+                }
+            }
+            break;
+        case EM_X86_64:
+            if (ehdr.e_machine != EM_X86_64) {
+                if (ehdr.e_machine != EM_386) {
+                    ret = ELF_LOAD_WRONG_ARCH;
+                    goto fail;
+                }
+            }
+            break;
+        case EM_MICROBLAZE:
+            if (ehdr.e_machine != EM_MICROBLAZE) {
+                if (ehdr.e_machine != EM_MICROBLAZE_OLD) {
+                    ret = ELF_LOAD_WRONG_ARCH;
+                    goto fail;
+                }
+            }
+            break;
+        case EM_MIPS:
+        case EM_NANOMIPS:
+            if ((ehdr.e_machine != EM_MIPS) &&
+                (ehdr.e_machine != EM_NANOMIPS)) {
                 ret = ELF_LOAD_WRONG_ARCH;
                 goto fail;
             }
-        }
-        break;
-    case EM_X86_64:
-        if (ehdr.e_machine != EM_X86_64) {
-            if (ehdr.e_machine != EM_386) {
+            break;
+        default:
+            if (elf_machine != ehdr.e_machine) {
                 ret = ELF_LOAD_WRONG_ARCH;
                 goto fail;
             }
-        }
-        break;
-    case EM_MICROBLAZE:
-        if (ehdr.e_machine != EM_MICROBLAZE) {
-            if (ehdr.e_machine != EM_MICROBLAZE_OLD) {
-                ret = ELF_LOAD_WRONG_ARCH;
-                goto fail;
-            }
-        }
-        break;
-    case EM_MIPS:
-    case EM_NANOMIPS:
-        if ((ehdr.e_machine != EM_MIPS) &&
-            (ehdr.e_machine != EM_NANOMIPS)) {
-            ret = ELF_LOAD_WRONG_ARCH;
-            goto fail;
-        }
-        break;
-    default:
-        if (elf_machine != ehdr.e_machine) {
-            ret = ELF_LOAD_WRONG_ARCH;
-            goto fail;
-        }
     }
 
     if (pflags) {
@@ -645,43 +645,43 @@ static int glue(load_elf_symbols, SZ)(const char *name, int fd, int must_swab,
     }
 
     switch (elf_machine) {
-    case EM_PPC64:
-        if (ehdr.e_machine != EM_PPC64) {
-            if (ehdr.e_machine != EM_PPC) {
+        case EM_PPC64:
+            if (ehdr.e_machine != EM_PPC64) {
+                if (ehdr.e_machine != EM_PPC) {
+                    ret = ELF_LOAD_WRONG_ARCH;
+                    goto fail;
+                }
+            }
+            break;
+        case EM_X86_64:
+            if (ehdr.e_machine != EM_X86_64) {
+                if (ehdr.e_machine != EM_386) {
+                    ret = ELF_LOAD_WRONG_ARCH;
+                    goto fail;
+                }
+            }
+            break;
+        case EM_MICROBLAZE:
+            if (ehdr.e_machine != EM_MICROBLAZE) {
+                if (ehdr.e_machine != EM_MICROBLAZE_OLD) {
+                    ret = ELF_LOAD_WRONG_ARCH;
+                    goto fail;
+                }
+            }
+            break;
+        case EM_MIPS:
+        case EM_NANOMIPS:
+            if ((ehdr.e_machine != EM_MIPS) &&
+                (ehdr.e_machine != EM_NANOMIPS)) {
                 ret = ELF_LOAD_WRONG_ARCH;
                 goto fail;
             }
-        }
-        break;
-    case EM_X86_64:
-        if (ehdr.e_machine != EM_X86_64) {
-            if (ehdr.e_machine != EM_386) {
+            break;
+        default:
+            if (elf_machine != ehdr.e_machine) {
                 ret = ELF_LOAD_WRONG_ARCH;
                 goto fail;
             }
-        }
-        break;
-    case EM_MICROBLAZE:
-        if (ehdr.e_machine != EM_MICROBLAZE) {
-            if (ehdr.e_machine != EM_MICROBLAZE_OLD) {
-                ret = ELF_LOAD_WRONG_ARCH;
-                goto fail;
-            }
-        }
-        break;
-    case EM_MIPS:
-    case EM_NANOMIPS:
-        if ((ehdr.e_machine != EM_MIPS) &&
-            (ehdr.e_machine != EM_NANOMIPS)) {
-            ret = ELF_LOAD_WRONG_ARCH;
-            goto fail;
-        }
-        break;
-    default:
-        if (elf_machine != ehdr.e_machine) {
-            ret = ELF_LOAD_WRONG_ARCH;
-            goto fail;
-        }
     }
 
     glue(load_symbols, SZ)(&ehdr, fd, must_swab, clear_lsb, NULL);

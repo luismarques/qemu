@@ -3,34 +3,16 @@
 """Verify register definitions.
 """
 
-# Copyright (c) 2023 Rivos, Inc.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+# Copyright (c) 2023-2024 Rivos, Inc.
+# SPDX-License-Identifier: Apache2
 
 from argparse import ArgumentParser, FileType
 from logging import DEBUG, ERROR, getLogger, Formatter, StreamHandler
-from os import pardir, walk
-from os.path import basename, dirname, join as joinpath, relpath, splitext
+from os.path import basename, splitext
 from re import compile as re_compile, sub as re_sub
 from sys import exit as sysexit, modules, stderr
 from traceback import format_exc
-from typing import Dict, Optional, TextIO, Tuple
+from typing import Dict, TextIO, Tuple
 
 
 REG_CRE = re_compile(r'^#define ([A-Z][\w]+)_REG_(OFFSET|RESVAL)\s+'
@@ -74,7 +56,8 @@ def check(lfp: TextIO, comp: str, defs: RegisterDefs):
         if not line.startswith(prefix):
             continue
         parts = line[len(prefix):].split(' ', 1)
-        items = dict(tuple(x.strip().split('=', 1)) for x in parts[1].split(','))
+        items = dict(tuple(x.strip().split('=', 1))
+                     for x in parts[1].split(','))
         vals = {k: int(v, 16) for k, v in items.items()}
         addr = vals['addr']
         val = vals['val']
@@ -96,9 +79,8 @@ def check(lfp: TextIO, comp: str, defs: RegisterDefs):
 
 def main():
     """Main routine"""
-    #pylint: disable-msg=too-many-locals
+    # pylint: disable-msg=too-many-locals
     debug = False
-    qemu_default_dir = dirname(dirname(dirname(__file__)))
     try:
         desc = modules[__name__].__doc__.split('.', 1)[0].strip()
         argparser = ArgumentParser(description=f'{desc}.')
@@ -108,7 +90,7 @@ def main():
         argparser.add_argument('-c', '--component', metavar='name',
                                required=True,
                                help='name of the OT component in log file')
-        argparser.add_argument('-r', '--reg',metavar='file',
+        argparser.add_argument('-r', '--reg', metavar='file',
                                type=FileType('rt'),
                                help='register header file')
         argparser.add_argument('-v', '--verbose', action='count',
@@ -131,7 +113,7 @@ def main():
         defs = parse_defs(args.reg) if args.reg else {}
         check(args.log[0], args.component, defs)
 
-    #pylint: disable-msg=broad-except
+    # pylint: disable-msg=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

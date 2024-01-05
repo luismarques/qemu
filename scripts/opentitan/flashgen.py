@@ -3,25 +3,8 @@
 """Create/update an OpenTitan backend flash file.
 """
 
-# Copyright (c) 2023 Rivos, Inc.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+# Copyright (c) 2023-2024 Rivos, Inc.
+# SPDX-License-Identifier: Apache2
 
 from argparse import ArgumentParser, FileType
 from binascii import hexlify
@@ -50,7 +33,7 @@ except ImportError:
     ELFError = BaseException
     ELFFile = None
 
-#pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring
 
 
 class BootLocation(NamedTuple):
@@ -254,6 +237,8 @@ class FlashGen:
        :accept_invalid: accept invalid input files (fully ignore content)
     """
 
+    # pylint: disable=too-many-instance-attributes
+
     NUM_BANKS = 2
     PAGES_PER_BANK = 256
     NUM_REGIONS = 8
@@ -271,18 +256,18 @@ class FlashGen:
         'bank': 'B',  # count of bank
         'info': 'B',  # count of info partitions per bank
         'page': 'H',  # count of pages per bank
-        'psize': 'I', # page size in bytes
-        'ipp': '12s', # count of pages for each info partition (up to 12 parts)
+        'psize': 'I',  # page size in bytes
+        'ipp': '12s',  # count of pages for each info partition (up to 12 parts)
     }
 
     BOOT_HEADER_FORMAT = {
         'sha': '32s',  # SHA-256 digest of boot data
         'valid': 'Q',  # Invalidate a previously entry
-        'identifier': 'I', # Boot data identifier (i.e. magic)
+        'identifier': 'I',  # Boot data identifier (i.e. magic)
         'counter': 'I',  # used to determine the newest entry
         'min_ver_rom_ext': 'I',  # Minimum required security version for ROM_EXT
-        'min_ver_bl0': 'I', # Minimum required security version for BL0
-        'padding': 'Q', # Padding to make the size of header a power of 2
+        'min_ver_bl0': 'I',  # Minimum required security version for BL0
+        'padding': 'Q',  # Padding to make the size of header a power of 2
     }
 
     MANIFEST_FORMAT = {
@@ -323,7 +308,7 @@ class FlashGen:
     MANIFEST_VERSION_MAJOR1 = 0x71c3
     MANIFEST_EXT_TABLE_COUNT = 15
 
-    MANIFEST_TRUE =  0x739  # 'true' value for address_translation field
+    MANIFEST_TRUE = 0x739  # 'true' value for address_translation field
     MANIFEST_FALSE = 0x1d4  # 'false' value for address_translation field
 
     IDENTIFIERS = {
@@ -333,15 +318,15 @@ class FlashGen:
     }
 
     DEBUG_TRAILER_FORMAT = {
-        'otre0': '256s', # optional path to the rom_ext filename in bank A
-        'otb00': '256s', # optional path to the bl0 filename in bank A
-        'otre1': '256s', # optional path to the rom_ext filename in bank B
-        'otb01': '256s', # optional path to the bl0 filename in bank B
+        'otre0': '256s',  # optional path to the rom_ext filename in bank A
+        'otb00': '256s',  # optional path to the bl0 filename in bank A
+        'otre1': '256s',  # optional path to the rom_ext filename in bank B
+        'otb01': '256s',  # optional path to the bl0 filename in bank B
     }
 
     BOOT_IDENTIFIER = 0x41444f42
     BOOT_INVALID = 0
-    BOOT_VALID = (1<<64) - 1
+    BOOT_VALID = (1 << 64) - 1
     BOOT_BANK = 1
     BOOT_PARTS = 2
 
@@ -366,7 +351,7 @@ class FlashGen:
         tfmt = ''.join(self.DEBUG_TRAILER_FORMAT.values())
         trailer_size = scalc(tfmt)
         self._image_size = ((self.BYTES_PER_BANK + self.info_part_size()) *
-            self.NUM_BANKS + self._header_size + trailer_size)
+                            self.NUM_BANKS + self._header_size + trailer_size)
         self._ffp: Optional[BinaryIO] = None
 
     def open(self, path: str) -> None:
@@ -374,7 +359,7 @@ class FlashGen:
         """
         mode = 'r+b' if exists(path) else 'w+b'
         # cannot use a context manager here
-        #pylint: disable=consider-using-with
+        # pylint: disable=consider-using-with
         self._ffp = open(path, mode)
         self._ffp.seek(0, SEEK_END)
         vsize = self._ffp.tell()
@@ -421,7 +406,8 @@ class FlashGen:
                 bdata = self.read_info_partition(boot_bank, base+offset, size)
                 if len(bdata) != size:
                     raise ValueError(f'Cannot read header: {len(bdata)} '
-                        f'bytes @ page {page} offset {base+offset}')
+                                     f'bytes @ page {page} offset '
+                                     f'{base+offset}')
                 values = sunpack(f'<{fmt}', bdata)
                 boot = dict(zip(self.BOOT_HEADER_FORMAT, values))
                 if boot['identifier'] != self.BOOT_IDENTIFIER:
@@ -443,9 +429,9 @@ class FlashGen:
 
     def store_rom_ext(self, bank: int, dfp: BinaryIO,
                       elfpath: Optional[str] = None) -> None:
-        #pylint: disable=too-many-locals
-        #pylint: disable=too-many-branches
-        #pylint: disable=too-many-statements
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         if not 0 <= bank < self.NUM_BANKS:
             raise ValueError(f'Invalid bank {bank}')
         data = dfp.read()
@@ -526,8 +512,8 @@ class FlashGen:
 
     def store_bootloader(self, bank: int, dfp: BinaryIO,
                          elfpath: Optional[str] = None) -> None:
-        #pylint: disable=too-many-branches
-        #pylint: disable=too-many-locals
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-locals
         if self._bl_offset == 0:
             raise ValueError('Bootloader cannot be used')
         if not 0 <= bank < self.NUM_BANKS:
@@ -650,7 +636,7 @@ class FlashGen:
                 loc.seq * self._boot_header_size)
 
     def _build_field(self, fmtdict: Dict[str, Any], field: str, value: Any) \
-            -> Tuple [int, bytes]:
+            -> Tuple[int, bytes]:
         offset = 0
         for name, fmt in fmtdict.items():
             if name == field:
@@ -681,7 +667,7 @@ class FlashGen:
         fmts = list(self.BOOT_HEADER_FORMAT.values())
         sha_fmt, pld_fmt = fmts[0], ''.join(fmts[1:])
         payload = spack(f'<{pld_fmt}', self.BOOT_VALID, self.BOOT_IDENTIFIER,
-            counter, min_sec_ver_rom_ext, min_sec_ver_bl0, padding)
+                        counter, min_sec_ver_rom_ext, min_sec_ver_bl0, padding)
         sha = spack(sha_fmt, sha256(payload).digest())
         header = b''.join((sha, payload))
         return header
@@ -728,7 +714,7 @@ class FlashGen:
             elif lfnp > lfmt:
                 self._log.warning('ELF pathname too long to store')
                 return
-            fnp = spack(fmt, fnp) # useless, used as sanity check
+            fnp = spack(fmt, fnp)  # useless, used as sanity check
             self._write(trailer_offset, fnp)
             break
         else:
@@ -746,7 +732,7 @@ class FlashGen:
 
     def _check_bootloader(self, data: bytes) -> Optional[RuntimeDescriptor]:
         assert self._bl_offset
-        max_size =  self.BYTES_PER_BANK - self._bl_offset
+        max_size = self.BYTES_PER_BANK - self._bl_offset
         try:
             return self._check_manifest(data, 'bl0', max_size)
         except ValueError:
@@ -771,8 +757,8 @@ class FlashGen:
                 self.MANIFEST_VERSION_MINOR1):
             raise ValueError('Unsupported manifest version')
         self._log.info('%s code start 0x%05x, end 0x%05x, exec 0x%05x',
-            kind, manifest['code_start'], manifest['code_end'],
-            manifest['entry_point'])
+                       kind, manifest['code_start'], manifest['code_end'],
+                       manifest['entry_point'])
         if manifest['identifier'] != self.IDENTIFIERS[kind]:
             if manifest['identifier'] != self.IDENTIFIERS[None]:
                 manifest_str = hexlify(manifest["identifier"]).decode().upper()
@@ -793,7 +779,7 @@ class FlashGen:
                 self._log.debug('%s: 0x%08x', item, value)
             elif isinstance(value, bytes):
                 self._log.debug('%s: (%d) %s', item, len(value),
-                               hexlify(value).decode())
+                                hexlify(value).decode())
             else:
                 self._log.debug('%s: (%d) %s', item, len(value), value)
 
@@ -804,9 +790,9 @@ def hexint(val: str) -> int:
 
 def main():
     """Main routine"""
-    #pylint: disable=too-many-statements
-    #pylint: disable=too-many-locals
-    #pylint: disable=too-many-branches
+    # pylint: disable=too-many-statements
+    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-branches
     debug = True
     banks = list(range(FlashGen.NUM_BANKS))
     try:
@@ -828,10 +814,10 @@ def main():
         files.add_argument('-x', '--exec', type=FileType('rb'), metavar='file',
                            help='rom extension or application')
         files.add_argument('-X', '--exec-elf', metavar='elf',
-                           help='ELF file for rom extension or application, for'
-                                ' symbol tracking (default: auto)')
+                           help='ELF file for rom extension or application, '
+                                'for symbol tracking (default: auto)')
         files.add_argument('-b', '--boot', type=FileType('rb'),
-                          metavar='file', help='bootloader 0 file')
+                           metavar='file', help='bootloader 0 file')
         files.add_argument('-B', '--boot-elf', metavar='elf',
                            help='ELF file for bootloader, for symbol tracking'
                                 ' (default: auto)')
@@ -868,8 +854,8 @@ def main():
         if args.otdesc and any(filter(None, (args.bank,
                                              args.boot, args.boot_elf,
                                              args.exec, args.exec_elf))):
-            argparser.error('OT file descriptor mode is mutually exclusive with'
-                            'boot and exec options')
+            argparser.error('OT file descriptor mode is mutually exclusive '
+                            'with boot and exec options')
         if args.boot_elf:
             if not args.boot:
                 argparser.error('Bootloader ELF option requires bootloader '
@@ -901,7 +887,7 @@ def main():
                 print('Restoring previous file after error', file=stderr)
                 rename(backup_filename, flash_pathname)
 
-    #pylint: disable=broad-except
+    # pylint: disable=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

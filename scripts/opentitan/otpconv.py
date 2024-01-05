@@ -3,25 +3,8 @@
 """Convert a VMEM OTP file into a RAW file.
 """
 
-# Copyright (c) 2023 Rivos, Inc.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+# Copyright (c) 2023-2024 Rivos, Inc.
+# SPDX-License-Identifier: Apache2
 
 from argparse import ArgumentParser, FileType
 from binascii import hexlify, unhexlify
@@ -30,14 +13,14 @@ from logging import DEBUG, ERROR, getLogger, Formatter, StreamHandler
 from os.path import basename, splitext
 from re import match as re_match, sub as re_sub
 from struct import calcsize as scalc, pack as spack
-from sys import exit as sysexit, modules, stderr, stdin, version_info
+from sys import exit as sysexit, modules, stderr, version_info
 from textwrap import fill
 from traceback import format_exc
 from typing import BinaryIO, Callable, Dict, List, Optional, Set, TextIO, Tuple
 
-#pylint: disable-msg=too-many-locals
-#pylint: disable-msg=too-many-branches
-#pylint: disable-msg=too-many-instance-attributes
+# pylint: disable-msg=too-many-locals
+# pylint: disable-msg=too-many-branches
+# pylint: disable-msg=too-many-instance-attributes
 
 
 class OtpConverter:
@@ -46,12 +29,12 @@ class OtpConverter:
 
     HEADER_FORMAT = {
         'magic': '4s',  # "vOTP"
-        'hlength': 'I', # count of header bytes after this point
-        'version': 'I', # version of the header
-        'eccbits': 'H', # count of ECC bits for each ECC granule
-        'eccgran': 'H', # size in bytes of ECC granule
-        'dlength': 'I', # count of data bytes (padded to 64-bit entries)
-        'elength': 'I', # count of ecc bytes (padded to 64-bit entries)
+        'hlength': 'I',  # count of header bytes after this point
+        'version': 'I',  # version of the header
+        'eccbits': 'H',  # count of ECC bits for each ECC granule
+        'eccgran': 'H',  # size in bytes of ECC granule
+        'dlength': 'I',  # count of data bytes (padded to 64-bit entries)
+        'elength': 'I',  # count of ecc bytes (padded to 64-bit entries)
     }
 
     RE_LOC = r'(?i)^@((?:[0-9a-f]{2})+)\s((?:[0-9a-f]{2})+)$'
@@ -102,7 +85,7 @@ class OtpConverter:
 
            :param vfp: input VMEM stream
         """
-        #pylint: disable-msg=too-many-locals
+        # pylint: disable-msg=too-many-locals
         data_buf: List[bytes] = []
         ecc_buf: List[bytes] = []
         last_addr = 0
@@ -130,7 +113,7 @@ class OtpConverter:
             ecc_buf.append(ecc)
             dlen = len(data)
             granule_sizes.add(dlen)
-            last_addr = addr+dlen # ECC is not accounted for in address
+            last_addr = addr+dlen  # ECC is not accounted for in address
         self._data = b''.join(data_buf)
         self._ecc = b''.join(ecc_buf)
         if granule_sizes:
@@ -146,6 +129,8 @@ class OtpConverter:
         """
         # consider that low address represents LSB, i.e. little endian
         # encoding
+
+        # pylint: disable=too-many-statements
         radix = splitext(basename(hfp.name))[0]
         radix = radix.rsplit('_', 1)[0]
         radix_re = f'^{radix.upper()}_(?:PARAM_)?'
@@ -165,14 +150,13 @@ class OtpConverter:
             sval = rmo.group(3)
             name = re_sub(radix_re, '', sname)
             val = int(sval, 16 if sval.startswith('0x') else 10)
-            #self._log.debug("%s: 0x%x", sname, sval)
             if skind == 'offset':
                 if name in defs:
                     self._log.error('Redefinition of %s: %x -> %x', name,
                                     defs[name][0], val)
                 defs[name] = (val, 0)
             elif skind == 'size':
-                if not name in defs:
+                if name not in defs:
                     self._log.info('Size w/o address of %s', name)
                     continue
                 addr = defs[name][0]
@@ -199,7 +183,7 @@ class OtpConverter:
                 ival = int.from_bytes(value, 'little')
                 if size == 4 and ival in self.HARDENED_BOOLEANS:
                     emit('%-46s (decoded) %s',
-                                   name, str(self.HARDENED_BOOLEANS[ival]))
+                         name, str(self.HARDENED_BOOLEANS[ival]))
                 else:
                     emit('%-46s %x', name, ival)
         self._regs = defs
@@ -281,7 +265,7 @@ class OtpConverter:
 
            :param filename: output RAW file
         """
-        #pylint: disable-msg=unspecified-encoding
+        # pylint: disable-msg=unspecified-encoding
         with open(filename, 'wt') as cfp:
             print(f'/* Section auto-generated with {basename(__file__)} '
                   f'script */', file=cfp)
@@ -299,10 +283,12 @@ class OtpConverter:
                         print(f'    {slot},', file=enum_io)
                     else:
                         slot = f'{ref}u'
-                    seqstr = ', '.join((f'0x{b:02x}u' for b in reversed(unhexlify(seq))))
+                    seqstr = ', '.join((f'0x{b:02x}u' for b in
+                                        reversed(unhexlify(seq))))
                     defstr = fill(seqstr, width=80, initial_indent=pad,
                                   subsequent_indent=pad)
-                    print(f'    [{slot}] = {{\n{defstr}\n    }},', file=array_io)
+                    print(f'    [{slot}] = {{\n{defstr}\n    }},',
+                          file=array_io)
                 print('};', file=array_io)
                 for extra in self.EXTRA_SLOTS.get(kind.lower(), {}):
                     slot = f'{kind}_{extra}'.upper()

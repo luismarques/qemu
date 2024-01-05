@@ -3,25 +3,8 @@
 """Verify register definitions.
 """
 
-# Copyright (c) 2023 Rivos, Inc.
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+# Copyright (c) 2023-2024 Rivos, Inc.
+# SPDX-License-Identifier: Apache2
 
 from argparse import ArgumentParser
 from logging import DEBUG, ERROR, getLogger, Formatter, StreamHandler
@@ -43,8 +26,8 @@ class ValueLocation(NamedTuple):
 RegisterDefs = Dict[str, Tuple[int, ValueLocation]]
 """Definition of a register value (name, value, location)."""
 
-#pylint: disable-msg=unspecified-encoding
-#pylint: disable-msg=missing-function-docstring
+# pylint: disable-msg=unspecified-encoding
+# pylint: disable-msg=missing-function-docstring
 
 
 class OtRegisters:
@@ -90,7 +73,7 @@ class OtRegisters:
             self._log.debug("%s: 0x%x", regname, regaddr)
             if regname in defs:
                 self._log.error('Redefinition of %s: %x -> %x', regname,
-                               defs[regname][0], regaddr)
+                                defs[regname][0], regaddr)
             defs[regname] = (regaddr, ValueLocation(lno, vstart, vend))
         return defs
 
@@ -130,7 +113,7 @@ class OtRegisters:
             self._log.debug("%s: 0x%x", regname, regaddr)
             if regname in defs:
                 self._log.error('Redefinition of %s: %x -> %x', regname,
-                               defs[regname][0], regaddr)
+                                defs[regname][0], regaddr)
             defs[regname] = (regaddr, ValueLocation(lno, vstart, vend))
         return defs
 
@@ -219,9 +202,11 @@ class OtRegisters:
                         print(f'REG32({name}, 0x{val:x}u)', file=ofp)
                     print('#endf // !USE_DECIMAL_VALUES', file=ofp)
 
+
 def main():
     """Main routine"""
-    #pylint: disable-msg=too-many-locals
+    # pylint: disable-msg=too-many-locals
+    # pylint: disable-msg=too-many-statements
     debug = False
     qemu_default_dir = dirname(dirname(dirname(__file__)))
     try:
@@ -286,7 +271,7 @@ def main():
             sysexit(1)
         print('No differences', file=stderr)
 
-    #pylint: disable-msg=broad-except
+    # pylint: disable-msg=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

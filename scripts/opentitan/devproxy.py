@@ -1,8 +1,8 @@
 """Device proxy for OpenTitan devices and peripherals
 """
 
-# Copyright (c) 2023, Rivos, Inc.
-# All rights reserved.
+# Copyright (c) 2023-2024 Rivos, Inc.
+# SPDX-License-Identifier: Apache2
 
 from binascii import hexlify, unhexlify
 from collections import deque

@@ -3,7 +3,7 @@
 """QEMU GDB replay.
 """
 
-# Copyright (c) 2023 Rivos, Inc.
+# Copyright (c) 2023-2024 Rivos, Inc.
 # SPDX-License-Identifier: Apache2
 
 from argparse import ArgumentParser, FileType, Namespace

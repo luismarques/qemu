@@ -632,18 +632,6 @@ static bool ot_dma_go(OtDMAState *s)
         ot_dma_set_xerror(s, ERR_BUS);
     }
 
-    if (!FIELD_EX32(s->regs[R_CONTROL], CONTROL, MEM_BUF_AUTO_INC_EN)) {
-        qemu_log_mask(LOG_UNIMP, "%s: %s: MEM no inc mode is not supported\n",
-                      __func__, s->dma_id);
-        ot_dma_set_xerror(s, ERR_BUS);
-    }
-
-    if (FIELD_EX32(s->regs[R_CONTROL], CONTROL, FIFO_AUTO_INC_EN)) {
-        qemu_log_mask(LOG_UNIMP, "%s: %s: FIFO inc mode is not supported\n",
-                      __func__, s->dma_id);
-        ot_dma_set_xerror(s, ERR_BUS);
-    }
-
     if (s->regs[R_TOTAL_DATA_SIZE] == 0) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Invalid total size\n", __func__,
                       s->dma_id);

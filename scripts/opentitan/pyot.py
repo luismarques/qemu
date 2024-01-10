@@ -1383,7 +1383,9 @@ class QEMUExecuter:
                     if not isinstance(cmd, str):
                         raise ValueError(f'Invalid command #{pos} in '
                                          f'"{ctx_name}" for test {test_name}')
-                    cmd = self._qfm.interpolate(cmd.strip())
+                    cmd = re_sub(r'[\n\r]', ' ', cmd.strip())
+                    cmd = re_sub(r'\s{2,}', ' ', cmd)
+                    cmd = self._qfm.interpolate(cmd)
                     cmd = self._qfm.interpolate_dirs(cmd, test_name)
                     context[ctx_name].append(cmd)
             env = test_cfg.get('env')

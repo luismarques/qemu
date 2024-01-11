@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan DMA device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -409,7 +409,7 @@ static void ot_dma_change_state_line(OtDMAState *s, OtDMASM state, int line)
 static void ot_dma_update_irqs(OtDMAState *s)
 {
     uint32_t level = s->regs[R_INTR_STATE] & s->regs[R_INTR_ENABLE];
-    trace_ot_csrng_irqs(s->regs[R_INTR_STATE], s->regs[R_INTR_ENABLE], level);
+    trace_ot_dma_irqs(s->regs[R_INTR_STATE], s->regs[R_INTR_ENABLE], level);
     for (unsigned ix = 0; ix < PARAM_NUM_IRQS; ix++) {
         ibex_irq_set(&s->irqs[ix], (int)((level >> ix) & 0x1u));
     }
@@ -1019,6 +1019,8 @@ static void ot_dma_transfer(void *opaque)
                 return;
             }
         }
+
+        /* when DMA is over or in error, ot_dma_complete handles it */
     }
 
     ot_dma_complete(s);

@@ -640,6 +640,7 @@ static void hmp_info_ibex(Monitor *mon, const QDict *qdict)
     CPU_FOREACH(cpu) {
         vaddr pc;
         const char *symbol;
+        const char *cpu_state;
         if (cpu->cc->get_pc) {
             pc = cpu->cc->get_pc(cpu);
             symbol = lookup_symbol(pc);
@@ -647,8 +648,17 @@ static void hmp_info_ibex(Monitor *mon, const QDict *qdict)
             pc = -1;
             symbol = "?";
         }
-        monitor_printf(mon, "* CPU #%d: 0x%" PRIx64 " in '%s'\n",
-                       cpu->cpu_index, (uint64_t)pc, symbol);
+        if (cpu->halted && cpu->held_in_reset) {
+            cpu_state = " [HR]";
+        } else if (cpu->halted) {
+            cpu_state = " [H]";
+        } else if (cpu->held_in_reset) {
+            cpu_state = " [R]";
+        } else {
+            cpu_state = "";
+        }
+        monitor_printf(mon, "* CPU #%d%s: 0x%" PRIx64 " in '%s'\n",
+                       cpu->cpu_index, cpu_state, (uint64_t)pc, symbol);
     }
 }
 

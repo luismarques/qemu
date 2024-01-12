@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Reset Manager device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -210,6 +210,7 @@ void ot_rstmgr_reset_req(OtRstMgrState *s, bool fastclk, OtRstMgrResetReq req)
 
     /*
      * Reset all devices connected to RSTMGR parent bus, i.e. OpenTitan devices
+     * TODO: manage reset tree (depending on power domains, etc.)
      */
     bus_cold_reset(s->parent_obj.parent_obj.parent_bus);
 }
@@ -457,10 +458,10 @@ static void ot_rstmgr_reset(DeviceState *dev)
 {
     OtRstMgrState *s = OT_RSTMGR(dev);
 
-    s->regs[R_RESET_REQ] = 0x9u;
+    s->regs[R_RESET_REQ] = OT_MULTIBITBOOL4_FALSE;
     if (s->por) {
         memset(s->regs, 0, REGS_SIZE);
-        s->regs[R_RESET_INFO] = 0x1u;
+        s->regs[R_RESET_INFO] = R_RESET_INFO_POR_MASK;
         s->por = false;
     } else {
         /* TODO: need to check which registers are actually reset when !PoR */

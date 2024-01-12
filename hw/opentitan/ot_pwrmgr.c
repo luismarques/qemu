@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Power Manager device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -326,12 +326,13 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
 
     trace_ot_pwrmgr_sw_rst_req(src, (bool)level);
 
-    uint32_t rstmask = 1u << (NUM_SW_RST_REQ + src);
+    uint32_t rstbit = 1u << (NUM_SW_RST_REQ + src);
 
     if (level) {
-        if (!(s->regs[R_RESET_EN] & rstmask)) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s: SW reset %u not enabled\n",
-                          __func__, src);
+        if (!(s->regs[R_RESET_EN] & rstbit)) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: SW reset #%u not enabled 0x%08x 0x%08x\n",
+                          __func__, src, s->regs[R_RESET_EN], rstbit);
             return;
         }
 
@@ -340,7 +341,7 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
             return;
         }
 
-        s->regs[R_RESET_STATUS] |= rstmask;
+        s->regs[R_RESET_STATUS] |= rstbit;
 
         /*
          * for now, there is no FSM in PWRMGR implementation.
@@ -351,7 +352,7 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
         qemu_bh_schedule(s->reset_bh);
         trace_ot_pwrmgr_reset_req("scheduling SW reset", 0);
     } else {
-        s->regs[R_RESET_STATUS] &= ~rstmask;
+        s->regs[R_RESET_STATUS] &= ~rstbit;
     }
 }
 

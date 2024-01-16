@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan One Time Programmable (OTP) memory controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -41,6 +41,7 @@ OBJECT_DECLARE_TYPE(OtOTPState, OtOTPStateClass, OT_OTP)
 typedef struct {
     uint32_t device_id[8u];
     uint32_t manuf_state[8u];
+    uint32_t soc_dbg_state; /* meaningless for Earlgrey platforms */
     /* the following value is stored as OT_MULTIBITBOOL8 */
     uint8_t en_sram_ifetch;
 } OtOTPHWCfg;

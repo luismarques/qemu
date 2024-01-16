@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan EarlGrey One Time Programmable (OTP) memory controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -1231,6 +1231,7 @@ static void ot_otp_eg_load_hw_cfg(OtOTPEgState *s)
     memcpy(hw_cfg->manuf_state, &otp->data[R_MANUF_STATE],
            sizeof(*hw_cfg->manuf_state));
     uint32_t cfg = otp->data[R_HW_CFG_ENABLE];
+    hw_cfg->soc_dbg_state = 0;
     hw_cfg->en_sram_ifetch =
         (uint8_t)FIELD_EX32(cfg, HW_CFG_ENABLE, EN_SRAM_IFETCH);
 

@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Darjeeling One Time Programmable (OTP) memory controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -1968,6 +1968,7 @@ static void ot_otp_dj_load_hw_cfg(OtOTPDjState *s)
            sizeof(*hw_cfg->manuf_state));
 
     hw_cfg->en_sram_ifetch = (bool)otp->data[R_EN_SRAM_IFETCH];
+    hw_cfg->soc_dbg_state = otp->data[R_SOC_DBG_STATE];
 }
 
 static void ot_otp_dj_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,

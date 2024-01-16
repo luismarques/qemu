@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Board Compatible with OpenTitan EarlGrey FPGA platform
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -406,7 +406,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 1u)
+            IBEX_DEV_UINT_PROP("edn-ep", 1u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_LC_CTRL] = {
@@ -416,7 +416,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
-        )
+        ),
     },
     [OT_EARLGREY_SOC_DEV_ALERT_HANDLER] = {
         .type = TYPE_OT_ALERT_EARLGREY,
@@ -433,7 +433,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 4u)
+            IBEX_DEV_UINT_PROP("edn-ep", 4u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_SPI_HOST0] = {
@@ -575,7 +575,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("size", 0x1000u)
+            IBEX_DEV_UINT_PROP("size", 0x1000u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_FLASH_CTRL] = {
@@ -607,7 +607,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 5u)
+            IBEX_DEV_UINT_PROP("edn-ep", 5u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_HMAC] = {
@@ -636,8 +636,8 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 3u),
-            IBEX_DEV_INT_PROP("num-app", 3u)
+            IBEX_DEV_UINT_PROP("edn-ep", 3u),
+            IBEX_DEV_UINT_PROP("num-app", 3u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_OTBN] = {
@@ -654,8 +654,8 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("edn-r", EDN1)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-u-ep", 6u),
-            IBEX_DEV_INT_PROP("edn-r-ep", 0u)
+            IBEX_DEV_UINT_PROP("edn-u-ep", 6u),
+            IBEX_DEV_UINT_PROP("edn-r-ep", 0u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_KEYMGR] = {
@@ -712,7 +712,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("csrng", CSRNG)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("csrng-app", 0u)
+            IBEX_DEV_UINT_PROP("csrng-app", 0u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_EDN1] = {
@@ -729,7 +729,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("csrng", CSRNG)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("csrng-app", 1u)
+            IBEX_DEV_UINT_PROP("csrng-app", 1u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_SRAM_MAIN_CTRL] = {
@@ -743,7 +743,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("size", 0x20000u)
+            IBEX_DEV_UINT_PROP("size", 0x20000u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_ROM_CTRL] = {
@@ -764,8 +764,8 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_STRING_PROP("rom_id", "rom"),
-            IBEX_DEV_INT_PROP("size", 0x8000u),
-            IBEX_DEV_INT_PROP("kmac-app", 2u)
+            IBEX_DEV_UINT_PROP("size", 0x8000u),
+            IBEX_DEV_UINT_PROP("kmac-app", 2u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_IBEX_WRAPPER] = {
@@ -777,7 +777,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 7u)
+            IBEX_DEV_UINT_PROP("edn-ep", 7u)
         ),
     },
     [OT_EARLGREY_SOC_DEV_RV_DM] = {

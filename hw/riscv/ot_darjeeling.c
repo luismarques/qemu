@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Board Compatible with OpenTitan "integrated" Darjeeling platform
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -281,7 +281,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 5u)
+            IBEX_DEV_UINT_PROP("edn-ep", 5u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_HMAC] = {
@@ -310,8 +310,8 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 3u),
-            IBEX_DEV_INT_PROP("num-app", 4u)
+            IBEX_DEV_UINT_PROP("edn-ep", 3u),
+            IBEX_DEV_UINT_PROP("num-app", 4u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_OTBN] = {
@@ -328,8 +328,8 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("edn-r", EDN1)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-u-ep", 6u),
-            IBEX_DEV_INT_PROP("edn-r-ep", 0u)
+            IBEX_DEV_UINT_PROP("edn-u-ep", 6u),
+            IBEX_DEV_UINT_PROP("edn-r-ep", 0u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_KEYMGR_DPE] = {
@@ -370,7 +370,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("csrng", CSRNG)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("csrng-app", 0u)
+            IBEX_DEV_UINT_PROP("csrng-app", 0)
         ),
     },
     [OT_DARJEELING_SOC_DEV_EDN1] = {
@@ -387,7 +387,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("csrng", CSRNG)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("csrng-app", 1u)
+            IBEX_DEV_UINT_PROP("csrng-app", 1u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_SRAM_MAIN] = {
@@ -401,7 +401,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("size", 0x40000u),
+            IBEX_DEV_UINT_PROP("size", 0x40000u),
             IBEX_DEV_STRING_PROP("id", "ram")
         ),
     },
@@ -416,7 +416,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("size", 0x1000u),
+            IBEX_DEV_UINT_PROP("size", 0x1000u),
             IBEX_DEV_STRING_PROP("id", "mbx")
         ),
     },
@@ -438,8 +438,8 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_STRING_PROP("rom_id", "rom0"),
-            IBEX_DEV_INT_PROP("size", 0x8000u),
-            IBEX_DEV_INT_PROP("kmac-app", 2u)
+            IBEX_DEV_UINT_PROP("size", 0x8000u),
+            IBEX_DEV_UINT_PROP("kmac-app", 2u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_ROM1] = {
@@ -460,8 +460,8 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_STRING_PROP("rom_id", "rom1"),
-            IBEX_DEV_INT_PROP("size", 0x10000u),
-            IBEX_DEV_INT_PROP("kmac-app", 3u)
+            IBEX_DEV_UINT_PROP("size", 0x10000u),
+            IBEX_DEV_UINT_PROP("kmac-app", 3u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_IBEX_WRAPPER] = {
@@ -473,7 +473,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 7u)
+            IBEX_DEV_UINT_PROP("edn-ep", 7u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_RV_DM] = {
@@ -707,7 +707,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 1u)
+            IBEX_DEV_UINT_PROP("edn-ep", 1u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_LC_CTRL] = {
@@ -717,7 +717,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
-        )
+        ),
     },
     [OT_DARJEELING_SOC_DEV_ALERT_HANDLER] = {
         .type = TYPE_OT_ALERT_DARJEELING,
@@ -734,7 +734,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("edn-ep", 4u)
+            IBEX_DEV_UINT_PROP("edn-ep", 4u)
         ),
     },
     [OT_DARJEELING_SOC_DEV_SPI_HOST0] = {
@@ -844,7 +844,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_INT_PROP("size", 0x1000u),
+            IBEX_DEV_UINT_PROP("size", 0x1000u),
             IBEX_DEV_STRING_PROP("id", "ret")
         ),
     },

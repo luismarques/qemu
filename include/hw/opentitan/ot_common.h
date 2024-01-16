@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Helpers for OpenTitan EarlGrey
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -42,6 +42,9 @@
 
 #define OT_MULTIBITBOOL16_TRUE  0x9696u
 #define OT_MULTIBITBOOL16_FALSE 0x6969u
+
+#define OT_MULTIBITBOOL_LC4_TRUE  0xau
+#define OT_MULTIBITBOOL_LC4_FALSE 0x5u
 
 /*
  * Performs a logical OR operation between two multibit values.

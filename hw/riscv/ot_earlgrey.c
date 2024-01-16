@@ -415,8 +415,19 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             { 0x40140000u, 0x100u }
         ),
         .link = IBEXDEVICELINKDEFS(
-            OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
+            OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL),
+            OT_EARLGREY_SOC_DEVLINK("kmac", KMAC)
         ),
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("edn-ep", 4u)
+        ),
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("silicon_creator_id", 0x4001u),
+            IBEX_DEV_UINT_PROP("product_id", 0x0002u),
+            IBEX_DEV_UINT_PROP("revision_id", 0x1u),
+            IBEX_DEV_BOOL_PROP("volatile_raw_unlock", true),
+            IBEX_DEV_UINT_PROP("kmac-app", 1u)
+        )
     },
     [OT_EARLGREY_SOC_DEV_ALERT_HANDLER] = {
         .type = TYPE_OT_ALERT_EARLGREY,

@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan KMAC device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
@@ -38,6 +38,7 @@
 #include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
+#include "qapi/error.h"
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
@@ -1526,10 +1527,9 @@ void ot_kmac_app_request(OtKMACState *s, unsigned app_idx,
     OtKMACApp *app = &s->apps[app_idx];
 
     if (app->req_pending) {
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: Dropping request to already busy app index %u\n",
-                      __func__, app_idx);
-        return;
+        error_setg(&error_fatal,
+                   "%s: Dropping request to already busy app index %u",
+                   __func__, app_idx);
     }
 
     /* save request */

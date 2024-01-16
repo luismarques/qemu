@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan KMAC device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
@@ -69,14 +69,14 @@ typedef struct {
 
 typedef struct {
     uint8_t msg_data[OT_KMAC_APP_MSG_BYTES];
-    size_t msg_len;
+    size_t msg_len; /* meaningful count of bytes in msg_data */
     bool last;
 } OtKMACAppReq;
 
 typedef struct {
     uint8_t digest_share0[OT_KMAC_APP_DIGEST_BYTES];
     uint8_t digest_share1[OT_KMAC_APP_DIGEST_BYTES];
-    bool done;
+    bool done; /* digest_share updated (on last request) */
 } OtKMACAppRsp;
 
 /*

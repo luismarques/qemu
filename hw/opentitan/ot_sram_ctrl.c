@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan SRAM controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -238,7 +238,8 @@ static void ot_sram_ctrl_reset(DeviceState *dev)
     if (s->otp_ctrl) {
         OtOTPStateClass *oc =
             OBJECT_GET_CLASS(OtOTPStateClass, s->otp_ctrl, TYPE_OT_OTP);
-        s->otp_ifetch = oc->get_hw_cfg(s->otp_ctrl)->en_sram_ifetch;
+        s->otp_ifetch = oc->get_hw_cfg(s->otp_ctrl)->en_sram_ifetch ==
+                        OT_MULTIBITBOOL8_TRUE;
     } else {
         s->otp_ifetch = s->ifetch;
     }

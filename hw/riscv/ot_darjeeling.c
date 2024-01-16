@@ -716,8 +716,16 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             { 0x30140000u, 0x1000u }
         ),
         .link = IBEXDEVICELINKDEFS(
-            OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
+            OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL),
+            OT_DARJEELING_SOC_DEVLINK("kmac", KMAC)
         ),
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("silicon_creator_id", 0x4002u),
+            IBEX_DEV_UINT_PROP("product_id", 0x4000u),
+            IBEX_DEV_UINT_PROP("revision_id", 0x1u),
+            IBEX_DEV_BOOL_PROP("volatile_raw_unlock", true),
+            IBEX_DEV_UINT_PROP("kmac-app", 1u)
+        )
     },
     [OT_DARJEELING_SOC_DEV_ALERT_HANDLER] = {
         .type = TYPE_OT_ALERT_DARJEELING,

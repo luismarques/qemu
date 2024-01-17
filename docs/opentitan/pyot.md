@@ -31,7 +31,7 @@ Virtual machine:
   -i N, --icount N      virtual instruction counter with 2^N clock ticks per
                         inst.
   -s, --singlestep      enable "single stepping" QEMU execution mode
-  -T SECS, --timeout-factor SECS
+  -T FACTOR, --timeout-factor FACTOR
                         timeout factor
   -U, --muxserial       enable multiple virtual UARTs to be muxed into same
                         host output channel

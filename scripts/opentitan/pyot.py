@@ -1005,7 +1005,8 @@ class QEMUExecuter:
             if app:
                 assert 'timeout' in self._argdict
                 timeout = int(float(self._argdict.get('timeout') *
-                              float(self._argdict.get('timeout_factor', 1.0))))
+                              float(self._argdict.get('timeout_factor',
+                                                      DEFAULT_TIMEOUT_FACTOR))))
                 self._log.debug('Execute %s', basename(self._argdict['exec']))
                 ret, xtime, err = qot.run(self._qemu_cmd, timeout,
                                           self.get_test_radix(app), None)
@@ -1210,6 +1211,7 @@ class QEMUExecuter:
         except ValueError as exc:
             raise ValueError(f'Invalid start up delay {args.start_delay}') \
                 from exc
+        start_delay *= args.timeout_factor
         device = args.device
         devdesc = device.split(':')
         try:
@@ -1436,7 +1438,7 @@ def main():
         qvm.add_argument('-s', '--singlestep', action='store_true',
                          default=None,
                          help='enable "single stepping" QEMU execution mode')
-        qvm.add_argument('-T', '--timeout-factor', type=float, metavar='SECS',
+        qvm.add_argument('-T', '--timeout-factor', type=float, metavar='FACTOR',
                          default=DEFAULT_TIMEOUT_FACTOR,
                          help='timeout factor')
         qvm.add_argument('-U', '--muxserial', action='store_true',

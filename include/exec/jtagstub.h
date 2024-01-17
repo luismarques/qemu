@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan JTAG TAP controller
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
  *
@@ -64,16 +64,15 @@ struct _TAPDataHandler {
     (((((_tbl_)-1u) & 0xfu) << 7u) | ((_id_)&0x7fu))
 
 /*
- * JTAGserver_start: start the JTAG server
+ * Start the JTAG server
  * @port_or_device: connection spec for JTAG
  */
 int jtagserver_start(const char *port_or_device);
 
 /*
- * JTAG_exit: exit JTAG session, reporting inferior status
- * @code: exit code reported
+ * Exit JTAG server
  */
-void jtagserver_exit(int code);
+void jtagserver_exit(void);
 
 /*
  * Configure the JTAG TAP controller
@@ -93,10 +92,10 @@ bool jtag_tap_enabled(void);
 /*
  * Register TAP data handler
  *
- * @inst instruction for which to register the handler
+ * @code instruction code for which to register the handler
  * @tdh TAP data handler to register
  * @return non-zero on error
  */
-int jtag_register_handler(unsigned inst, const TAPDataHandler *tdh);
+int jtag_register_handler(unsigned code, const TAPDataHandler *tdh);
 
 #endif // JTAGSTUB_H

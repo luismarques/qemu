@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan JTAG TAP controller
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
  *
@@ -203,7 +203,7 @@ static void tapctrl_dump_register(const char *msg, uint64_t value,
     }
     unsigned ix = 0;
     while (ix < length) {
-        buf[ix] = '0' + ((value >> (length - ix - 1)) & 0b1);
+        buf[ix] = (char)('0' + ((value >> (length - ix - 1)) & 0b1));
         ix++;
     }
     buf[ix] = '\0';
@@ -508,25 +508,32 @@ static void tap_chr_receive(void *opaque, const uint8_t *buf, int size)
     }
 
     if (s->tap->outpos) {
-        qemu_chr_fe_write_all(&s->chr, s->tap->outbuf, s->tap->outpos);
+        qemu_chr_fe_write_all(&s->chr, s->tap->outbuf, (int)s->tap->outpos);
         s->tap->outpos = 0u;
     }
 }
 
 static int tap_monitor_write(Chardev *chr, const uint8_t *buf, int len)
 {
+    (void)chr;
+    (void)buf;
+    (void)len;
     return 0;
 }
 
 static void tap_monitor_open(Chardev *chr, ChardevBackend *backend,
                              bool *be_opened, Error **errp)
 {
+    (void)chr;
+    (void)backend;
+    (void)errp;
     *be_opened = false;
 }
 
 static void char_tap_class_init(ObjectClass *oc, void *data)
 {
     ChardevClass *cc = CHARDEV_CLASS(oc);
+    (void)data;
 
     cc->internal = true;
     cc->open = tap_monitor_open;
@@ -558,8 +565,8 @@ int jtagserver_start(const char *device)
     }
     if (strcmp(device, "none") != 0) {
         if (strstart(device, "tcp:", NULL)) {
-            snprintf(tapstub_device_name, sizeof(tapstub_device_name),
-                     "%s,wait=off,nodelay=on,server=on", device);
+            (void)snprintf(tapstub_device_name, sizeof(tapstub_device_name),
+                           "%s,wait=off,nodelay=on,server=on", device);
             device = tapstub_device_name;
         }
         chr = qemu_chr_new_noreplay("tap", device, true, NULL);
@@ -584,7 +591,7 @@ int jtagserver_start(const char *device)
     return 0;
 }
 
-void jtagserver_exit(int code)
+void jtagserver_exit(void)
 {
     if (!tapserver_state.init) {
         return;

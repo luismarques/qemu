@@ -1,7 +1,7 @@
 /*
  * QEMU LowRisc Ibex core features
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@
 static RISCVException read_cpuctrlsts(CPURISCVState *env, int csrno,
                                       target_ulong *val)
 {
+    (void)csrno;
     *val = CPUCTRLSTS_IC_SCR_KEY_VALID | env->cpuctrlsts;
     return RISCV_EXCP_NONE;
 }
@@ -50,6 +51,7 @@ static RISCVException read_cpuctrlsts(CPURISCVState *env, int csrno,
 static RISCVException write_cpuctrlsts(CPURISCVState *env, int csrno,
                                        target_ulong val)
 {
+    (void)csrno;
     /* b7 can only be cleared */
     env->cpuctrlsts &= ~0xbf;
     /* b6 should be cleared on mret */
@@ -60,6 +62,8 @@ static RISCVException write_cpuctrlsts(CPURISCVState *env, int csrno,
 static RISCVException read_secureseed(CPURISCVState *env, int csrno,
                                       target_ulong *val)
 {
+    (void)env;
+    (void)csrno;
     /*
      * "Seed values are not actually stored in a register and so reads to this
      * register will always return zero."
@@ -71,12 +75,16 @@ static RISCVException read_secureseed(CPURISCVState *env, int csrno,
 static RISCVException write_secureseed(CPURISCVState *env, int csrno,
                                        target_ulong val)
 {
+    (void)env;
+    (void)csrno;
     (void)val;
     return RISCV_EXCP_NONE;
 }
 
 static RISCVException any(CPURISCVState *env, int csrno)
 {
+    (void)env;
+    (void)csrno;
     /*
      *  unfortunately, this predicate is not public, so duplicate the standard
      *  implementation
@@ -87,6 +95,7 @@ static RISCVException any(CPURISCVState *env, int csrno)
 static RISCVException read_mtvec(CPURISCVState *env, int csrno,
                                  target_ulong *val)
 {
+    (void)csrno;
     *val = env->mtvec;
 
     return RISCV_EXCP_NONE;
@@ -95,6 +104,7 @@ static RISCVException read_mtvec(CPURISCVState *env, int csrno,
 static RISCVException write_mtvec(CPURISCVState *env, int csrno,
                                   target_ulong val)
 {
+    (void)csrno;
     /* bits [1:0] encode mode; Ibex only supports 1 = vectored */
     if ((val & 3u) != 1u) {
         qemu_log_mask(LOG_UNIMP,
@@ -112,7 +122,7 @@ static RISCVException write_mtvec(CPURISCVState *env, int csrno,
 }
 
 typedef struct {
-    unsigned csrno;
+    int csrno;
     riscv_csr_operations ops;
 } riscv_custom_csr_operations;
 

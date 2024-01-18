@@ -94,6 +94,7 @@ config OT_OTP
 
 config OT_OTP_DARJEELING
     select OT_OTP
+    select OT_PRESENT
     bool
 
 config OT_OTP_EARLGREY

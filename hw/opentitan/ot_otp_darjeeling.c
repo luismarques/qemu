@@ -30,6 +30,7 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/bswap.h"
 #include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "qemu/timer.h"
@@ -40,6 +41,7 @@
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
 #include "hw/opentitan/ot_otp_darjeeling.h"
+#include "hw/opentitan/ot_present.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -49,7 +51,18 @@
 #include "sysemu/block-backend.h"
 #include "trace.h"
 
-#define NUM_ERROR_REGS 24u
+
+#define NUM_IRQS                2u
+#define NUM_ALERTS              5u
+#define NUM_SRAM_KEY_REQ_SLOTS  4u
+#define NUM_ERROR_ENTRIES       24u
+#define NUM_DAI_WORDS           2u
+#define NUM_DIGEST_WORDS        2u
+#define NUM_SW_CFG_WINDOW_WORDS 4096u
+#define NUM_PART                22u
+#define NUM_PART_UNBUF          15u
+#define NUM_PART_BUF            7u
+#define OTP_BYTE_ADDR_WIDTH     14u
 
 /* clang-format off */
 /* Core registers */
@@ -59,40 +72,44 @@ REG32(INTR_STATE, 0x0u)
 REG32(INTR_ENABLE, 0x4u)
 REG32(INTR_TEST, 0x8u)
 REG32(ALERT_TEST, 0xcu)
-    FIELD(ALERT_TEST, FATAL_MACRO_ERROR, 0u, 1u)
-    FIELD(ALERT_TEST, FATAL_CHECK_ERROR, 1u, 1u)
-    FIELD(ALERT_TEST, FATAL_BUS_INTEG_ERROR, 2u, 1u)
-    FIELD(ALERT_TEST, FATAL_PRIM_OTP_ALERT, 3u, 1u)
-    FIELD(ALERT_TEST, RECOV_PRIM_OTP_ALERT, 4u, 1u)
+    SHARED_FIELD(ALERT_FATAL_MACRO_ERROR, 0u, 1u)
+    SHARED_FIELD(ALERT_FATAL_CHECK_ERROR, 1u, 1u)
+    SHARED_FIELD(ALERT_FATAL_BUS_INTEG_ERROR, 2u, 1u)
+    SHARED_FIELD(ALERT_FATAL_PRIM_OTP_ALERT, 3u, 1u)
+    SHARED_FIELD(ALERT_RECOV_PRIM_OTP_ALERT, 4u, 1u)
 REG32(STATUS, 0x10u)
     FIELD(STATUS, VENDOR_TEST_ERROR, 0u, 1u)
     FIELD(STATUS, CREATOR_SW_CFG_ERROR, 1u, 1u)
     FIELD(STATUS, OWNER_SW_CFG_ERROR, 2u, 1u)
-    FIELD(STATUS, HW_CFG0_ERROR, 3u, 1u)
-    FIELD(STATUS, HW_CFG1_ERROR, 4u, 1u)
-    FIELD(STATUS, SECRET0_ERROR, 5u, 1u)
-    FIELD(STATUS, SECRET1_ERROR, 6u, 1u)
-    FIELD(STATUS, SECRET2_ERROR, 7u, 1u)
-    FIELD(STATUS, SECRET3_ERROR, 8u, 1u)
-    FIELD(STATUS, LIFE_CYCLE_ERROR, 9u, 1u)
-    FIELD(STATUS, DAI_ERROR, 10u, 1u)
-    FIELD(STATUS, LCI_ERROR, 11u, 1u)
-    FIELD(STATUS, TIMEOUT_ERROR, 12u, 1u)
-    FIELD(STATUS, LFSR_FSM_ERROR, 13u, 1u)
-    FIELD(STATUS, SCRAMBLING_FSM_ERROR, 14u, 1u)
-    FIELD(STATUS, KEY_DERIV_FSM_ERROR, 15u, 1u)
-    FIELD(STATUS, BUS_INTEG_ERROR, 16u, 1u)
-    FIELD(STATUS, DAI_IDLE, 17u, 1u)
-    FIELD(STATUS, CHECK_PENDING, 18u, 1u)
+    FIELD(STATUS, OWNERSHIP_SLOT_STATE_ERROR, 3u, 1u)
+    FIELD(STATUS, ROT_CREATOR_AUTH_ERROR, 4u, 1u)
+    FIELD(STATUS, ROT_OWNER_AUTH_SLOT0_ERROR, 5u, 1u)
+    FIELD(STATUS, ROT_OWNER_AUTH_SLOT1_ERROR, 6u, 1u)
+    FIELD(STATUS, PLAT_INTEG_AUTH_SLOT0_ERROR, 7u, 1u)
+    FIELD(STATUS, PLAT_INTEG_AUTH_SLOT1_ERROR, 8u, 1u)
+    FIELD(STATUS, PLAT_OWNER_AUTH_SLOT0_ERROR, 9u, 1u)
+    FIELD(STATUS, PLAT_OWNER_AUTH_SLOT1_ERROR, 10u, 1u)
+    FIELD(STATUS, PLAT_OWNER_AUTH_SLOT2_ERROR, 11u, 1u)
+    FIELD(STATUS, PLAT_OWNER_AUTH_SLOT3_ERROR, 12u, 1u)
+    FIELD(STATUS, EXT_NVM_ERROR, 13u, 1u)
+    FIELD(STATUS, ROM_PATCH_ERROR, 14u, 1u)
+    FIELD(STATUS, HW_CFG0_ERROR, 15u, 1u)
+    FIELD(STATUS, HW_CFG1_ERROR, 16u, 1u)
+    FIELD(STATUS, SECRET0_ERROR, 17u, 1u)
+    FIELD(STATUS, SECRET1_ERROR, 18u, 1u)
+    FIELD(STATUS, SECRET2_ERROR, 19u, 1u)
+    FIELD(STATUS, SECRET3_ERROR, 20u, 1u)
+    FIELD(STATUS, LIFE_CYCLE_ERROR, 21u, 1u)
+    FIELD(STATUS, DAI_ERROR, 22u, 1u)
+    FIELD(STATUS, LCI_ERROR, 23u, 1u)
+    FIELD(STATUS, TIMEOUT_ERROR, 24u, 1u)
+    FIELD(STATUS, LFSR_FSM_ERROR, 25u, 1u)
+    FIELD(STATUS, SCRAMBLING_FSM_ERROR, 26u, 1u)
+    FIELD(STATUS, KEY_DERIV_FSM_ERROR, 27u, 1u)
+    FIELD(STATUS, BUS_INTEG_ERROR, 28u, 1u)
+    FIELD(STATUS, DAI_IDLE, 29u, 1u)
+    FIELD(STATUS, CHECK_PENDING, 30u, 1u)
 REG32(ERR_CODE_0, 0x14u)
-    SHARED_FIELD(ERR_CODE_VALUE_NO_ERROR, 0x0u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_MACRO_ERROR, 0x1u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_MACRO_ECC_CORR_ERROR, 0x2u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_MACRO_ECC_UNCORR_ERROR, 0x3u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_MACRO_WRITE_BLANK_ERROR, 0x4u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_ACCESS_ERROR, 0x5u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_CHECK_FAIL_ERROR, 0x6u, 1u)
-    SHARED_FIELD(ERR_CODE_VALUE_FSM_STATE_ERROR, 0x7u, 1u)
 REG32(ERR_CODE_1, 0x18u)
 REG32(ERR_CODE_2, 0x1cu)
 REG32(ERR_CODE_3, 0x20u)
@@ -123,6 +140,7 @@ REG32(DIRECT_ACCESS_CMD, 0x78u)
     FIELD(DIRECT_ACCESS_CMD, WR, 1u, 1u)
     FIELD(DIRECT_ACCESS_CMD, DIGEST, 2u, 1u)
 REG32(DIRECT_ACCESS_ADDRESS, 0x7cu)
+    FIELD(DIRECT_ACCESS_ADDRESS, ADDRESS, 0, 14u)
 REG32(DIRECT_ACCESS_WDATA_0, 0x80u)
 REG32(DIRECT_ACCESS_WDATA_1, 0x84u)
 REG32(DIRECT_ACCESS_RDATA_0, 0x88u)
@@ -133,26 +151,26 @@ REG32(CHECK_TRIGGER, 0x94u)
     FIELD(CHECK_TRIGGER, INTEGRITY, 0u, 1u)
     FIELD(CHECK_TRIGGER, CONSISTENCY, 1u, 1u)
 REG32(CHECK_REGWEN, 0x98u)
-    FIELD(CHECK_REGWEN, CHECK_REGWEN, 0u, 1u)
+    FIELD(CHECK_REGWEN, REGWEN, 0u, 1u)
 REG32(CHECK_TIMEOUT, 0x9cu)
 REG32(INTEGRITY_CHECK_PERIOD, 0xa0u)
 REG32(CONSISTENCY_CHECK_PERIOD, 0xa4u)
-REG32(VENDOR_TEST_READ_LOCK, 0xa8)
+REG32(VENDOR_TEST_READ_LOCK, 0xa8u)
     SHARED_FIELD(READ_LOCK,  0u, 1u)
-REG32(CREATOR_SW_CFG_READ_LOCK, 0xac)
-REG32(OWNER_SW_CFG_READ_LOCK, 0xb0)
-REG32(OWNERSHIP_SLOT_STATE_READ_LOCK, 0xb4)
-REG32(ROT_CREATOR_AUTH_READ_LOCK, 0xb8)
-REG32(ROT_OWNER_AUTH_SLOT0_READ_LOCK, 0xbc)
-REG32(ROT_OWNER_AUTH_SLOT1_READ_LOCK, 0xc0)
-REG32(PLAT_INTEG_AUTH_SLOT0_READ_LOCK, 0xc4)
-REG32(PLAT_INTEG_AUTH_SLOT1_READ_LOCK, 0xc8)
-REG32(PLAT_OWNER_AUTH_SLOT0_READ_LOCK, 0xcc)
-REG32(PLAT_OWNER_AUTH_SLOT1_READ_LOCK, 0xd0)
-REG32(PLAT_OWNER_AUTH_SLOT2_READ_LOCK, 0xd4)
-REG32(PLAT_OWNER_AUTH_SLOT3_READ_LOCK, 0xd8)
-REG32(EXT_NVM_READ_LOCK, 0xdc)
-REG32(ROM_PATCH_READ_LOCK, 0xe0)
+REG32(CREATOR_SW_CFG_READ_LOCK, 0xacu)
+REG32(OWNER_SW_CFG_READ_LOCK, 0xb0u)
+REG32(OWNERSHIP_SLOT_STATE_READ_LOCK, 0xb4u)
+REG32(ROT_CREATOR_AUTH_READ_LOCK, 0xb8u)
+REG32(ROT_OWNER_AUTH_SLOT0_READ_LOCK, 0xbcu)
+REG32(ROT_OWNER_AUTH_SLOT1_READ_LOCK, 0xc0u)
+REG32(PLAT_INTEG_AUTH_SLOT0_READ_LOCK, 0xc4u)
+REG32(PLAT_INTEG_AUTH_SLOT1_READ_LOCK, 0xc8u)
+REG32(PLAT_OWNER_AUTH_SLOT0_READ_LOCK, 0xccu)
+REG32(PLAT_OWNER_AUTH_SLOT1_READ_LOCK, 0xd0u)
+REG32(PLAT_OWNER_AUTH_SLOT2_READ_LOCK, 0xd4u)
+REG32(PLAT_OWNER_AUTH_SLOT3_READ_LOCK, 0xd8u)
+REG32(EXT_NVM_READ_LOCK, 0xdcu)
+REG32(ROM_PATCH_READ_LOCK, 0xe0u)
 REG32(VENDOR_TEST_DIGEST_0, 0xe4u)
 REG32(VENDOR_TEST_DIGEST_1, 0xe8u)
 REG32(CREATOR_SW_CFG_DIGEST_0, 0xecu)
@@ -195,7 +213,8 @@ REG32(SECRET3_DIGEST_1, 0x178u)
 REG32(SCRATCH, 0u)
 REG32(VENDOR_TEST_DIGEST, 56u)
 REG32(CREATOR_SW_CFG_AST_CFG, 64u)
-REG32(CREATOR_SW_CFG_AST_INIT_EN, 220u)
+REG32(CREATOR_SW_CFG_AST_INIT_EN, 188u)
+REG32(CREATOR_SW_CFG_OVERRIDES, 192u)
 REG32(CREATOR_SW_CFG_ROM_EXT_SKU, 224u)
 REG32(CREATOR_SW_CFG_SIGVERIFY_RSA_MOD_EXP_IBEX_EN, 228u)
 REG32(CREATOR_SW_CFG_SIGVERIFY_RSA_KEY_EN, 232u)
@@ -227,61 +246,61 @@ REG32(CREATOR_SW_CFG_RNG_EXTHT_LO_THRESHOLDS, 340u)
 REG32(CREATOR_SW_CFG_RNG_ALERT_THRESHOLD, 344u)
 REG32(CREATOR_SW_CFG_RNG_HEALTH_CONFIG_DIGEST, 348u)
 REG32(CREATOR_SW_CFG_SRAM_KEY_RENEW_EN, 352u)
-REG32(CREATOR_SW_CFG_DIGEST, 824u)
-REG32(OWNER_SW_CFG_ROM_ERROR_REPORTING, 832u)
-REG32(OWNER_SW_CFG_ROM_BOOTSTRAP_DIS, 836u)
-REG32(OWNER_SW_CFG_ROM_ALERT_CLASS_EN, 840u)
-REG32(OWNER_SW_CFG_ROM_ALERT_ESCALATION, 844u)
-REG32(OWNER_SW_CFG_ROM_ALERT_CLASSIFICATION, 848u)
-REG32(OWNER_SW_CFG_ROM_LOCAL_ALERT_CLASSIFICATION, 1244u)
-REG32(OWNER_SW_CFG_ROM_ALERT_ACCUM_THRESH, 1308u)
-REG32(OWNER_SW_CFG_ROM_ALERT_TIMEOUT_CYCLES, 1324u)
-REG32(OWNER_SW_CFG_ROM_ALERT_PHASE_CYCLES, 1340u)
-REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_PROD, 1404u)
-REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_PROD_END, 1408u)
-REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_DEV, 1412u)
-REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_RMA, 1416u)
-REG32(OWNER_SW_CFG_ROM_WATCHDOG_BITE_THRESHOLD_CYCLES, 1420u)
-REG32(OWNER_SW_CFG_ROM_KEYMGR_ROM_EXT_MEAS_EN, 1424u)
-REG32(OWNER_SW_CFG_MANUF_STATE, 1428u)
-REG32(OWNER_SW_CFG_ROM_RSTMGR_INFO_EN, 1432u)
-REG32(OWNER_SW_CFG_DIGEST, 1592u)
-REG32(OWNERSHIP_SLOT_STATE_ROT_OWNER_AUTH, 1600u)
-REG32(OWNERSHIP_SLOT_STATE_PLAT_INTEG_AUTH, 1616u)
-REG32(OWNERSHIP_SLOT_STATE_PLAT_OWNER_AUTH, 1632u)
-REG32(ROT_CREATOR_AUTH_NON_RAW_MFW_CODESIGN_KEY, 1648u)
-REG32(ROT_CREATOR_AUTH_OWNERSHIP_STATE, 1808u)
-REG32(ROT_CREATOR_AUTH_ROM2_PATCH_SIGVERIFY_KEY, 1812u)
-REG32(ROT_CREATOR_AUTH_KEYMANIFEST_KEY, 1972u)
-REG32(ROT_CREATOR_AUTH_UNLOCK4XFER_KEY, 2132u)
-REG32(ROT_CREATOR_AUTH_IDENTITY_CERT, 2292u)
-REG32(ROT_CREATOR_AUTH_DIGEST, 3064u)
-REG32(ROT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY, 3072u)
-REG32(ROT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY, 3232u)
-REG32(ROT_OWNER_AUTH_SLOT0_DIGEST, 3392u)
-REG32(ROT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY, 3400u)
-REG32(ROT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY, 3560u)
-REG32(ROT_OWNER_AUTH_SLOT1_DIGEST, 3720u)
-REG32(PLAT_INTEG_AUTH_SLOT0_KEYMANIFEST_KEY, 3728u)
-REG32(PLAT_INTEG_AUTH_SLOT0_UNLOCK4XFER_KEY, 3888u)
-REG32(PLAT_INTEG_AUTH_SLOT0_DIGEST, 4048u)
-REG32(PLAT_INTEG_AUTH_SLOT1_KEYMANIFEST_KEY, 4056u)
-REG32(PLAT_INTEG_AUTH_SLOT1_UNLOCK4XFER_KEY, 4216u)
-REG32(PLAT_INTEG_AUTH_SLOT1_DIGEST, 4376u)
-REG32(PLAT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY, 4384u)
-REG32(PLAT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY, 4544u)
-REG32(PLAT_OWNER_AUTH_SLOT0_DIGEST, 4704u)
-REG32(PLAT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY, 4712u)
-REG32(PLAT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY, 4872u)
-REG32(PLAT_OWNER_AUTH_SLOT1_DIGEST, 5032u)
-REG32(PLAT_OWNER_AUTH_SLOT2_KEYMANIFEST_KEY, 5040u)
-REG32(PLAT_OWNER_AUTH_SLOT2_UNLOCK4XFER_KEY, 5200u)
-REG32(PLAT_OWNER_AUTH_SLOT2_DIGEST, 5360u)
-REG32(PLAT_OWNER_AUTH_SLOT3_KEYMANIFEST_KEY, 5368u)
-REG32(PLAT_OWNER_AUTH_SLOT3_UNLOCK4XFER_KEY, 5528u)
-REG32(PLAT_OWNER_AUTH_SLOT3_DIGEST, 5688u)
-REG32(EXT_NVM_ANTIREPLAY_FRESHNESS_CNT, 5696u)
-REG32(ROM_PATCH_DATA, 6720u)
+REG32(CREATOR_SW_CFG_DIGEST, 376u)
+REG32(OWNER_SW_CFG_ROM_ERROR_REPORTING, 384u)
+REG32(OWNER_SW_CFG_ROM_BOOTSTRAP_DIS, 388u)
+REG32(OWNER_SW_CFG_ROM_ALERT_CLASS_EN, 392u)
+REG32(OWNER_SW_CFG_ROM_ALERT_ESCALATION, 396u)
+REG32(OWNER_SW_CFG_ROM_ALERT_CLASSIFICATION, 400u)
+REG32(OWNER_SW_CFG_ROM_LOCAL_ALERT_CLASSIFICATION, 796u)
+REG32(OWNER_SW_CFG_ROM_ALERT_ACCUM_THRESH, 860u)
+REG32(OWNER_SW_CFG_ROM_ALERT_TIMEOUT_CYCLES, 876u)
+REG32(OWNER_SW_CFG_ROM_ALERT_PHASE_CYCLES, 892u)
+REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_PROD, 956u)
+REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_PROD_END, 960u)
+REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_DEV, 964u)
+REG32(OWNER_SW_CFG_ROM_ALERT_DIGEST_RMA, 968u)
+REG32(OWNER_SW_CFG_ROM_WATCHDOG_BITE_THRESHOLD_CYCLES, 972u)
+REG32(OWNER_SW_CFG_ROM_KEYMGR_ROM_EXT_MEAS_EN, 976u)
+REG32(OWNER_SW_CFG_MANUF_STATE, 980u)
+REG32(OWNER_SW_CFG_ROM_RSTMGR_INFO_EN, 984u)
+REG32(OWNER_SW_CFG_DIGEST, 1008u)
+REG32(OWNERSHIP_SLOT_STATE_ROT_OWNER_AUTH, 1016u)
+REG32(OWNERSHIP_SLOT_STATE_PLAT_INTEG_AUTH, 1032u)
+REG32(OWNERSHIP_SLOT_STATE_PLAT_OWNER_AUTH, 1048u)
+REG32(ROT_CREATOR_AUTH_NON_RAW_MFW_CODESIGN_KEY, 1064u)
+REG32(ROT_CREATOR_AUTH_OWNERSHIP_STATE, 1224u)
+REG32(ROT_CREATOR_AUTH_ROM2_PATCH_SIGVERIFY_KEY, 1228u)
+REG32(ROT_CREATOR_AUTH_KEYMANIFEST_KEY, 1388u)
+REG32(ROT_CREATOR_AUTH_UNLOCK4XFER_KEY, 1548u)
+REG32(ROT_CREATOR_AUTH_IDENTITY_CERT, 1708u)
+REG32(ROT_CREATOR_AUTH_DIGEST, 2480u)
+REG32(ROT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY, 2488u)
+REG32(ROT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY, 2648u)
+REG32(ROT_OWNER_AUTH_SLOT0_DIGEST, 2808u)
+REG32(ROT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY, 2816u)
+REG32(ROT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY, 2976u)
+REG32(ROT_OWNER_AUTH_SLOT1_DIGEST, 3136u)
+REG32(PLAT_INTEG_AUTH_SLOT0_KEYMANIFEST_KEY, 3144u)
+REG32(PLAT_INTEG_AUTH_SLOT0_UNLOCK4XFER_KEY, 3304u)
+REG32(PLAT_INTEG_AUTH_SLOT0_DIGEST, 3464u)
+REG32(PLAT_INTEG_AUTH_SLOT1_KEYMANIFEST_KEY, 3472u)
+REG32(PLAT_INTEG_AUTH_SLOT1_UNLOCK4XFER_KEY, 3632u)
+REG32(PLAT_INTEG_AUTH_SLOT1_DIGEST, 3792u)
+REG32(PLAT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY, 3800u)
+REG32(PLAT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY, 3960u)
+REG32(PLAT_OWNER_AUTH_SLOT0_DIGEST, 4120u)
+REG32(PLAT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY, 4128u)
+REG32(PLAT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY, 4288u)
+REG32(PLAT_OWNER_AUTH_SLOT1_DIGEST, 4448u)
+REG32(PLAT_OWNER_AUTH_SLOT2_KEYMANIFEST_KEY, 4456u)
+REG32(PLAT_OWNER_AUTH_SLOT2_UNLOCK4XFER_KEY, 4616u)
+REG32(PLAT_OWNER_AUTH_SLOT2_DIGEST, 4776u)
+REG32(PLAT_OWNER_AUTH_SLOT3_KEYMANIFEST_KEY, 4784u)
+REG32(PLAT_OWNER_AUTH_SLOT3_UNLOCK4XFER_KEY, 4944u)
+REG32(PLAT_OWNER_AUTH_SLOT3_DIGEST, 5104u)
+REG32(EXT_NVM_ANTIREPLAY_FRESHNESS_CNT, 5112u)
+REG32(ROM_PATCH_DATA, 6136u)
 REG32(ROM_PATCH_DIGEST, 15912u)
 REG32(DEVICE_ID, 15920u)
 REG32(MANUF_STATE, 15952u)
@@ -307,83 +326,148 @@ REG32(LC_TRANSITION_CNT, 16296u)
 REG32(LC_STATE, 16344u)
 /* clang-format on */
 
-#define SCRATCH_SIZE                                     56u
-#define VENDOR_TEST_DIGEST_SIZE                          8u
-#define CREATOR_SW_CFG_AST_CFG_SIZE                      156u
-#define CREATOR_SW_CFG_SIGVERIFY_RSA_KEY_EN_SIZE         8u
-#define CREATOR_SW_CFG_SIGVERIFY_SPX_KEY_EN_SIZE         8u
-#define CREATOR_SW_CFG_DIGEST_SIZE                       8u
-#define OWNER_SW_CFG_ROM_ALERT_CLASSIFICATION_SIZE       396u
-#define OWNER_SW_CFG_ROM_LOCAL_ALERT_CLASSIFICATION_SIZE 64u
-#define OWNER_SW_CFG_ROM_ALERT_ACCUM_THRESH_SIZE         16u
-#define OWNER_SW_CFG_ROM_ALERT_TIMEOUT_CYCLES_SIZE       16u
-#define OWNER_SW_CFG_ROM_ALERT_PHASE_CYCLES_SIZE         64u
-#define OWNER_SW_CFG_DIGEST_SIZE                         8u
-#define OWNERSHIP_SLOT_STATE_ROT_OWNER_AUTH_SIZE         16u
-#define OWNERSHIP_SLOT_STATE_PLAT_INTEG_AUTH_SIZE        16u
-#define OWNERSHIP_SLOT_STATE_PLAT_OWNER_AUTH_SIZE        16u
-#define ROT_CREATOR_AUTH_NON_RAW_MFW_CODESIGN_KEY_SIZE   160u
-#define ROT_CREATOR_AUTH_OWNERSHIP_STATE_SIZE            4u
-#define ROT_CREATOR_AUTH_ROM2_PATCH_SIGVERIFY_KEY_SIZE   160u
-#define ROT_CREATOR_AUTH_KEYMANIFEST_KEY_SIZE            160u
-#define ROT_CREATOR_AUTH_UNLOCK4XFER_KEY_SIZE            160u
-#define ROT_CREATOR_AUTH_IDENTITY_CERT_SIZE              768u
-#define ROT_CREATOR_AUTH_DIGEST_SIZE                     8u
-#define ROT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY_SIZE        160u
-#define ROT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY_SIZE        160u
-#define ROT_OWNER_AUTH_SLOT0_DIGEST_SIZE                 8u
-#define ROT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY_SIZE        160u
-#define ROT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY_SIZE        160u
-#define ROT_OWNER_AUTH_SLOT1_DIGEST_SIZE                 8u
-#define PLAT_INTEG_AUTH_SLOT0_KEYMANIFEST_KEY_SIZE       160u
-#define PLAT_INTEG_AUTH_SLOT0_UNLOCK4XFER_KEY_SIZE       160u
-#define PLAT_INTEG_AUTH_SLOT0_DIGEST_SIZE                8u
-#define PLAT_INTEG_AUTH_SLOT1_KEYMANIFEST_KEY_SIZE       160u
-#define PLAT_INTEG_AUTH_SLOT1_UNLOCK4XFER_KEY_SIZE       160u
-#define PLAT_INTEG_AUTH_SLOT1_DIGEST_SIZE                8u
-#define PLAT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT0_DIGEST_SIZE                8u
-#define PLAT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT1_DIGEST_SIZE                8u
-#define PLAT_OWNER_AUTH_SLOT2_KEYMANIFEST_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT2_UNLOCK4XFER_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT2_DIGEST_SIZE                8u
-#define PLAT_OWNER_AUTH_SLOT3_KEYMANIFEST_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT3_UNLOCK4XFER_KEY_SIZE       160u
-#define PLAT_OWNER_AUTH_SLOT3_DIGEST_SIZE                8u
-#define EXT_NVM_ANTIREPLAY_FRESHNESS_CNT_SIZE            1024u
-#define ROM_PATCH_DATA_SIZE                              9192u
-#define ROM_PATCH_DIGEST_SIZE                            8u
-#define DEVICE_ID_SIZE                                   32u
-#define MANUF_STATE_SIZE                                 32u
-#define HW_CFG0_DIGEST_SIZE                              8u
-#define HW_CFG1_DIGEST_SIZE                              8u
-#define TEST_UNLOCK_TOKEN_SIZE                           16u
-#define TEST_EXIT_TOKEN_SIZE                             16u
-#define SECRET0_DIGEST_SIZE                              8u
-#define FLASH_ADDR_KEY_SEED_SIZE                         32u
-#define FLASH_DATA_KEY_SEED_SIZE                         32u
-#define SRAM_DATA_KEY_SEED_SIZE                          16u
-#define SECRET1_DIGEST_SIZE                              8u
-#define RMA_TOKEN_SIZE                                   16u
-#define CREATOR_ROOT_KEY_SHARE0_SIZE                     32u
-#define CREATOR_ROOT_KEY_SHARE1_SIZE                     32u
-#define CREATOR_SEED_SIZE                                32u
-#define SECRET2_DIGEST_SIZE                              8u
-#define OWNER_SEED_SIZE                                  32u
-#define SECRET3_DIGEST_SIZE                              8u
-#define LC_TRANSITION_CNT_SIZE                           48u
-#define LC_STATE_SIZE                                    40u
+#define VENDOR_TEST_SIZE                                     64u
+#define SCRATCH_SIZE                                         56u
+#define VENDOR_TEST_DIGEST_SIZE                              8u
+#define CREATOR_SW_CFG_SIZE                                  320u
+#define CREATOR_SW_CFG_AST_CFG_SIZE                          124u
+#define CREATOR_SW_CFG_AST_INIT_EN_SIZE                      4u
+#define CREATOR_SW_CFG_OVERRIDES_SIZE                        32u
+#define CREATOR_SW_CFG_ROM_EXT_SKU_SIZE                      4u
+#define CREATOR_SW_CFG_SIGVERIFY_RSA_MOD_EXP_IBEX_EN_SIZE    4u
+#define CREATOR_SW_CFG_SIGVERIFY_RSA_KEY_EN_SIZE             8u
+#define CREATOR_SW_CFG_SIGVERIFY_SPX_EN_SIZE                 4u
+#define CREATOR_SW_CFG_SIGVERIFY_SPX_KEY_EN_SIZE             8u
+#define CREATOR_SW_CFG_FLASH_DATA_DEFAULT_CFG_SIZE           4u
+#define CREATOR_SW_CFG_FLASH_INFO_BOOT_DATA_CFG_SIZE         4u
+#define CREATOR_SW_CFG_FLASH_HW_INFO_CFG_OVERRIDE_SIZE       4u
+#define CREATOR_SW_CFG_RNG_EN_SIZE                           4u
+#define CREATOR_SW_CFG_JITTER_EN_SIZE                        4u
+#define CREATOR_SW_CFG_RET_RAM_RESET_MASK_SIZE               4u
+#define CREATOR_SW_CFG_MANUF_STATE_SIZE                      4u
+#define CREATOR_SW_CFG_ROM_EXEC_EN_SIZE                      4u
+#define CREATOR_SW_CFG_CPUCTRL_SIZE                          4u
+#define CREATOR_SW_CFG_MIN_SEC_VER_ROM_EXT_SIZE              4u
+#define CREATOR_SW_CFG_MIN_SEC_VER_BL0_SIZE                  4u
+#define CREATOR_SW_CFG_DEFAULT_BOOT_DATA_IN_PROD_EN_SIZE     4u
+#define CREATOR_SW_CFG_RMA_SPIN_EN_SIZE                      4u
+#define CREATOR_SW_CFG_RMA_SPIN_CYCLES_SIZE                  4u
+#define CREATOR_SW_CFG_RNG_REPCNT_THRESHOLDS_SIZE            4u
+#define CREATOR_SW_CFG_RNG_REPCNTS_THRESHOLDS_SIZE           4u
+#define CREATOR_SW_CFG_RNG_ADAPTP_HI_THRESHOLDS_SIZE         4u
+#define CREATOR_SW_CFG_RNG_ADAPTP_LO_THRESHOLDS_SIZE         4u
+#define CREATOR_SW_CFG_RNG_BUCKET_THRESHOLDS_SIZE            4u
+#define CREATOR_SW_CFG_RNG_MARKOV_HI_THRESHOLDS_SIZE         4u
+#define CREATOR_SW_CFG_RNG_MARKOV_LO_THRESHOLDS_SIZE         4u
+#define CREATOR_SW_CFG_RNG_EXTHT_HI_THRESHOLDS_SIZE          4u
+#define CREATOR_SW_CFG_RNG_EXTHT_LO_THRESHOLDS_SIZE          4u
+#define CREATOR_SW_CFG_RNG_ALERT_THRESHOLD_SIZE              4u
+#define CREATOR_SW_CFG_RNG_HEALTH_CONFIG_DIGEST_SIZE         4u
+#define CREATOR_SW_CFG_SRAM_KEY_RENEW_EN_SIZE                4u
+#define CREATOR_SW_CFG_DIGEST_SIZE                           8u
+#define OWNER_SW_CFG_SIZE                                    632u
+#define OWNER_SW_CFG_ROM_ERROR_REPORTING_SIZE                4u
+#define OWNER_SW_CFG_ROM_BOOTSTRAP_DIS_SIZE                  4u
+#define OWNER_SW_CFG_ROM_ALERT_CLASS_EN_SIZE                 4u
+#define OWNER_SW_CFG_ROM_ALERT_ESCALATION_SIZE               4u
+#define OWNER_SW_CFG_ROM_ALERT_CLASSIFICATION_SIZE           396u
+#define OWNER_SW_CFG_ROM_LOCAL_ALERT_CLASSIFICATION_SIZE     64u
+#define OWNER_SW_CFG_ROM_ALERT_ACCUM_THRESH_SIZE             16u
+#define OWNER_SW_CFG_ROM_ALERT_TIMEOUT_CYCLES_SIZE           16u
+#define OWNER_SW_CFG_ROM_ALERT_PHASE_CYCLES_SIZE             64u
+#define OWNER_SW_CFG_ROM_ALERT_DIGEST_PROD_SIZE              4u
+#define OWNER_SW_CFG_ROM_ALERT_DIGEST_PROD_END_SIZE          4u
+#define OWNER_SW_CFG_ROM_ALERT_DIGEST_DEV_SIZE               4u
+#define OWNER_SW_CFG_ROM_ALERT_DIGEST_RMA_SIZE               4u
+#define OWNER_SW_CFG_ROM_WATCHDOG_BITE_THRESHOLD_CYCLES_SIZE 4u
+#define OWNER_SW_CFG_ROM_KEYMGR_ROM_EXT_MEAS_EN_SIZE         4u
+#define OWNER_SW_CFG_MANUF_STATE_SIZE                        4u
+#define OWNER_SW_CFG_ROM_RSTMGR_INFO_EN_SIZE                 4u
+#define OWNER_SW_CFG_DIGEST_SIZE                             8u
+#define OWNERSHIP_SLOT_STATE_SIZE                            48u
+#define OWNERSHIP_SLOT_STATE_ROT_OWNER_AUTH_SIZE             16u
+#define OWNERSHIP_SLOT_STATE_PLAT_INTEG_AUTH_SIZE            16u
+#define OWNERSHIP_SLOT_STATE_PLAT_OWNER_AUTH_SIZE            16u
+#define ROT_CREATOR_AUTH_SIZE                                1424u
+#define ROT_CREATOR_AUTH_NON_RAW_MFW_CODESIGN_KEY_SIZE       160u
+#define ROT_CREATOR_AUTH_OWNERSHIP_STATE_SIZE                4u
+#define ROT_CREATOR_AUTH_ROM2_PATCH_SIGVERIFY_KEY_SIZE       160u
+#define ROT_CREATOR_AUTH_KEYMANIFEST_KEY_SIZE                160u
+#define ROT_CREATOR_AUTH_UNLOCK4XFER_KEY_SIZE                160u
+#define ROT_CREATOR_AUTH_IDENTITY_CERT_SIZE                  768u
+#define ROT_CREATOR_AUTH_DIGEST_SIZE                         8u
+#define ROT_OWNER_AUTH_SLOT0_SIZE                            328u
+#define ROT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY_SIZE            160u
+#define ROT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY_SIZE            160u
+#define ROT_OWNER_AUTH_SLOT0_DIGEST_SIZE                     8u
+#define ROT_OWNER_AUTH_SLOT1_SIZE                            328u
+#define ROT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY_SIZE            160u
+#define ROT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY_SIZE            160u
+#define ROT_OWNER_AUTH_SLOT1_DIGEST_SIZE                     8u
+#define PLAT_INTEG_AUTH_SLOT0_SIZE                           328u
+#define PLAT_INTEG_AUTH_SLOT0_KEYMANIFEST_KEY_SIZE           160u
+#define PLAT_INTEG_AUTH_SLOT0_UNLOCK4XFER_KEY_SIZE           160u
+#define PLAT_INTEG_AUTH_SLOT0_DIGEST_SIZE                    8u
+#define PLAT_INTEG_AUTH_SLOT1_SIZE                           328u
+#define PLAT_INTEG_AUTH_SLOT1_KEYMANIFEST_KEY_SIZE           160u
+#define PLAT_INTEG_AUTH_SLOT1_UNLOCK4XFER_KEY_SIZE           160u
+#define PLAT_INTEG_AUTH_SLOT1_DIGEST_SIZE                    8u
+#define PLAT_OWNER_AUTH_SLOT0_SIZE                           328u
+#define PLAT_OWNER_AUTH_SLOT0_KEYMANIFEST_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT0_UNLOCK4XFER_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT0_DIGEST_SIZE                    8u
+#define PLAT_OWNER_AUTH_SLOT1_SIZE                           328u
+#define PLAT_OWNER_AUTH_SLOT1_KEYMANIFEST_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT1_UNLOCK4XFER_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT1_DIGEST_SIZE                    8u
+#define PLAT_OWNER_AUTH_SLOT2_SIZE                           328u
+#define PLAT_OWNER_AUTH_SLOT2_KEYMANIFEST_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT2_UNLOCK4XFER_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT2_DIGEST_SIZE                    8u
+#define PLAT_OWNER_AUTH_SLOT3_SIZE                           328u
+#define PLAT_OWNER_AUTH_SLOT3_KEYMANIFEST_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT3_UNLOCK4XFER_KEY_SIZE           160u
+#define PLAT_OWNER_AUTH_SLOT3_DIGEST_SIZE                    8u
+#define EXT_NVM_SIZE                                         1024u
+#define EXT_NVM_ANTIREPLAY_FRESHNESS_CNT_SIZE                1024u
+#define ROM_PATCH_SIZE                                       9784u
+#define ROM_PATCH_DATA_SIZE                                  9192u
+#define ROM_PATCH_DIGEST_SIZE                                8u
+#define HW_CFG0_SIZE                                         72u
+#define DEVICE_ID_SIZE                                       32u
+#define MANUF_STATE_SIZE                                     32u
+#define HW_CFG0_DIGEST_SIZE                                  8u
+#define HW_CFG1_SIZE                                         16u
+#define SOC_DBG_STATE_SIZE                                   4u
+#define EN_SRAM_IFETCH_SIZE                                  1u
+#define HW_CFG1_DIGEST_SIZE                                  8u
+#define SECRET0_SIZE                                         40u
+#define TEST_UNLOCK_TOKEN_SIZE                               16u
+#define TEST_EXIT_TOKEN_SIZE                                 16u
+#define SECRET0_DIGEST_SIZE                                  8u
+#define SECRET1_SIZE                                         88u
+#define FLASH_ADDR_KEY_SEED_SIZE                             32u
+#define FLASH_DATA_KEY_SEED_SIZE                             32u
+#define SRAM_DATA_KEY_SEED_SIZE                              16u
+#define SECRET1_DIGEST_SIZE                                  8u
+#define SECRET2_SIZE                                         120u
+#define RMA_TOKEN_SIZE                                       16u
+#define CREATOR_ROOT_KEY_SHARE0_SIZE                         32u
+#define CREATOR_ROOT_KEY_SHARE1_SIZE                         32u
+#define CREATOR_SEED_SIZE                                    32u
+#define SECRET2_DIGEST_SIZE                                  8u
+#define SECRET3_SIZE                                         40u
+#define OWNER_SEED_SIZE                                      32u
+#define SECRET3_DIGEST_SIZE                                  8u
+#define LIFE_CYCLE_SIZE                                      88u
+#define LC_TRANSITION_CNT_SIZE                               48u
+#define LC_STATE_SIZE                                        40u
 
 #define INTR_MASK (INTR_OTP_OPERATION_DONE_MASK | INTR_OTP_ERROR_MASK)
 #define ALERT_TEST_MASK \
-    (R_ALERT_TEST_FATAL_MACRO_ERROR_MASK | \
-     R_ALERT_TEST_FATAL_CHECK_ERROR_MASK | \
-     R_ALERT_TEST_FATAL_BUS_INTEG_ERROR_MASK | \
-     R_ALERT_TEST_FATAL_PRIM_OTP_ALERT_MASK | \
-     R_ALERT_TEST_RECOV_PRIM_OTP_ALERT_MASK)
+    (ALERT_FATAL_MACRO_ERROR_MASK | ALERT_FATAL_CHECK_ERROR_MASK | \
+     ALERT_FATAL_BUS_INTEG_ERROR_MASK | ALERT_FATAL_PRIM_OTP_ALERT_MASK | \
+     ALERT_RECOV_PRIM_OTP_ALERT_MASK)
 
 /* clang-format off */
 REG32(CSR0, 0x0u)
@@ -436,9 +520,12 @@ REG32(CSR7, 0x1cu)
 /* clang-format on */
 
 #define SW_CFG_WINDOW      0x4000u
-#define SW_CFG_WINDOW_SIZE 0x4000u
+#define SW_CFG_WINDOW_SIZE (NUM_SW_CFG_WINDOW_WORDS * sizeof(uint32_t))
 
-#define DAI_DELAY_NS 100000u /* 100us */
+/* the following delays are arbitrary for now */
+#define DAI_READ_DELAY_NS   100000u /* 100us */
+#define DAI_WRITE_DELAY_NS  1000000u /* 1ms */
+#define DAI_DIGEST_DELAY_NS 5000000u /* 5ms */
 
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
@@ -565,33 +652,33 @@ static const char CSR_NAMES[CSRS_COUNT][6u] = {
 #define OTP_PART_VENDOR_TEST_OFFSET           0u
 #define OTP_PART_VENDOR_TEST_SIZE             64u
 #define OTP_PART_CREATOR_SW_CFG_OFFSET        64u
-#define OTP_PART_CREATOR_SW_CFG_SIZE          768u
-#define OTP_PART_OWNER_SW_CFG_OFFSET          832u
-#define OTP_PART_OWNER_SW_CFG_SIZE            768u
-#define OTP_PART_OWNERSHIP_SLOT_STATE_OFFSET  1600u
+#define OTP_PART_CREATOR_SW_CFG_SIZE          320u
+#define OTP_PART_OWNER_SW_CFG_OFFSET          384u
+#define OTP_PART_OWNER_SW_CFG_SIZE            632u
+#define OTP_PART_OWNERSHIP_SLOT_STATE_OFFSET  1016u
 #define OTP_PART_OWNERSHIP_SLOT_STATE_SIZE    48u
-#define OTP_PART_ROT_CREATOR_AUTH_OFFSET      1648u
+#define OTP_PART_ROT_CREATOR_AUTH_OFFSET      1064u
 #define OTP_PART_ROT_CREATOR_AUTH_SIZE        1424u
-#define OTP_PART_ROT_OWNER_AUTH_SLOT0_OFFSET  3072u
+#define OTP_PART_ROT_OWNER_AUTH_SLOT0_OFFSET  2488u
 #define OTP_PART_ROT_OWNER_AUTH_SLOT0_SIZE    328u
-#define OTP_PART_ROT_OWNER_AUTH_SLOT1_OFFSET  3400u
+#define OTP_PART_ROT_OWNER_AUTH_SLOT1_OFFSET  2816u
 #define OTP_PART_ROT_OWNER_AUTH_SLOT1_SIZE    328u
-#define OTP_PART_PLAT_INTEG_AUTH_SLOT0_OFFSET 3728u
+#define OTP_PART_PLAT_INTEG_AUTH_SLOT0_OFFSET 3144u
 #define OTP_PART_PLAT_INTEG_AUTH_SLOT0_SIZE   328u
-#define OTP_PART_PLAT_INTEG_AUTH_SLOT1_OFFSET 4056u
+#define OTP_PART_PLAT_INTEG_AUTH_SLOT1_OFFSET 3472u
 #define OTP_PART_PLAT_INTEG_AUTH_SLOT1_SIZE   328u
-#define OTP_PART_PLAT_OWNER_AUTH_SLOT0_OFFSET 4384u
+#define OTP_PART_PLAT_OWNER_AUTH_SLOT0_OFFSET 3800u
 #define OTP_PART_PLAT_OWNER_AUTH_SLOT0_SIZE   328u
-#define OTP_PART_PLAT_OWNER_AUTH_SLOT1_OFFSET 4712u
+#define OTP_PART_PLAT_OWNER_AUTH_SLOT1_OFFSET 4128u
 #define OTP_PART_PLAT_OWNER_AUTH_SLOT1_SIZE   328u
-#define OTP_PART_PLAT_OWNER_AUTH_SLOT2_OFFSET 5040u
+#define OTP_PART_PLAT_OWNER_AUTH_SLOT2_OFFSET 4456u
 #define OTP_PART_PLAT_OWNER_AUTH_SLOT2_SIZE   328u
-#define OTP_PART_PLAT_OWNER_AUTH_SLOT3_OFFSET 5368u
+#define OTP_PART_PLAT_OWNER_AUTH_SLOT3_OFFSET 4784u
 #define OTP_PART_PLAT_OWNER_AUTH_SLOT3_SIZE   328u
-#define OTP_PART_EXT_NVM_OFFSET               5696u
+#define OTP_PART_EXT_NVM_OFFSET               5112u
 #define OTP_PART_EXT_NVM_SIZE                 1024u
-#define OTP_PART_ROM_PATCH_OFFSET             6720u
-#define OTP_PART_ROM_PATCH_SIZE               9200u
+#define OTP_PART_ROM_PATCH_OFFSET             6136u
+#define OTP_PART_ROM_PATCH_SIZE               9784u
 #define OTP_PART_HW_CFG0_OFFSET               15920u
 #define OTP_PART_HW_CFG0_SIZE                 72u
 #define OTP_PART_HW_CFG1_OFFSET               15992u
@@ -630,32 +717,412 @@ typedef enum {
     OTP_PART_SECRET2,
     OTP_PART_SECRET3,
     OTP_PART_LIFE_CYCLE,
-    _OTP_PART_LIFE_COUNT,
+    _OTP_PART_COUNT,
+    OTP_ENTRY_DAI = _OTP_PART_COUNT, /* Fake partitions for error (...) */
+    OTP_ENTRY_KDI, /* Key derivation issue, not really OTP */
+    _OTP_ENTRY_COUNT,
 } OtOTPPartitionType;
 
+/* Error code (compliant with ERR_CODE registers) */
 typedef enum {
     OTP_NO_ERROR,
     OTP_MACRO_ERROR,
-    OTP_MACRO_ECC_CORR_ERROR,
+    OTP_MACRO_ECC_CORR_ERROR, /* This is NOT an error */
     OTP_MACRO_ECC_UNCORR_ERROR,
     OTP_MACRO_WRITE_BLANK_ERROR,
     OTP_ACCESS_ERROR,
-    OTP_CHECK_FAIL_ERROR,
+    OTP_CHECK_FAIL_ERROR, /* Digest error */
     OTP_FSM_STATE_ERROR,
 } OtOTPError;
+
+/* States of an unbuffered partition FSM */
+typedef enum {
+    OTP_UNBUF_RESET,
+    OTP_UNBUF_INIT,
+    OTP_UNBUF_INIT_WAIT,
+    OTP_UNBUF_IDLE,
+    OTP_UNBUF_READ,
+    OTP_UNBUF_READ_WAIT,
+    OTP_UNBUF_ERROR,
+} OtOTPUnbufState;
+
+/* States of a buffered partition FSM */
+typedef enum {
+    OTP_BUF_RESET,
+    OTP_BUF_INIT,
+    OTP_BUF_INIT_WAIT,
+    OTP_BUF_INIT_DESCR,
+    OTP_BUF_INIT_DESCR_WAIT,
+    OTP_BUF_IDLE,
+    OTP_BUF_INTEG_SCR,
+    OTP_BUF_INTEG_SCR_WAIT,
+    OTP_BUF_INTEG_DIG_CLR,
+    OTP_BUF_INTEG_DIG,
+    OTP_BUF_INTEG_DIG_PAD,
+    OTP_BUF_INTEG_DIG_FIN,
+    OTP_BUF_INTEG_DIG_WAIT,
+    OTP_BUF_CNSTY_READ,
+    OTP_BUF_CNSTY_READ_WAIT,
+    OTP_BUF_ERROR,
+} OtOTPBufState;
+
+typedef enum {
+    OTP_DAI_RESET,
+    OTP_DAI_INIT_OTP,
+    OTP_DAI_INIT_PART,
+    OTP_DAI_IDLE,
+    OTP_DAI_ERROR,
+    OTP_DAI_READ,
+    OTP_DAI_READ_WAIT,
+    OTP_DAI_DESCR,
+    OTP_DAI_DESCR_WAIT,
+    OTP_DAI_WRITE,
+    OTP_DAI_WRITE_WAIT,
+    OTP_DAI_SCR,
+    OTP_DAI_SCR_WAIT,
+    OTP_DAI_DIG_CLR,
+    OTP_DAI_DIG_READ,
+    OTP_DAI_DIG_READ_WAIT,
+    OTP_DAI_DIG,
+    OTP_DAI_DIG_PAD,
+    OTP_DAI_DIG_FIN,
+    OTP_DAI_DIG_WAIT,
+} OtOTPDAIState;
 
 typedef struct {
     uint16_t size;
     uint16_t offset;
     uint16_t digest_offset;
-    bool hw_digest;
-    bool secret;
-    bool buffered;
-    bool wr_lockable;
-    bool rd_lockable;
-    bool ecc_fatal_alert;
-    bool wide; /* false: 32-bit granule, true: 64-bit granule */
-} OtOTPPartition;
+    uint16_t hw_digest : 1;
+    uint16_t sw_digest : 1;
+    uint16_t secret : 1;
+    uint16_t buffered : 1;
+    uint16_t wr_lockable : 1;
+    uint16_t rd_lockable : 1;
+    uint16_t integrity : 1;
+    uint16_t wide : 1; /* false: 32-bit granule, true: 64-bit granule */
+} OtOTPPartDesc;
+
+static const OtOTPPartDesc OtOTPPartDescs[] = {
+    [OTP_PART_VENDOR_TEST] = {
+        .size = OTP_PART_VENDOR_TEST_SIZE,
+        .offset = OTP_PART_VENDOR_TEST_OFFSET,
+        .digest_offset = A_VENDOR_TEST_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = false,
+        .wide = false,
+    },
+    [OTP_PART_CREATOR_SW_CFG] = {
+        .size = OTP_PART_CREATOR_SW_CFG_SIZE,
+        .offset = OTP_PART_CREATOR_SW_CFG_OFFSET,
+        .digest_offset = A_CREATOR_SW_CFG_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_OWNER_SW_CFG] = {
+        .size = OTP_PART_OWNER_SW_CFG_SIZE,
+        .offset = OTP_PART_OWNER_SW_CFG_OFFSET,
+        .digest_offset = A_OWNER_SW_CFG_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_OWNERSHIP_SLOT_STATE] = {
+        .size = OTP_PART_OWNERSHIP_SLOT_STATE_SIZE,
+        .offset = OTP_PART_OWNERSHIP_SLOT_STATE_OFFSET,
+        .digest_offset = UINT16_MAX,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = false,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_ROT_CREATOR_AUTH] = {
+        .size = OTP_PART_ROT_CREATOR_AUTH_SIZE,
+        .offset = OTP_PART_ROT_CREATOR_AUTH_OFFSET,
+        .digest_offset = A_ROT_CREATOR_AUTH_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_ROT_OWNER_AUTH_SLOT0] = {
+        .size = OTP_PART_ROT_OWNER_AUTH_SLOT0_SIZE,
+        .offset = OTP_PART_ROT_OWNER_AUTH_SLOT0_OFFSET,
+        .digest_offset = A_ROT_OWNER_AUTH_SLOT0_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_ROT_OWNER_AUTH_SLOT1] = {
+        .size = OTP_PART_ROT_OWNER_AUTH_SLOT1_SIZE,
+        .offset = OTP_PART_ROT_OWNER_AUTH_SLOT1_OFFSET,
+        .digest_offset = A_ROT_OWNER_AUTH_SLOT1_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_PLAT_INTEG_AUTH_SLOT0] = {
+        .size = OTP_PART_PLAT_INTEG_AUTH_SLOT0_SIZE,
+        .offset = OTP_PART_PLAT_INTEG_AUTH_SLOT0_OFFSET,
+        .digest_offset = A_PLAT_INTEG_AUTH_SLOT0_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_PLAT_INTEG_AUTH_SLOT1] = {
+        .size = OTP_PART_PLAT_INTEG_AUTH_SLOT1_SIZE,
+        .offset = OTP_PART_PLAT_INTEG_AUTH_SLOT1_OFFSET,
+        .digest_offset = A_PLAT_INTEG_AUTH_SLOT1_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_PLAT_OWNER_AUTH_SLOT0] = {
+        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT0_SIZE,
+        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT0_OFFSET,
+        .digest_offset = A_PLAT_OWNER_AUTH_SLOT0_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_PLAT_OWNER_AUTH_SLOT1] = {
+        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT1_SIZE,
+        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT1_OFFSET,
+        .digest_offset = A_PLAT_OWNER_AUTH_SLOT1_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_PLAT_OWNER_AUTH_SLOT2] = {
+        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT2_SIZE,
+        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT2_OFFSET,
+        .digest_offset = A_PLAT_OWNER_AUTH_SLOT2_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_PLAT_OWNER_AUTH_SLOT3] = {
+        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT3_SIZE,
+        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT3_OFFSET,
+        .digest_offset = A_PLAT_OWNER_AUTH_SLOT3_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_EXT_NVM] = {
+        .size = OTP_PART_EXT_NVM_SIZE,
+        .offset = OTP_PART_EXT_NVM_OFFSET,
+        .digest_offset = UINT16_MAX,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = false,
+        .rd_lockable = true,
+        .integrity = false,
+        .wide = false,
+    },
+    [OTP_PART_ROM_PATCH] = {
+        .size = OTP_PART_ROM_PATCH_SIZE,
+        .offset = OTP_PART_ROM_PATCH_OFFSET,
+        .digest_offset = A_ROM_PATCH_DIGEST,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_HW_CFG0] = {
+        .size = OTP_PART_HW_CFG0_SIZE,
+        .offset = OTP_PART_HW_CFG0_OFFSET,
+        .digest_offset = A_HW_CFG0_DIGEST,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = false,
+        .buffered = true,
+        .wr_lockable = true,
+        .rd_lockable = false,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_HW_CFG1] = {
+        .size = OTP_PART_HW_CFG1_SIZE,
+        .offset = OTP_PART_HW_CFG1_OFFSET,
+        .digest_offset = A_HW_CFG1_DIGEST,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = false,
+        .buffered = true,
+        .wr_lockable = true,
+        .rd_lockable = false,
+        .integrity = true,
+        .wide = false,
+    },
+    [OTP_PART_SECRET0] = {
+        .size = OTP_PART_SECRET0_SIZE,
+        .offset = OTP_PART_SECRET0_OFFSET,
+        .digest_offset = A_SECRET0_DIGEST,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = true,
+        .buffered = true,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = true,
+    },
+    [OTP_PART_SECRET1] = {
+        .size = OTP_PART_SECRET1_SIZE,
+        .offset = OTP_PART_SECRET1_OFFSET,
+        .digest_offset = A_SECRET1_DIGEST,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = true,
+        .buffered = true,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = true,
+    },
+    [OTP_PART_SECRET2] = {
+        .size = OTP_PART_SECRET2_SIZE,
+        .offset = OTP_PART_SECRET2_OFFSET,
+        .digest_offset = A_SECRET2_DIGEST,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = true,
+        .buffered = true,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = true,
+    },
+    [OTP_PART_SECRET3] = {
+        .size = OTP_PART_SECRET3_SIZE,
+        .offset = OTP_PART_SECRET3_OFFSET,
+        .digest_offset = A_SECRET3_DIGEST,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = true,
+        .buffered = true,
+        .wr_lockable = true,
+        .rd_lockable = true,
+        .integrity = true,
+        .wide = true,
+    },
+    [OTP_PART_LIFE_CYCLE] = {
+        .size = OTP_PART_LIFE_CYCLE_SIZE,
+        .offset = OTP_PART_LIFE_CYCLE_OFFSET,
+        .digest_offset = UINT16_MAX,
+        .hw_digest = false,
+        .sw_digest = false,
+        .secret = false,
+        .buffered = true,
+        .wr_lockable = false,
+        .rd_lockable = false,
+        .integrity = true,
+        .wide = false,
+    },
+};
+
+#define OTP_PART_COUNT ARRAY_SIZE(OtOTPPartDescs)
+
+static_assert(OTP_PART_COUNT == NUM_PART, "Invalid partition definitions");
+static_assert(OTP_PART_COUNT == _OTP_PART_COUNT,
+              "Invalid partition definitions");
+static_assert(NUM_PART_UNBUF + NUM_PART_BUF == NUM_PART, "Invalid partitions");
+static_assert(NUM_ERROR_ENTRIES == _OTP_ENTRY_COUNT, "Invalid entries");
+static_assert(NUM_PART <= 64, "Maximum part count reached");
+
+#define OTP_DIGEST_ADDR_MASK (sizeof(uint64_t) - 1u)
+
+typedef struct {
+    union {
+        OtOTPBufState b;
+        OtOTPUnbufState u;
+    } state;
+    struct {
+        uint32_t *data; /* size, see OtOTPPartDescs; w/o digest data */
+        uint64_t digest;
+        uint64_t next_digest; /* computed HW digest to store into OTP cell */
+    } buffer; /* only meaningful for buffered partitions */
+    bool locked;
+    bool failed;
+} OtOTPPartController;
+
+typedef struct {
+    QEMUTimer *delay; /* simulate delayed access completion */
+    QEMUBH *digest_bh; /* write computed digest to OTP cell */
+    OtOTPDAIState state;
+    int partition; /* current partition being worked on or -1 */
+} OtOTPDAIController;
 
 typedef struct {
     uint32_t *storage; /* overall buffer for the storage backend */
@@ -666,6 +1133,8 @@ typedef struct {
     unsigned ecc_size; /* ecc buffer size in bytes */
     unsigned ecc_bit_count; /* count of ECC bit for each data granule */
     unsigned ecc_granule; /* size of a granule in bytes */
+    uint64_t digest_iv; /* Present digest IV */
+    uint8_t digest_constant[16u]; /* Present digest finalization constant */
 } OtOTPStorage;
 
 #define OtOTPDjState OtOTPDarjeelingState
@@ -687,13 +1156,13 @@ struct OtOTPDjState {
         uint32_t state;
         unsigned tcount;
     } lc;
-    IbexIRQ irqs[2u];
-    IbexIRQ alert;
-
-    QEMUTimer *dai_delay; /**< Simulate delayed access completion */
+    IbexIRQ irqs[NUM_IRQS];
+    IbexIRQ alerts[NUM_ALERTS];
 
     uint32_t regs[REGS_COUNT];
-    bool dai_busy;
+
+    OtOTPDAIController dai;
+    OtOTPPartController partctrls[OTP_PART_COUNT];
 
     OtOTPStorage otp;
     OtOTPHWCfg *hw_cfg;
@@ -704,275 +1173,100 @@ struct OtOTPDjState {
     uint8_t edn_ep;
 };
 
-static const OtOTPPartition OtOTPPartitions[] = {
-    [OTP_PART_VENDOR_TEST] = {
-        .size = OTP_PART_VENDOR_TEST_SIZE,
-        .offset = OTP_PART_VENDOR_TEST_OFFSET,
-        .digest_offset = R_VENDOR_TEST_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = false,
-        .wide = false,
-    },
-    [OTP_PART_CREATOR_SW_CFG] = {
-        .size = OTP_PART_CREATOR_SW_CFG_SIZE,
-        .offset = OTP_PART_CREATOR_SW_CFG_OFFSET,
-        .digest_offset = R_CREATOR_SW_CFG_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_OWNER_SW_CFG] = {
-        .size = OTP_PART_OWNER_SW_CFG_SIZE,
-        .offset = OTP_PART_OWNER_SW_CFG_OFFSET,
-        .digest_offset = R_OWNER_SW_CFG_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_OWNERSHIP_SLOT_STATE] = {
-        .size = OTP_PART_OWNERSHIP_SLOT_STATE_SIZE,
-        .offset = OTP_PART_OWNERSHIP_SLOT_STATE_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = false,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_ROT_CREATOR_AUTH] = {
-        .size = OTP_PART_ROT_CREATOR_AUTH_SIZE,
-        .offset = OTP_PART_ROT_CREATOR_AUTH_OFFSET,
-        .digest_offset = R_ROT_CREATOR_AUTH_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_ROT_OWNER_AUTH_SLOT0] = {
-        .size = OTP_PART_ROT_OWNER_AUTH_SLOT0_SIZE,
-        .offset = OTP_PART_ROT_OWNER_AUTH_SLOT0_OFFSET,
-        .digest_offset = R_ROT_OWNER_AUTH_SLOT0_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_ROT_OWNER_AUTH_SLOT1] = {
-        .size = OTP_PART_ROT_OWNER_AUTH_SLOT1_SIZE,
-        .offset = OTP_PART_ROT_OWNER_AUTH_SLOT1_OFFSET,
-        .digest_offset = R_ROT_OWNER_AUTH_SLOT1_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_INTEG_AUTH_SLOT0] = {
-        .size = OTP_PART_PLAT_INTEG_AUTH_SLOT0_SIZE,
-        .offset = OTP_PART_PLAT_INTEG_AUTH_SLOT0_OFFSET,
-        .digest_offset = R_PLAT_INTEG_AUTH_SLOT0_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_INTEG_AUTH_SLOT1] = {
-        .size = OTP_PART_PLAT_INTEG_AUTH_SLOT1_SIZE,
-        .offset = OTP_PART_PLAT_INTEG_AUTH_SLOT1_OFFSET,
-        .digest_offset = R_PLAT_INTEG_AUTH_SLOT1_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT0] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT0_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT0_OFFSET,
-        .digest_offset = R_PLAT_OWNER_AUTH_SLOT0_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT1] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT1_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT1_OFFSET,
-        .digest_offset = R_PLAT_OWNER_AUTH_SLOT1_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT2] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT2_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT2_OFFSET,
-        .digest_offset = R_PLAT_OWNER_AUTH_SLOT2_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT3] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT3_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT3_OFFSET,
-        .digest_offset = R_PLAT_OWNER_AUTH_SLOT3_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_EXT_NVM] = {
-        .size = OTP_PART_EXT_NVM_SIZE,
-        .offset = OTP_PART_EXT_NVM_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = false,
-        .rd_lockable = true,
-        .ecc_fatal_alert = false,
-        .wide = false,
-    },
-    [OTP_PART_ROM_PATCH] = {
-        .size = OTP_PART_ROM_PATCH_SIZE,
-        .offset = OTP_PART_ROM_PATCH_OFFSET,
-        .digest_offset = R_ROM_PATCH_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_HW_CFG0] = {
-        .size = OTP_PART_HW_CFG0_SIZE,
-        .offset = OTP_PART_HW_CFG0_OFFSET,
-        .digest_offset = R_HW_CFG0_DIGEST,
-        .hw_digest = true,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = false,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_HW_CFG1] = {
-        .size = OTP_PART_HW_CFG1_SIZE,
-        .offset = OTP_PART_HW_CFG1_OFFSET,
-        .digest_offset = R_HW_CFG1_DIGEST,
-        .hw_digest = true,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = false,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_SECRET0] = {
-        .size = OTP_PART_SECRET0_SIZE,
-        .offset = OTP_PART_SECRET0_OFFSET,
-        .digest_offset = R_SECRET0_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET1] = {
-        .size = OTP_PART_SECRET1_SIZE,
-        .offset = OTP_PART_SECRET1_OFFSET,
-        .digest_offset = R_SECRET1_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET2] = {
-        .size = OTP_PART_SECRET2_SIZE,
-        .offset = OTP_PART_SECRET2_OFFSET,
-        .digest_offset = R_SECRET2_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET3] = {
-        .size = OTP_PART_SECRET3_SIZE,
-        .offset = OTP_PART_SECRET3_OFFSET,
-        .digest_offset = R_SECRET3_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_LIFE_CYCLE] = {
-        .size = OTP_PART_LIFE_CYCLE_SIZE,
-        .offset = OTP_PART_LIFE_CYCLE_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = false,
-        .rd_lockable = false,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
+#define OTP_NAME_ENTRY(_st_) [_st_] = stringify(_st_)
+
+/* clang-format off */
+static const char *DAI_STATE_NAMES[] = {
+    OTP_NAME_ENTRY(OTP_DAI_RESET),
+    OTP_NAME_ENTRY(OTP_DAI_INIT_OTP),
+    OTP_NAME_ENTRY(OTP_DAI_INIT_PART),
+    OTP_NAME_ENTRY(OTP_DAI_IDLE),
+    OTP_NAME_ENTRY(OTP_DAI_ERROR),
+    OTP_NAME_ENTRY(OTP_DAI_READ),
+    OTP_NAME_ENTRY(OTP_DAI_READ_WAIT),
+    OTP_NAME_ENTRY(OTP_DAI_DESCR),
+    OTP_NAME_ENTRY(OTP_DAI_DESCR_WAIT),
+    OTP_NAME_ENTRY(OTP_DAI_WRITE),
+    OTP_NAME_ENTRY(OTP_DAI_WRITE_WAIT),
+    OTP_NAME_ENTRY(OTP_DAI_SCR),
+    OTP_NAME_ENTRY(OTP_DAI_SCR_WAIT),
+    OTP_NAME_ENTRY(OTP_DAI_DIG_CLR),
+    OTP_NAME_ENTRY(OTP_DAI_DIG_READ),
+    OTP_NAME_ENTRY(OTP_DAI_DIG_READ_WAIT),
+    OTP_NAME_ENTRY(OTP_DAI_DIG),
+    OTP_NAME_ENTRY(OTP_DAI_DIG_PAD),
+    OTP_NAME_ENTRY(OTP_DAI_DIG_FIN),
+    OTP_NAME_ENTRY(OTP_DAI_DIG_WAIT),
 };
 
+static const char *PART_NAMES[] = {
+    OTP_NAME_ENTRY(OTP_PART_VENDOR_TEST),
+    OTP_NAME_ENTRY(OTP_PART_CREATOR_SW_CFG),
+    OTP_NAME_ENTRY(OTP_PART_OWNER_SW_CFG),
+    OTP_NAME_ENTRY(OTP_PART_OWNERSHIP_SLOT_STATE),
+    OTP_NAME_ENTRY(OTP_PART_ROT_CREATOR_AUTH),
+    OTP_NAME_ENTRY(OTP_PART_ROT_OWNER_AUTH_SLOT0),
+    OTP_NAME_ENTRY(OTP_PART_ROT_OWNER_AUTH_SLOT1),
+    OTP_NAME_ENTRY(OTP_PART_PLAT_INTEG_AUTH_SLOT0),
+    OTP_NAME_ENTRY(OTP_PART_PLAT_INTEG_AUTH_SLOT1),
+    OTP_NAME_ENTRY(OTP_PART_PLAT_OWNER_AUTH_SLOT0),
+    OTP_NAME_ENTRY(OTP_PART_PLAT_OWNER_AUTH_SLOT1),
+    OTP_NAME_ENTRY(OTP_PART_PLAT_OWNER_AUTH_SLOT2),
+    OTP_NAME_ENTRY(OTP_PART_PLAT_OWNER_AUTH_SLOT3),
+    OTP_NAME_ENTRY(OTP_PART_EXT_NVM),
+    OTP_NAME_ENTRY(OTP_PART_ROM_PATCH),
+    OTP_NAME_ENTRY(OTP_PART_HW_CFG0),
+    OTP_NAME_ENTRY(OTP_PART_HW_CFG1),
+    OTP_NAME_ENTRY(OTP_PART_SECRET0),
+    OTP_NAME_ENTRY(OTP_PART_SECRET1),
+    OTP_NAME_ENTRY(OTP_PART_SECRET2),
+    OTP_NAME_ENTRY(OTP_PART_SECRET3),
+    OTP_NAME_ENTRY(OTP_PART_LIFE_CYCLE),
+};
+
+static const char *ERR_CODE_NAMES[] = {
+    OTP_NAME_ENTRY(OTP_NO_ERROR),
+    OTP_NAME_ENTRY(OTP_MACRO_ERROR),
+    OTP_NAME_ENTRY(OTP_MACRO_ECC_CORR_ERROR),
+    OTP_NAME_ENTRY(OTP_MACRO_ECC_UNCORR_ERROR),
+    OTP_NAME_ENTRY(OTP_MACRO_WRITE_BLANK_ERROR),
+    OTP_NAME_ENTRY(OTP_ACCESS_ERROR),
+    OTP_NAME_ENTRY(OTP_CHECK_FAIL_ERROR),
+    OTP_NAME_ENTRY(OTP_FSM_STATE_ERROR),
+};
 /* clang-format on */
+
+#undef OTP_NAME_ENTRY
+
+#define BUF_STATE_NAME(_st_) \
+    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(BUF_STATE_NAMES) ? \
+         BUF_STATE_NAMES[(_st_)] : \
+         "?")
+#define UNBUF_STATE_NAME(_st_) \
+    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(UNBUF_STATE_NAMES) ? \
+         UNBUF_STATE_NAMES[(_st_)] : \
+         "?")
+#define DAI_STATE_NAME(_st_) \
+    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(DAI_STATE_NAMES) ? \
+         DAI_STATE_NAMES[(_st_)] : \
+         "?")
+#define PART_NAME(_pt_) \
+    (((unsigned)(_pt_)) < ARRAY_SIZE(PART_NAMES) ? PART_NAMES[(_pt_)] : "?")
+#define ERR_CODE_NAME(_err_) \
+    (((unsigned)(_err_)) < ARRAY_SIZE(ERR_CODE_NAMES) ? \
+         ERR_CODE_NAMES[(_err_)] : \
+         "?")
+
+static void
+ot_otp_dj_dai_change_state_line(OtOTPDjState *s, OtOTPDAIState state, int line);
+
+#define DAI_CHANGE_STATE(_s_, _st_) \
+    ot_otp_dj_dai_change_state_line(_s_, _st_, __LINE__)
+
+#define OT_OTP_PART_DATA_BYTE_SIZE(_pix_) \
+    ((unsigned)(OtOTPPartDescs[(_pix_)].size - \
+                sizeof(uint32_t) * NUM_DIGEST_WORDS))
+
 /* NOLINTNEXTLINE */
 #include "ot_otp_darjeeling_lcvalues.c"
 
@@ -981,63 +1275,102 @@ static const OtOTPPartition OtOTPPartitions[] = {
     (((_x_) << 0u) | ((_x_) << 5u) | ((_x_) << 10u) | ((_x_) << 15u) | \
      ((_x_) << 20u) | ((_x_) << 25u))
 
-
-static void ot_otp_dj_set_error(OtOTPDjState *s, int part, OtOTPError err)
+static void ot_otp_dj_update_irqs(OtOTPDjState *s)
 {
-    unsigned err_off = (unsigned)part * 3u;
-    unsigned error_reg = err_off / 32u;
-    err_off -= error_reg * 32u;
-    uint32_t err_mask = ((1u << (err_off + 1u)) - 1u) & ~((1u << err_off) - 1u);
-    g_assert(error_reg < NUM_ERROR_REGS);
-    s->regs[R_ERR_CODE_0 + error_reg] &= ~err_mask;
-    s->regs[R_ERR_CODE_0 + error_reg] |= (((uint32_t)err) & 0x7u) << err_off;
+    uint32_t level = s->regs[R_INTR_STATE] & s->regs[R_INTR_ENABLE];
+
+    for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
+        ibex_irq_set(&s->irqs[ix], (int)((level >> ix) & 0x1));
+    }
+}
+
+static bool ot_otp_dj_is_wide_granule(int partition)
+{
+    if (partition >= 0 && partition < OTP_PART_COUNT) {
+        return OtOTPPartDescs[partition].wide;
+    }
+
+    return false;
+}
+
+static bool ot_otp_dj_is_buffered(int partition)
+{
+    if (partition >= 0 && partition < OTP_PART_COUNT) {
+        return OtOTPPartDescs[partition].buffered;
+    }
+
+    return false;
+}
+
+static void ot_otp_dj_set_error(OtOTPDjState *s, unsigned part, OtOTPError err)
+{
+    /* This is it NUM_ERROR_ENTRIES */
+    g_assert(part < NUM_ERROR_ENTRIES);
+    s->regs[R_ERR_CODE_0 + part] = ((uint32_t)err) & 0x7u;
+
+    trace_ot_otp_set_error(part, ERR_CODE_NAME(err), err);
 
     switch (err) {
     case OTP_MACRO_ERROR:
     case OTP_MACRO_ECC_UNCORR_ERROR:
+        ibex_irq_set(&s->alerts[ALERT_FATAL_MACRO_ERROR_SHIFT], 1);
+        break;
+    /* NOLINTNEXTLINE */
+    case OTP_MACRO_ECC_CORR_ERROR:
+        /*
+         * "The corresponding controller automatically recovers from this error
+         *  when issuing a new command."
+         */
+        break;
+    case OTP_MACRO_WRITE_BLANK_ERROR:
+        break;
+    case OTP_ACCESS_ERROR:
+        s->regs[R_STATUS] |= R_STATUS_DAI_ERROR_MASK;
+        break;
     case OTP_CHECK_FAIL_ERROR:
     case OTP_FSM_STATE_ERROR:
-        ibex_irq_set(&s->alert, 1u);
+        ibex_irq_set(&s->alerts[ALERT_FATAL_CHECK_ERROR_SHIFT], 1);
         break;
     default:
         break;
     }
+
+    if (err != OTP_NO_ERROR) {
+        s->regs[R_INTR_STATE] |= INTR_OTP_ERROR_MASK;
+        ot_otp_dj_update_irqs(s);
+    }
 }
 
-static uint32_t ot_otp_dj_get_status(OtOTPDjState *s)
+static uint32_t ot_otp_dj_dai_is_busy(const OtOTPDjState *s)
 {
-    uint32_t status = 0;
-    for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartitions); ix++) {
-        unsigned err_off = 3u << ix;
-        unsigned error_reg = err_off / 32u;
-        err_off -= error_reg * 32u;
-        uint32_t err_mask =
-            ((1u << (err_off + 1u)) - 1u) & ~((1u << err_off) - 1u);
-        g_assert(error_reg < NUM_ERROR_REGS);
-        if (s->regs[R_ERR_CODE_0 + error_reg] & err_mask) {
-            status |= 1u << ix;
-        }
-    }
+    return s->dai.state != OTP_DAI_IDLE;
+}
 
-    /* tmp */
-    status = FIELD_DP32(status, STATUS, DAI_IDLE, !s->dai_busy);
+static uint32_t ot_otp_dj_get_status(const OtOTPDjState *s)
+{
+    uint32_t status;
+
+    status = FIELD_DP32(s->regs[R_STATUS], STATUS, DAI_IDLE,
+                        !ot_otp_dj_dai_is_busy(s));
 
     return status;
 }
 
 static int ot_otp_dj_swcfg_get_part(hwaddr addr)
 {
-    for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartitions); ix++) {
-        const OtOTPPartition *part = &OtOTPPartitions[ix];
+    for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
+        const OtOTPPartDesc *part = &OtOTPPartDescs[ix];
         if ((addr >= part->offset) &&
             ((addr + sizeof(uint32_t)) <= (part->offset + part->size))) {
+            trace_ot_otp_addr_to_part((unsigned)addr, PART_NAME(ix), ix);
             return (OtOTPPartitionType)ix;
         }
     }
+
     return -1;
 }
 
-static uint16_t ot_otp_dj_swcfg_get_part_digest_offset(int part)
+static uint16_t ot_otp_dj_get_part_digest_offset(int part)
 {
     switch (part) {
     case OTP_PART_VENDOR_TEST:
@@ -1062,215 +1395,588 @@ static uint16_t ot_otp_dj_swcfg_get_part_digest_offset(int part)
     case OTP_PART_SECRET2:
     case OTP_PART_SECRET3:
     case OTP_PART_LIFE_CYCLE:
-        return OtOTPPartitions[part].digest_offset;
+        return OtOTPPartDescs[part].digest_offset;
     default:
         return UINT16_MAX;
     }
 }
 
-static uint64_t ot_otp_dj_swcfg_get_part_digest(OtOTPDjState *s, int part)
+static uint64_t ot_otp_dj_get_part_digest(OtOTPDjState *s, int part)
 {
-    uint16_t offset = ot_otp_dj_swcfg_get_part_digest_offset(part);
+    g_assert(!ot_otp_dj_is_buffered(part));
+
+    uint16_t offset = ot_otp_dj_get_part_digest_offset(part);
 
     if (offset == UINT16_MAX) {
         return 0u;
     }
 
-    offset >>= 2u;
-    const uint32_t *data = s->otp.data;
+    const uint8_t *base = (const uint8_t *)s->otp.data;
 
-    uint64_t digest = data[offset];
-    digest |= ((uint64_t)data[offset + sizeof(uint32_t)]) << 32u;
+    uint64_t digest = ldq_le_p(base + offset);
 
     return digest;
 }
 
-static bool ot_otp_dj_swcfg_is_part_digest_offset(int part, hwaddr addr)
+static uint64_t ot_otp_dj_get_buffered_part_digest(OtOTPDjState *s, int part)
 {
-    uint16_t offset = ot_otp_dj_swcfg_get_part_digest_offset(part);
+    g_assert(ot_otp_dj_is_buffered(part));
 
-    return (addr == offset) || ((addr + (sizeof(uint32_t))) == offset);
+    OtOTPPartController *pctrl = &s->partctrls[part];
+
+    return pctrl->buffer.digest;
 }
 
-static void ot_otp_dj_update_irqs(OtOTPDjState *s)
+static bool ot_otp_dj_is_part_digest_offset(int part, hwaddr addr)
 {
-    uint32_t level = s->regs[R_INTR_STATE] & s->regs[R_INTR_ENABLE];
+    uint16_t offset = ot_otp_dj_get_part_digest_offset(part);
 
-    for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
-        ibex_irq_set(&s->irqs[ix], (int)((level >> ix) & 0x1));
-    }
+    return (offset != UINT16_MAX) && ((addr & ~OTP_DIGEST_ADDR_MASK) == offset);
 }
 
-static bool ot_otp_dj_is_readable(OtOTPDjState *s, int partition, unsigned addr)
+static bool ot_otp_dj_is_readable(OtOTPDjState *s, int partition)
 {
-    /* "in all partitions, the digest itself is ALWAYS readable." */
-    bool rdaccess = ot_otp_dj_swcfg_is_part_digest_offset(partition, addr);
-
-    if (!rdaccess) {
-        if (!OtOTPPartitions[partition].rd_lockable) {
-            /* read lock is not supported for the this partition */
-            return true;
-        }
+    if (OtOTPPartDescs[partition].secret) {
+        /* secret partition cannot be read (except their digest) */
+        return false;
     }
 
-    if (!rdaccess) {
-        switch (partition) {
-        case OTP_PART_VENDOR_TEST:
-            rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_VENDOR_TEST_READ_LOCK],
-                                               READ_LOCK);
-            break;
-        case OTP_PART_CREATOR_SW_CFG:
-            rdaccess =
-                (bool)SHARED_FIELD_EX32(s->regs[R_CREATOR_SW_CFG_READ_LOCK],
-                                        READ_LOCK);
-            break;
-        case OTP_PART_OWNER_SW_CFG:
-            rdaccess =
-                (bool)SHARED_FIELD_EX32(s->regs[R_OWNER_SW_CFG_READ_LOCK],
-                                        READ_LOCK);
-            break;
-        case OTP_PART_OWNERSHIP_SLOT_STATE:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_OWNERSHIP_SLOT_STATE_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_ROT_CREATOR_AUTH:
-            rdaccess =
-                (bool)SHARED_FIELD_EX32(s->regs[R_ROT_CREATOR_AUTH_READ_LOCK],
-                                        READ_LOCK);
-            break;
-        case OTP_PART_ROT_OWNER_AUTH_SLOT0:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_ROT_OWNER_AUTH_SLOT0_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_ROT_OWNER_AUTH_SLOT1:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_ROT_OWNER_AUTH_SLOT1_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_PLAT_INTEG_AUTH_SLOT0:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_PLAT_INTEG_AUTH_SLOT0_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_PLAT_INTEG_AUTH_SLOT1:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_PLAT_INTEG_AUTH_SLOT1_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_PLAT_OWNER_AUTH_SLOT0:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT0_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_PLAT_OWNER_AUTH_SLOT1:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT1_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_PLAT_OWNER_AUTH_SLOT2:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT2_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_PLAT_OWNER_AUTH_SLOT3:
-            rdaccess = (bool)
-                SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK],
-                                  READ_LOCK);
-            break;
-        case OTP_PART_EXT_NVM:
-            rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_EXT_NVM_READ_LOCK],
-                                               READ_LOCK);
-            break;
-        case OTP_PART_ROM_PATCH:
-            rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_ROM_PATCH_READ_LOCK],
-                                               READ_LOCK);
-            break;
-        case OTP_PART_SECRET0:
-        case OTP_PART_SECRET1:
-        case OTP_PART_SECRET2:
-        case OTP_PART_SECRET3:
-            rdaccess = ot_otp_dj_swcfg_get_part_digest(s, partition) == 0u;
-            break;
-        default:
-            break;
-        }
+    if (!OtOTPPartDescs[partition].rd_lockable) {
+        /* read lock is not supported for the this partition */
+        return true;
+    }
+
+    bool rdaccess;
+
+    switch (partition) {
+    case OTP_PART_VENDOR_TEST:
+        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_VENDOR_TEST_READ_LOCK],
+                                           READ_LOCK);
+        break;
+    case OTP_PART_CREATOR_SW_CFG:
+        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_CREATOR_SW_CFG_READ_LOCK],
+                                           READ_LOCK);
+        break;
+    case OTP_PART_OWNER_SW_CFG:
+        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_OWNER_SW_CFG_READ_LOCK],
+                                           READ_LOCK);
+        break;
+    case OTP_PART_OWNERSHIP_SLOT_STATE:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_OWNERSHIP_SLOT_STATE_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_ROT_CREATOR_AUTH:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_ROT_CREATOR_AUTH_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_ROT_OWNER_AUTH_SLOT0:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_ROT_OWNER_AUTH_SLOT0_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_ROT_OWNER_AUTH_SLOT1:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_ROT_OWNER_AUTH_SLOT1_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_PLAT_INTEG_AUTH_SLOT0:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_INTEG_AUTH_SLOT0_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_PLAT_INTEG_AUTH_SLOT1:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_INTEG_AUTH_SLOT1_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_PLAT_OWNER_AUTH_SLOT0:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT0_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_PLAT_OWNER_AUTH_SLOT1:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT1_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_PLAT_OWNER_AUTH_SLOT2:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT2_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_PLAT_OWNER_AUTH_SLOT3:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK],
+                                    READ_LOCK);
+        break;
+    case OTP_PART_EXT_NVM:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_EXT_NVM_READ_LOCK], READ_LOCK);
+        break;
+    case OTP_PART_ROM_PATCH:
+        rdaccess =
+            (bool)SHARED_FIELD_EX32(s->regs[R_ROM_PATCH_READ_LOCK], READ_LOCK);
+        break;
+    case OTP_PART_HW_CFG0:
+    case OTP_PART_HW_CFG1:
+    case OTP_PART_SECRET0:
+    case OTP_PART_SECRET1:
+    case OTP_PART_SECRET2:
+    case OTP_PART_SECRET3:
+        /*
+         * hwdigest-protected partition are only readable if digest is not yet
+         * set.
+         */
+        rdaccess = ot_otp_dj_get_buffered_part_digest(s, partition) == 0u;
+        break;
+    default:
+        rdaccess = false;
+        break;
     }
 
     return rdaccess;
 }
 
-static bool ot_otp_dj_is_wide_granule(int partition)
+static void
+ot_otp_dj_dai_change_state_line(OtOTPDjState *s, OtOTPDAIState state, int line)
 {
-    if (partition >= 0 && partition < ARRAY_SIZE(OtOTPPartitions)) {
-        return OtOTPPartitions[partition].wide;
+    trace_ot_otp_dai_change_state(line, DAI_STATE_NAME(s->dai.state),
+                                  s->dai.state, DAI_STATE_NAME(state), state);
+
+    s->dai.state = state;
+}
+
+static uint64_t ot_otp_dj_compute_partition_digest(
+    OtOTPDjState *s, const uint8_t *base, unsigned size)
+{
+    OtPresentState *ps = ot_present_new();
+
+    uint8_t buf[sizeof(uint64_t) * 2u];
+    uint64_t state = s->otp.digest_iv;
+    uint64_t out;
+    for (unsigned off = 0; off < size; off += sizeof(buf)) {
+        const uint8_t *chunk;
+        if (off + sizeof(buf) > size) {
+            memcpy(buf, base + off, sizeof(uint64_t));
+            memcpy(&buf[sizeof(uint64_t)], base + off + sizeof(uint64_t),
+                   sizeof(uint64_t));
+            chunk = buf;
+        } else {
+            chunk = base + off;
+        }
+
+        ot_present_init(ps, chunk);
+        ot_present_encrypt(ps, state, &out);
+        state ^= out;
     }
 
-    return false;
+    ot_present_init(ps, s->otp.digest_constant);
+    ot_present_encrypt(ps, state, &out);
+    state ^= out;
+
+    ot_present_free(ps);
+
+    return state;
 }
 
-static bool ot_otp_dj_is_buffered(int partition)
+static uint64_t ot_otp_dj_load_partition_digest(OtOTPDjState *s, unsigned pos)
 {
-    if (partition >= 0 && partition < ARRAY_SIZE(OtOTPPartitions)) {
-        return OtOTPPartitions[partition].buffered;
+    if ((pos + sizeof(uint64_t)) > s->otp.data_size) {
+        error_setg(&error_fatal, "Partition located outside storage?\n");
+        /* linter doest not know the above call never returns */
+        return 0u;
     }
 
-    return false;
+    const uint8_t *base = (const uint8_t *)s->otp.data;
+    base += pos;
+
+    uint64_t digest = ldq_le_p(base);
+
+    return digest;
 }
 
-static void ot_otp_dj_complete_dai(void *opaque)
+static void ot_otp_dj_bufferize_partition(OtOTPDjState *s, unsigned ix)
 {
-    OtOTPDjState *s = opaque;
+    OtOTPPartController *pctrl = &s->partctrls[ix];
 
-    s->dai_busy = false;
+    g_assert(pctrl->buffer.data != NULL);
+
+    if (OtOTPPartDescs[ix].hw_digest) {
+        unsigned digest_offset = (unsigned)OtOTPPartDescs[ix].digest_offset;
+        pctrl->buffer.digest =
+            ot_otp_dj_load_partition_digest(s, digest_offset);
+    } else {
+        pctrl->buffer.digest = 0;
+    }
+
+    unsigned offset = (unsigned)OtOTPPartDescs[ix].offset;
+    unsigned part_size = OT_OTP_PART_DATA_BYTE_SIZE(ix);
+
+    const uint8_t *base = (const uint8_t *)s->otp.data;
+    base += offset;
+
+    memcpy(pctrl->buffer.data, base, part_size);
 }
 
-static void ot_otp_dj_direct_read(OtOTPDjState *s)
+static void ot_otp_dj_check_partition_integrity(OtOTPDjState *s, unsigned ix)
 {
-    if (s->dai_busy) {
+    OtOTPPartController *pctrl = &s->partctrls[ix];
+
+    if (!OtOTPPartDescs[ix].hw_digest || pctrl->buffer.digest == 0) {
+        trace_ot_otp_skip_digest(PART_NAME(ix), ix);
+        s->partctrls[ix].locked = false;
         return;
     }
 
-    s->dai_busy = true;
+    pctrl->locked = true;
+
+    unsigned part_size = OT_OTP_PART_DATA_BYTE_SIZE(ix);
+    uint64_t digest =
+        ot_otp_dj_compute_partition_digest(s,
+                                           (const uint8_t *)pctrl->buffer.data,
+                                           part_size);
+
+    if (digest != pctrl->buffer.digest) {
+        trace_ot_otp_mismatch_digest(PART_NAME(ix), ix, digest,
+                                     pctrl->buffer.digest);
+        pctrl->failed = true;
+        /* this is a fatal error */
+        ot_otp_dj_set_error(s, ix, OTP_CHECK_FAIL_ERROR);
+        /* TODO: revert buffered part to default */
+    } else {
+        trace_ot_otp_integrity_report(PART_NAME(ix), ix, "digest OK");
+        pctrl->failed = false;
+    }
+}
+
+static void ot_otp_dj_initialize_partitions(OtOTPDjState *s)
+{
+    for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
+        if (OtOTPPartDescs[ix].sw_digest) {
+            uint64_t digest = ot_otp_dj_get_part_digest(s, (int)ix);
+            s->partctrls[ix].locked = digest != 0;
+            continue;
+        }
+
+        if (OtOTPPartDescs[ix].buffered) {
+            ot_otp_dj_bufferize_partition(s, ix);
+            ot_otp_dj_check_partition_integrity(s, ix);
+            continue;
+        }
+
+        g_assert_not_reached();
+    }
+}
+
+static void ot_otp_dj_dai_init(OtOTPDjState *s)
+{
+    DAI_CHANGE_STATE(s, OTP_DAI_IDLE);
+}
+
+static void ot_otp_dj_dai_set_error(OtOTPDjState *s, OtOTPError err)
+{
+    ot_otp_dj_set_error(s, OTP_ENTRY_DAI, err);
+
+    switch (err) {
+    case OTP_FSM_STATE_ERROR:
+    case OTP_MACRO_ECC_UNCORR_ERROR:
+        DAI_CHANGE_STATE(s, OTP_DAI_ERROR);
+        break;
+    default:
+        DAI_CHANGE_STATE(s, OTP_DAI_IDLE);
+        break;
+    }
+}
+
+static void ot_otp_dj_dai_clear_error(OtOTPDjState *s)
+{
+    s->regs[R_STATUS] &= ~R_STATUS_DAI_ERROR_MASK;
+    s->regs[R_ERR_CODE_0 + OTP_ENTRY_DAI] = 0;
+}
+
+static void ot_otp_dj_dai_read(OtOTPDjState *s)
+{
+    if (ot_otp_dj_dai_is_busy(s)) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: DAI controller busy\n", __func__);
+        return;
+    }
+
+    ot_otp_dj_dai_clear_error(s);
+
+    DAI_CHANGE_STATE(s, OTP_DAI_READ);
 
     unsigned address = s->regs[R_DIRECT_ACCESS_ADDRESS];
 
     int partition = ot_otp_dj_swcfg_get_part(address);
 
-    if (partition >= 0) {
-        if (ot_otp_dj_is_readable(s, partition, (unsigned)address)) {
-            const uint32_t *data = s->otp.data;
-            address >>= 2u;
-            s->regs[R_DIRECT_ACCESS_RDATA_0] = data[address];
-            if (ot_otp_dj_is_wide_granule(partition)) {
-                s->regs[R_DIRECT_ACCESS_RDATA_1] = data[address + 1u];
-            }
-            ot_otp_dj_set_error(s, partition, OTP_NO_ERROR);
-        } else {
-            ot_otp_dj_set_error(s, partition, OTP_ACCESS_ERROR);
-        }
-    }
-
-    if (!ot_otp_dj_is_buffered(partition)) {
-        timer_mod(s->dai_delay,
-                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DAI_DELAY_NS);
+    if (partition < 0) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: Invalid partition address 0x%x\n",
+                      __func__, address);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
         return;
     }
 
-    s->dai_busy = false;
+    if (partition >= OTP_PART_LIFE_CYCLE) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Life cycle partition cannot be accessed from DAI\n",
+                      __func__);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    bool is_digest = ot_otp_dj_is_part_digest_offset(partition, address);
+    bool is_readable = ot_otp_dj_is_readable(s, partition);
+    bool is_wide = ot_otp_dj_is_wide_granule(partition);
+
+    unsigned waddr = address >> 2u;
+
+    /* "in all partitions, the digest itself is ALWAYS readable." */
+    if (!is_digest && !is_readable) {
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    DAI_CHANGE_STATE(s, OTP_DAI_READ_WAIT);
+    if (is_wide || is_digest) {
+        waddr &= ~0b1u;
+        s->regs[R_DIRECT_ACCESS_RDATA_0] = s->otp.data[waddr];
+        s->regs[R_DIRECT_ACCESS_RDATA_1] = s->otp.data[waddr + 1u];
+    } else {
+        s->regs[R_DIRECT_ACCESS_RDATA_0] = s->otp.data[waddr];
+        s->regs[R_DIRECT_ACCESS_RDATA_1] = 0;
+    }
+
+    if (!ot_otp_dj_is_buffered(partition)) {
+        /* fake slow access to OTP cell */
+        timer_mod(s->dai.delay,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DAI_READ_DELAY_NS);
+    } else {
+        DAI_CHANGE_STATE(s, OTP_DAI_IDLE);
+    }
 }
 
-static void ot_otp_dj_direct_write(OtOTPDjState *s)
+static void ot_otp_dj_dai_write(OtOTPDjState *s)
 {
-    (void)s;
-    qemu_log_mask(LOG_UNIMP, "%s: OTP write is not supported\n", __func__);
+    if (ot_otp_dj_dai_is_busy(s)) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: DAI controller busy\n", __func__);
+        return;
+    }
+
+    DAI_CHANGE_STATE(s, OTP_DAI_WRITE);
+
+    ot_otp_dj_dai_clear_error(s);
+
+    unsigned address = s->regs[R_DIRECT_ACCESS_ADDRESS];
+
+    int partition = ot_otp_dj_swcfg_get_part(address);
+
+    if (partition < 0) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: Invalid partition address 0x%x\n",
+                      __func__, address);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    if (partition >= OTP_PART_LIFE_CYCLE) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Life cycle partition cannot be accessed from DAI\n",
+                      __func__);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    OtOTPPartController *pctrl = &s->partctrls[partition];
+
+    if (pctrl->locked) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: Partition %s (%u) is locked\n",
+                      __func__, PART_NAME(partition), partition);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    bool is_digest = ot_otp_dj_is_part_digest_offset(partition, address);
+    bool is_wide = ot_otp_dj_is_wide_granule(partition);
+
+    if (is_digest) {
+        if (OtOTPPartDescs[partition].hw_digest) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Partition %s (%u) cannot write a HW digest\n",
+                          __func__, PART_NAME(partition), partition);
+            ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+            return;
+        }
+    }
+
+    unsigned waddr = address >> 2u;
+
+    if (is_wide || is_digest) {
+        waddr &= ~0b1u;
+
+        uint32_t dst_lo = s->otp.data[waddr];
+        uint32_t dst_hi = s->otp.data[waddr + 1u];
+
+        uint32_t lo = s->regs[R_DIRECT_ACCESS_WDATA_0];
+        uint32_t hi = s->regs[R_DIRECT_ACCESS_WDATA_1];
+
+        if ((dst_lo & ~lo) || (dst_hi & ~hi)) {
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: Cannot clear OTP bits\n",
+                          __func__);
+            ot_otp_dj_dai_set_error(s, OTP_MACRO_WRITE_BLANK_ERROR);
+            return;
+        }
+
+        s->otp.data[waddr] = lo;
+        s->otp.data[waddr + 1u] = hi;
+    } else {
+        uint32_t dst = s->otp.data[waddr];
+        uint32_t data = s->regs[R_DIRECT_ACCESS_WDATA_0];
+
+        if (dst & ~data) {
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: Cannot clear OTP bits\n",
+                          __func__);
+            ot_otp_dj_dai_set_error(s, OTP_MACRO_WRITE_BLANK_ERROR);
+            return;
+        }
+
+        s->otp.data[waddr] = data;
+    }
+
+    /* fake slow access to OTP cell */
+    DAI_CHANGE_STATE(s, OTP_DAI_WRITE_WAIT);
+
+    timer_mod(s->dai.delay,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DAI_WRITE_DELAY_NS);
 }
 
-static void ot_otp_dj_direct_digest(OtOTPDjState *s)
+static void ot_otp_dj_dai_digest(OtOTPDjState *s)
 {
-    (void)s;
-    qemu_log_mask(LOG_UNIMP, "%s: OTP change is not supported\n", __func__);
+    if (ot_otp_dj_dai_is_busy(s)) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: DAI controller busy\n", __func__);
+        return;
+    }
+
+    DAI_CHANGE_STATE(s, OTP_DAI_DIG_CLR);
+
+    ot_otp_dj_dai_clear_error(s);
+
+    unsigned address = s->regs[R_DIRECT_ACCESS_ADDRESS];
+
+    int partition = ot_otp_dj_swcfg_get_part(address);
+
+    if (partition < 0) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: Invalid partition address 0x%x\n",
+                      __func__, address);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    if (partition >= OTP_PART_LIFE_CYCLE) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Life cycle partition cannot be accessed from DAI\n",
+                      __func__);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    if (!OtOTPPartDescs[partition].hw_digest) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Invalid partition, no HW digest on %s (#%u)\n",
+                      __func__, PART_NAME(partition), partition);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    OtOTPPartController *pctrl = &s->partctrls[partition];
+
+    if (pctrl->locked) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: Partition %s (%u) is locked\n",
+                      __func__, PART_NAME(partition), partition);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    DAI_CHANGE_STATE(s, OTP_DAI_DIG_READ);
+
+    const uint8_t *data = (const uint8_t *)pctrl->buffer.data;
+    unsigned part_size = OT_OTP_PART_DATA_BYTE_SIZE(partition);
+
+    DAI_CHANGE_STATE(s, OTP_DAI_DIG);
+
+    pctrl->buffer.next_digest =
+        ot_otp_dj_compute_partition_digest(s, data, part_size);
+    s->dai.partition = partition;
+
+    DAI_CHANGE_STATE(s, OTP_DAI_DIG_WAIT);
+
+    /* fake slow access to OTP cell */
+    timer_mod(s->dai.delay,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DAI_DIGEST_DELAY_NS);
+}
+
+static void ot_otp_dj_dai_write_digest(void *opaque)
+{
+    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+
+    g_assert((s->dai.partition >= 0) && (s->dai.partition < OTP_PART_COUNT));
+
+    DAI_CHANGE_STATE(s, OTP_DAI_WRITE);
+
+    OtOTPPartController *pctrl = &s->partctrls[s->dai.partition];
+    unsigned address = OtOTPPartDescs[s->dai.partition].digest_offset;
+    address >>= 3u;
+    uint64_t *dst = &((uint64_t *)s->otp.data)[address];
+    uint64_t data = pctrl->buffer.next_digest;
+    pctrl->buffer.next_digest = 0;
+    OtOTPError error;
+    if (*dst & ~data) {
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: Cannot clear OTP bits\n", __func__);
+        error = OTP_MACRO_WRITE_BLANK_ERROR;
+    } else {
+        *dst |= data;
+        error = OTP_NO_ERROR;
+    }
+
+    if (error == OTP_NO_ERROR) {
+        /* fake slow access to OTP cell */
+        DAI_CHANGE_STATE(s, OTP_DAI_WRITE_WAIT);
+
+        timer_mod(s->dai.delay,
+                  qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + DAI_WRITE_DELAY_NS);
+    } else {
+        /* TODO: no idea on how to report the error since partition is undef */
+        ot_otp_dj_dai_set_error(s, error);
+    }
+}
+
+static void ot_otp_dj_dai_complete(void *opaque)
+{
+    OtOTPDjState *s = opaque;
+
+    switch (s->dai.state) {
+    case OTP_DAI_READ_WAIT:
+        trace_ot_otp_dai_read(PART_NAME(s->dai.partition), s->dai.partition,
+                              s->regs[R_DIRECT_ACCESS_RDATA_1],
+                              s->regs[R_DIRECT_ACCESS_RDATA_1]);
+        s->dai.partition = -1;
+        DAI_CHANGE_STATE(s, OTP_DAI_IDLE);
+        break;
+    case OTP_DAI_WRITE_WAIT:
+        s->regs[R_INTR_STATE] |= INTR_OTP_OPERATION_DONE_MASK;
+        s->dai.partition = -1;
+        DAI_CHANGE_STATE(s, OTP_DAI_IDLE);
+        break;
+    case OTP_DAI_DIG_WAIT:
+        g_assert(s->dai.partition >= 0);
+        qemu_bh_schedule(s->dai.digest_bh);
+        break;
+    case OTP_DAI_ERROR:
+        break;
+    default:
+        g_assert_not_reached();
+        break;
+    };
 }
 
 static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
@@ -1333,8 +2039,8 @@ static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
         val32 = ot_otp_dj_get_status(s);
         break;
     case R_DIRECT_ACCESS_REGWEN:
-        val32 =
-            FIELD_DP32(0, DIRECT_ACCESS_REGWEN, REGWEN, (uint32_t)!s->dai_busy);
+        val32 = FIELD_DP32(0, DIRECT_ACCESS_REGWEN, REGWEN,
+                           (uint32_t)!ot_otp_dj_dai_is_busy(s));
         break;
     /* NOLINTNEXTLINE */
     case R_DIRECT_ACCESS_CMD:
@@ -1351,170 +2057,183 @@ static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     /* in all partitions, the digest itself is ALWAYS readable."*/
     case R_VENDOR_TEST_DIGEST_0:
-        val32 =
-            (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_VENDOR_TEST);
+        val32 = (uint32_t)ot_otp_dj_get_part_digest(s, OTP_PART_VENDOR_TEST);
         break;
     case R_VENDOR_TEST_DIGEST_1:
-        val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s,
-                                                       OTP_PART_VENDOR_TEST) >>
-                       32u);
-        break;
-    case R_CREATOR_SW_CFG_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_CREATOR_SW_CFG);
-        break;
-    case R_CREATOR_SW_CFG_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
-                               s, OTP_PART_CREATOR_SW_CFG) >>
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(s, OTP_PART_VENDOR_TEST) >>
                            32u);
         break;
-    case R_OWNER_SW_CFG_DIGEST_0:
+    case R_CREATOR_SW_CFG_DIGEST_0:
+        val32 = (uint32_t)ot_otp_dj_get_part_digest(s, OTP_PART_CREATOR_SW_CFG);
+        break;
+    case R_CREATOR_SW_CFG_DIGEST_1:
         val32 =
-            (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_OWNER_SW_CFG);
+            (uint32_t)(ot_otp_dj_get_part_digest(s, OTP_PART_CREATOR_SW_CFG) >>
+                       32u);
+        break;
+    case R_OWNER_SW_CFG_DIGEST_0:
+        val32 = (uint32_t)ot_otp_dj_get_part_digest(s, OTP_PART_OWNER_SW_CFG);
         break;
     case R_OWNER_SW_CFG_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s,
-                                                       OTP_PART_OWNER_SW_CFG) >>
+            (uint32_t)(ot_otp_dj_get_part_digest(s, OTP_PART_OWNER_SW_CFG) >>
                        32u);
         break;
     case R_ROT_CREATOR_AUTH_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_ROT_CREATOR_AUTH);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s, OTP_PART_ROT_CREATOR_AUTH);
         break;
     case R_ROT_CREATOR_AUTH_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
-                               s, OTP_PART_ROT_CREATOR_AUTH) >>
-                           32u);
+        val32 =
+            (uint32_t)(ot_otp_dj_get_part_digest(s,
+                                                 OTP_PART_ROT_CREATOR_AUTH) >>
+                       32u);
         break;
     case R_ROT_OWNER_AUTH_SLOT0_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_ROT_OWNER_AUTH_SLOT0);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_ROT_OWNER_AUTH_SLOT0);
         break;
     case R_ROT_OWNER_AUTH_SLOT0_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_ROT_OWNER_AUTH_SLOT0) >>
                            32u);
         break;
     case R_ROT_OWNER_AUTH_SLOT1_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_ROT_OWNER_AUTH_SLOT1);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_ROT_OWNER_AUTH_SLOT1);
         break;
     case R_ROT_OWNER_AUTH_SLOT1_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_ROT_OWNER_AUTH_SLOT1) >>
                            32u);
         break;
     case R_PLAT_INTEG_AUTH_SLOT0_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_PLAT_INTEG_AUTH_SLOT0);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_PLAT_INTEG_AUTH_SLOT0);
         break;
     case R_PLAT_INTEG_AUTH_SLOT0_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_PLAT_INTEG_AUTH_SLOT0) >>
                            32u);
         break;
     case R_PLAT_INTEG_AUTH_SLOT1_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_PLAT_INTEG_AUTH_SLOT1);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_PLAT_INTEG_AUTH_SLOT1);
         break;
     case R_PLAT_INTEG_AUTH_SLOT1_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_PLAT_INTEG_AUTH_SLOT1) >>
                            32u);
         break;
     case R_PLAT_OWNER_AUTH_SLOT0_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_PLAT_OWNER_AUTH_SLOT0);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_PLAT_OWNER_AUTH_SLOT0);
         break;
     case R_PLAT_OWNER_AUTH_SLOT0_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_PLAT_OWNER_AUTH_SLOT0) >>
                            32u);
         break;
     case R_PLAT_OWNER_AUTH_SLOT1_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_PLAT_OWNER_AUTH_SLOT1);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_PLAT_OWNER_AUTH_SLOT1);
         break;
     case R_PLAT_OWNER_AUTH_SLOT1_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_PLAT_OWNER_AUTH_SLOT1) >>
                            32u);
         break;
     case R_PLAT_OWNER_AUTH_SLOT2_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_PLAT_OWNER_AUTH_SLOT2);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_PLAT_OWNER_AUTH_SLOT2);
         break;
     case R_PLAT_OWNER_AUTH_SLOT2_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_PLAT_OWNER_AUTH_SLOT2) >>
                            32u);
         break;
     case R_PLAT_OWNER_AUTH_SLOT3_DIGEST_0:
-        val32 = (uint32_t)
-            ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_PLAT_OWNER_AUTH_SLOT3);
+        val32 =
+            (uint32_t)ot_otp_dj_get_part_digest(s,
+                                                OTP_PART_PLAT_OWNER_AUTH_SLOT3);
         break;
     case R_PLAT_OWNER_AUTH_SLOT3_DIGEST_1:
-        val32 = (uint32_t)(ot_otp_dj_swcfg_get_part_digest(
+        val32 = (uint32_t)(ot_otp_dj_get_part_digest(
                                s, OTP_PART_PLAT_OWNER_AUTH_SLOT3) >>
                            32u);
         break;
     case R_ROM_PATCH_DIGEST_0:
-        val32 =
-            (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_ROM_PATCH);
+        val32 = (uint32_t)ot_otp_dj_get_part_digest(s, OTP_PART_ROM_PATCH);
         break;
     case R_ROM_PATCH_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_ROM_PATCH) >>
-                       32u);
+            (uint32_t)(ot_otp_dj_get_part_digest(s, OTP_PART_ROM_PATCH) >> 32u);
         break;
     case R_HW_CFG0_DIGEST_0:
-        val32 = (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_HW_CFG0);
+        val32 =
+            (uint32_t)ot_otp_dj_get_buffered_part_digest(s, OTP_PART_HW_CFG0);
         break;
     case R_HW_CFG0_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_HW_CFG0) >>
+            (uint32_t)(ot_otp_dj_get_buffered_part_digest(s,
+                                                          OTP_PART_HW_CFG0) >>
                        32u);
         break;
     case R_HW_CFG1_DIGEST_0:
-        val32 = (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_HW_CFG1);
+        val32 =
+            (uint32_t)ot_otp_dj_get_buffered_part_digest(s, OTP_PART_HW_CFG1);
         break;
     case R_HW_CFG1_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_HW_CFG1) >>
+            (uint32_t)(ot_otp_dj_get_buffered_part_digest(s,
+                                                          OTP_PART_HW_CFG1) >>
                        32u);
         break;
     case R_SECRET0_DIGEST_0:
-        val32 = (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET0);
+        val32 =
+            (uint32_t)ot_otp_dj_get_buffered_part_digest(s, OTP_PART_SECRET0);
         break;
     case R_SECRET0_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET0) >>
+            (uint32_t)(ot_otp_dj_get_buffered_part_digest(s,
+                                                          OTP_PART_SECRET0) >>
                        32u);
         break;
     case R_SECRET1_DIGEST_0:
-        val32 = (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET1);
+        val32 =
+            (uint32_t)ot_otp_dj_get_buffered_part_digest(s, OTP_PART_SECRET1);
         break;
     case R_SECRET1_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET1) >>
+            (uint32_t)(ot_otp_dj_get_buffered_part_digest(s,
+                                                          OTP_PART_SECRET1) >>
                        32u);
         break;
     case R_SECRET2_DIGEST_0:
-        val32 = (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET2);
+        val32 =
+            (uint32_t)ot_otp_dj_get_buffered_part_digest(s, OTP_PART_SECRET2);
         break;
     case R_SECRET2_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET2) >>
+            (uint32_t)(ot_otp_dj_get_buffered_part_digest(s,
+                                                          OTP_PART_SECRET2) >>
                        32u);
         break;
     case R_SECRET3_DIGEST_0:
-        val32 = (uint32_t)ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET3);
+        val32 =
+            (uint32_t)ot_otp_dj_get_buffered_part_digest(s, OTP_PART_SECRET3);
         break;
     case R_SECRET3_DIGEST_1:
         val32 =
-            (uint32_t)(ot_otp_dj_swcfg_get_part_digest(s, OTP_PART_SECRET3) >>
+            (uint32_t)(ot_otp_dj_get_buffered_part_digest(s,
+                                                          OTP_PART_SECRET3) >>
                        32u);
         break;
     case R_INTR_TEST:
@@ -1547,47 +2266,14 @@ static void ot_otp_dj_regs_write(void *opaque, hwaddr addr, uint64_t value,
     hwaddr reg = R32_OFF(addr);
 
     uint64_t pc = ibex_get_current_pc();
+
     trace_ot_otp_io_write((unsigned)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
-    case R_INTR_STATE:
-        val32 &= INTR_MASK;
-        s->regs[R_INTR_STATE] &= ~val32; /* RW1C */
-        ot_otp_dj_update_irqs(s);
-        break;
-    case R_INTR_ENABLE:
-        val32 &= INTR_MASK;
-        s->regs[R_INTR_ENABLE] = val32;
-        ot_otp_dj_update_irqs(s);
-        break;
-    case R_INTR_TEST:
-        val32 &= INTR_MASK;
-        s->regs[R_INTR_STATE] = val32;
-        ot_otp_dj_update_irqs(s);
-        break;
-    case R_ALERT_TEST:
-        val32 &= ALERT_TEST_MASK;
-        if (val32) {
-            ibex_irq_set(&s->alert, (int)val32);
-        }
-        break;
     case R_DIRECT_ACCESS_CMD:
-        if (FIELD_EX32(val32, DIRECT_ACCESS_CMD, RD)) {
-            ot_otp_dj_direct_read(s);
-        } else if (FIELD_EX32(val32, DIRECT_ACCESS_CMD, WR)) {
-            ot_otp_dj_direct_write(s);
-        } else if (FIELD_EX32(val32, DIRECT_ACCESS_CMD, DIGEST)) {
-            ot_otp_dj_direct_digest(s);
-        }
-        break;
     case R_DIRECT_ACCESS_ADDRESS:
-        val32 &= (1u << 11u) - 1u;
-        s->regs[reg] = val32;
-        break;
     case R_DIRECT_ACCESS_WDATA_0:
     case R_DIRECT_ACCESS_WDATA_1:
-        s->regs[reg] = val32;
-        break;
     case R_VENDOR_TEST_READ_LOCK:
     case R_CREATOR_SW_CFG_READ_LOCK:
     case R_OWNER_SW_CFG_READ_LOCK:
@@ -1603,16 +2289,32 @@ static void ot_otp_dj_regs_write(void *opaque, hwaddr addr, uint64_t value,
     case R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK:
     case R_EXT_NVM_READ_LOCK:
     case R_ROM_PATCH_READ_LOCK:
-        val32 &= READ_LOCK_MASK;
-        s->regs[reg] &= val32; /* RW0C */
+        if (!(s->regs[R_DIRECT_ACCESS_REGWEN] &
+              R_DIRECT_ACCESS_REGWEN_REGWEN_MASK)) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: %s is not enabled, %s is protected\n", __func__,
+                          REG_NAME(R_DIRECT_ACCESS_REGWEN), REG_NAME(reg));
+            return;
+        }
         break;
-    case R_CHECK_TRIGGER_REGWEN:
     case R_CHECK_TRIGGER:
-    case R_CHECK_REGWEN:
+        if (!(s->regs[R_CHECK_TRIGGER_REGWEN] &
+              R_CHECK_TRIGGER_REGWEN_REGWEN_MASK)) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: %s is not enabled, %s is protected\n", __func__,
+                          REG_NAME(R_CHECK_TRIGGER_REGWEN), REG_NAME(reg));
+            return;
+        }
+        break;
     case R_CHECK_TIMEOUT:
     case R_INTEGRITY_CHECK_PERIOD:
     case R_CONSISTENCY_CHECK_PERIOD:
-        /* TODO: not yet implemented */
+        if (!(s->regs[R_CHECK_REGWEN] & R_CHECK_REGWEN_REGWEN_MASK)) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: %s is not enabled, %s is protected\n", __func__,
+                          REG_NAME(R_CHECK_REGWEN), REG_NAME(reg));
+            return;
+        }
         break;
     case R_STATUS:
     case R_ERR_CODE_0:
@@ -1683,6 +2385,78 @@ static void ot_otp_dj_regs_write(void *opaque, hwaddr addr, uint64_t value,
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: R/O register 0x%03" HWADDR_PRIx " (%s)\n", __func__,
                       addr, REG_NAME(reg));
+        return;
+    default:
+        break;
+    }
+
+    switch (reg) {
+    case R_INTR_STATE:
+        val32 &= INTR_MASK;
+        s->regs[R_INTR_STATE] &= ~val32; /* RW1C */
+        ot_otp_dj_update_irqs(s);
+        break;
+    case R_INTR_ENABLE:
+        val32 &= INTR_MASK;
+        s->regs[R_INTR_ENABLE] = val32;
+        ot_otp_dj_update_irqs(s);
+        break;
+    case R_INTR_TEST:
+        val32 &= INTR_MASK;
+        s->regs[R_INTR_STATE] = val32;
+        ot_otp_dj_update_irqs(s);
+        break;
+    case R_ALERT_TEST:
+        val32 &= ALERT_TEST_MASK;
+        for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
+            if (val32 && (1u << ix)) {
+                ibex_irq_set(&s->alerts[ix], 1);
+            }
+        }
+        break;
+    case R_DIRECT_ACCESS_CMD:
+        if (FIELD_EX32(val32, DIRECT_ACCESS_CMD, RD)) {
+            ot_otp_dj_dai_read(s);
+        } else if (FIELD_EX32(val32, DIRECT_ACCESS_CMD, WR)) {
+            ot_otp_dj_dai_write(s);
+        } else if (FIELD_EX32(val32, DIRECT_ACCESS_CMD, DIGEST)) {
+            ot_otp_dj_dai_digest(s);
+        }
+        break;
+    case R_DIRECT_ACCESS_ADDRESS:
+        val32 &= R_DIRECT_ACCESS_ADDRESS_ADDRESS_MASK;
+        s->regs[reg] = val32;
+        break;
+    case R_DIRECT_ACCESS_WDATA_0:
+    case R_DIRECT_ACCESS_WDATA_1:
+        s->regs[reg] = val32;
+        break;
+    case R_VENDOR_TEST_READ_LOCK:
+    case R_CREATOR_SW_CFG_READ_LOCK:
+    case R_OWNER_SW_CFG_READ_LOCK:
+    case R_OWNERSHIP_SLOT_STATE_READ_LOCK:
+    case R_ROT_CREATOR_AUTH_READ_LOCK:
+    case R_ROT_OWNER_AUTH_SLOT0_READ_LOCK:
+    case R_ROT_OWNER_AUTH_SLOT1_READ_LOCK:
+    case R_PLAT_INTEG_AUTH_SLOT0_READ_LOCK:
+    case R_PLAT_INTEG_AUTH_SLOT1_READ_LOCK:
+    case R_PLAT_OWNER_AUTH_SLOT0_READ_LOCK:
+    case R_PLAT_OWNER_AUTH_SLOT1_READ_LOCK:
+    case R_PLAT_OWNER_AUTH_SLOT2_READ_LOCK:
+    case R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK:
+    case R_EXT_NVM_READ_LOCK:
+    case R_ROM_PATCH_READ_LOCK:
+        val32 &= READ_LOCK_MASK;
+        s->regs[reg] &= val32; /* RW0C */
+        break;
+    case R_CHECK_TRIGGER_REGWEN:
+    case R_CHECK_TRIGGER:
+    case R_CHECK_REGWEN:
+    case R_CHECK_TIMEOUT:
+    case R_INTEGRITY_CHECK_PERIOD:
+    case R_CONSISTENCY_CHECK_PERIOD:
+        qemu_log_mask(LOG_UNIMP, "%s: %s is not supported\n", __func__,
+                      REG_NAME(reg));
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x%" HWADDR_PRIx "\n",
@@ -1822,9 +2596,11 @@ static const char *ot_otp_dj_swcfg_reg_name(unsigned swreg)
 #undef CASE_RANGE
 }
 
-static uint64_t ot_otp_dj_swcfg_read(void *opaque, hwaddr addr, unsigned size)
+static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
+    void *opaque, hwaddr addr, uint64_t *data, unsigned size, MemTxAttrs attrs)
 {
     OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    (void)attrs;
     uint32_t val32;
 
     g_assert(addr + size <= SW_CFG_WINDOW_SIZE);
@@ -1832,19 +2608,29 @@ static uint64_t ot_otp_dj_swcfg_read(void *opaque, hwaddr addr, unsigned size)
     hwaddr reg = R32_OFF(addr);
     int partition = ot_otp_dj_swcfg_get_part(addr);
 
-    if (partition >= 0) {
-        if (ot_otp_dj_is_readable(s, partition, (unsigned)addr)) {
-            const uint32_t *data = s->otp.data;
-            val32 = data[reg];
-            ot_otp_dj_set_error(s, partition, OTP_NO_ERROR);
-        } else {
-            val32 = 0u;
-            trace_ot_otp_access_error_on(partition, (unsigned)addr);
-            ot_otp_dj_set_error(s, partition, OTP_ACCESS_ERROR);
-        }
-    } else {
+    if (partition < 0) {
         trace_ot_otp_access_error_on(partition, (unsigned)addr);
         val32 = 0;
+    }
+
+    if (ot_otp_dj_is_buffered(partition)) {
+        trace_ot_otp_access_error_on(partition, (unsigned)addr);
+        ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
+
+        /* real HW seems to stall the Tile Link bus in this case */
+        return MEMTX_ACCESS_ERROR;
+    }
+
+    if (!ot_otp_dj_is_readable(s, partition)) {
+        trace_ot_otp_access_error_on(partition, (unsigned)addr);
+        ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
+
+        return MEMTX_DECODE_ERROR;
+    }
+
+    if (!(partition < 0)) {
+        val32 = s->otp.data[reg];
+        ot_otp_dj_set_error(s, (unsigned)partition, OTP_NO_ERROR);
     }
 
     uint64_t pc;
@@ -1853,22 +2639,9 @@ static uint64_t ot_otp_dj_swcfg_read(void *opaque, hwaddr addr, unsigned size)
     trace_ot_otp_io_read_out((unsigned)addr, ot_otp_dj_swcfg_reg_name(reg),
                              val32, pc);
 
-    return (uint64_t)val32;
-}
+    *data = (uint64_t)val32;
 
-static void ot_otp_dj_swcfg_write(void *opaque, hwaddr addr, uint64_t value,
-                                  unsigned size)
-{
-    (void)opaque;
-    (void)value;
-
-    g_assert(addr + size <= SW_CFG_WINDOW_SIZE);
-
-    hwaddr reg = R32_OFF(addr);
-
-    qemu_log_mask(LOG_GUEST_ERROR,
-                  "%s: R/O register 0x%03" HWADDR_PRIx " (%s)\n", __func__,
-                  addr, ot_otp_dj_swcfg_reg_name(reg));
+    return MEMTX_OK;
 }
 
 static uint64_t ot_otp_dj_csrs_read(void *opaque, hwaddr addr, unsigned size)
@@ -1968,8 +2741,8 @@ static void ot_otp_dj_load_hw_cfg(OtOTPDjState *s)
     memcpy(hw_cfg->manuf_state, &otp->data[R_MANUF_STATE],
            sizeof(*hw_cfg->manuf_state));
 
-    hw_cfg->en_sram_ifetch = (bool)otp->data[R_EN_SRAM_IFETCH];
     hw_cfg->soc_dbg_state = otp->data[R_SOC_DBG_STATE];
+    hw_cfg->en_sram_ifetch = (uint8_t)otp->data[R_EN_SRAM_IFETCH];
 }
 
 static void ot_otp_dj_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
@@ -1985,14 +2758,17 @@ static void ot_otp_dj_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
         *tcount = ds->lc.tcount;
     }
     if (lc_valid) {
-        /* dummy implementation, should check status of secret0, secret2 & LC */
-        *lc_valid = OT_MULTIBITBOOL_LC4_TRUE;
+        *lc_valid = !(ds->partctrls[OTP_PART_SECRET0].failed ||
+                      ds->partctrls[OTP_PART_SECRET2].failed ||
+                      ds->partctrls[OTP_PART_LIFE_CYCLE].failed) ?
+                        OT_MULTIBITBOOL_LC4_TRUE :
+                        OT_MULTIBITBOOL_LC4_FALSE;
     }
     if (secret_valid) {
-        *secret_valid =
-            ot_otp_dj_swcfg_get_part_digest(ds, OTP_PART_SECRET2) != 0 ?
-                OT_MULTIBITBOOL_LC4_TRUE :
-                OT_MULTIBITBOOL_LC4_FALSE;
+        *secret_valid = (!ds->partctrls[OTP_PART_SECRET2].failed &&
+                         ds->partctrls[OTP_PART_SECRET2].locked) ?
+                            OT_MULTIBITBOOL_LC4_TRUE :
+                            OT_MULTIBITBOOL_LC4_FALSE;
     }
 }
 
@@ -2011,6 +2787,113 @@ ot_otp_dj_ctrl_get_entropy_cfg(const OtOTPState *s)
     return NULL;
 }
 
+static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
+{
+    /*
+     * HEADER_FORMAT
+     *
+     *  | magic    |     4 char | "vOFTP"                                |
+     *  | hlength  |   uint32_t | count of header bytes after this point |
+     *  | version  |   uint32_t | version of the header (v2)             |
+     *  | eccbits  |   uint16_t | ECC size in bits                       |
+     *  | eccgran  |   uint16_t | ECC granule                            |
+     *  | dlength  |   uint32_t | count of data bytes (% uint64_t)       |
+     *  | elength  |   uint32_t | count of ecc bytes (% uint64_t)        |
+     *  | -------- | ---------- | only in V2                             |
+     *  | dig_iv   |  8 uint8_t | Present digest initialization vector   |
+     *  | dig_iv   | 16 uint8_t | Present digest initialization vector   |
+     */
+
+    struct otp_header {
+        char magic[4];
+        uint32_t hlength;
+        uint32_t version;
+        uint16_t eccbits;
+        uint16_t eccgran;
+        uint32_t data_len;
+        uint32_t ecc_len;
+        /* added in V2 */
+        uint8_t digest_iv[8u];
+        uint8_t digest_constant[16u];
+    };
+
+    /* data following header should always be 64-bit aligned */
+    static_assert((sizeof(struct otp_header) % sizeof(uint64_t)) == 0,
+                  "invalid header definition");
+
+    size_t header_size = sizeof(struct otp_header);
+    size_t data_size = 0u;
+    size_t ecc_size = 0u;
+
+    for (unsigned ix = 0u; ix < OTP_PART_COUNT; ix++) {
+        size_t psize = (size_t)OtOTPPartDescs[ix].size;
+        size_t dsize = ROUND_UP(psize, sizeof(uint64_t));
+        data_size += dsize;
+        /* up to 1 ECC byte for 2 data bytes */
+        ecc_size += DIV_ROUND_UP(dsize, 2u);
+    }
+    size_t otp_size = header_size + data_size + ecc_size;
+
+    otp_size = ROUND_UP(otp_size, 4096u);
+
+    OtOTPStorage *otp = &s->otp;
+
+    otp->storage = blk_blockalign(s->blk, otp_size);
+    uintptr_t base = (uintptr_t)otp->storage;
+    g_assert(!(base & (sizeof(uint64_t) - 1u)));
+
+    memset(otp->storage, 0, otp_size);
+
+    otp->data = (uint32_t *)(base + sizeof(struct otp_header));
+    otp->ecc = NULL;
+    otp->ecc_bit_count = 0u;
+    otp->ecc_granule = 0u;
+    memset(&otp->digest_iv, 0, sizeof(otp->digest_iv));
+    memset(otp->digest_constant, 0, sizeof(otp->digest_constant));
+
+    if (s->blk) {
+        bool write = blk_supports_write_perm(s->blk);
+        uint64_t perm = BLK_PERM_CONSISTENT_READ | (write ? BLK_PERM_WRITE : 0);
+        (void)blk_set_perm(s->blk, perm, perm, errp);
+
+        int rc = blk_pread(s->blk, 0, (int64_t)otp_size, otp->storage, 0);
+        if (rc < 0) {
+            error_setg(errp, "failed to read the initial OTP content: %d", rc);
+            return;
+        }
+
+        const struct otp_header *otp_hdr = (const struct otp_header *)base;
+
+        if (memcmp(otp_hdr->magic, "vOTP", sizeof(otp_hdr->magic)) != 0) {
+            error_setg(errp, "OTP file is not a valid OTP backend");
+            return;
+        }
+        if (otp_hdr->version != 1u && otp_hdr->version != 2u) {
+            error_setg(errp, "OTP file version %u is not supported",
+                       otp_hdr->version);
+            return;
+        }
+
+        trace_ot_otp_load_backend(otp_hdr->version, write ? "R/W" : "R/O");
+
+        uintptr_t data_offset = otp_hdr->hlength + 8u; /* magic & length */
+        uintptr_t ecc_offset = data_offset + otp_hdr->data_len;
+
+        otp->data = (uint32_t *)(base + data_offset);
+        otp->ecc = (uint32_t *)(base + ecc_offset);
+        otp->ecc_bit_count = otp_hdr->eccbits;
+        otp->ecc_granule = otp_hdr->eccgran;
+        if (otp_hdr->version > 1u) {
+            otp->digest_iv = ldq_le_p(otp_hdr->digest_iv);
+            memcpy(otp->digest_constant, otp_hdr->digest_constant,
+                   sizeof(otp->digest_constant));
+        }
+    }
+
+    otp->data_size = data_size;
+    otp->ecc_size = ecc_size;
+}
+
 static Property ot_otp_dj_properties[] = {
     DEFINE_PROP_DRIVE("drive", OtOTPDjState, blk),
     DEFINE_PROP_LINK("edn", OtOTPDjState, edn, TYPE_OT_EDN, OtEDNState *),
@@ -2027,8 +2910,7 @@ static const MemoryRegionOps ot_otp_dj_regs_ops = {
 };
 
 static const MemoryRegionOps ot_otp_dj_swcfg_ops = {
-    .read = &ot_otp_dj_swcfg_read,
-    .write = &ot_otp_dj_swcfg_write,
+    .read_with_attrs = &ot_otp_dj_swcfg_read_with_attrs,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .impl.min_access_size = 4,
     .impl.max_access_size = 4,
@@ -2046,7 +2928,7 @@ static void ot_otp_dj_reset(DeviceState *dev)
 {
     OtOTPDjState *s = OT_OTP_DARJEELING(dev);
 
-    timer_del(s->dai_delay);
+    timer_del(s->dai.delay);
 
     memset(&s->regs, 0, sizeof(s->regs));
 
@@ -2068,104 +2950,34 @@ static void ot_otp_dj_reset(DeviceState *dev)
     s->regs[R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK] = 0x1u;
     s->regs[R_EXT_NVM_READ_LOCK] = 0x1u;
     s->regs[R_ROM_PATCH_READ_LOCK] = 0x1u;
-    s->dai_busy = false;
 
     ot_otp_dj_update_irqs(s);
-    ibex_irq_set(&s->alert, 0);
-}
-
-static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
-{
-    /*
-     * HEADER_FORMAT
-     *
-     *  | magic    | 4 char   | "vOFTP"                                |
-     *  | hlength  | uint32_t | count of header bytes after this point |
-     *  | version  | uint32_t | version of the header (v1)             |
-     *  | eccbits  | uint16_t | ECC size in bits                       |
-     *  | eccgran  | uint16_t | ECC granule                            |
-     *  | dlength  | uint32_t | count of data bytes (% uint64_t)       |
-     *  | elength  | uint32_t | count of ecc bytes (% uint64_t)        |
-     */
-
-    struct otp_header {
-        char magic[4];
-        uint32_t hlength;
-        uint32_t version;
-        uint16_t eccbits;
-        uint16_t eccgran;
-        uint32_t data_len;
-        uint32_t ecc_len;
-    };
-
-    /* data following header should always be 64-bit aligned */
-    static_assert((sizeof(struct otp_header) % sizeof(uint64_t)) == 0,
-                  "invalid header definition");
-
-    size_t header_size = sizeof(struct otp_header);
-    size_t data_size = 0u;
-    size_t ecc_size = 0u;
-
-    for (unsigned ix = 0u; ix < ARRAY_SIZE(OtOTPPartitions); ix++) {
-        size_t psize = (size_t)OtOTPPartitions[ix].size;
-        size_t dsize = ROUND_UP(psize, sizeof(uint64_t));
-        data_size += dsize;
-        /* up to 1 ECC byte for 2 data bytes */
-        ecc_size += DIV_ROUND_UP(dsize, 2u);
-    }
-    size_t otp_size = header_size + data_size + ecc_size;
-
-    otp_size = ROUND_UP(otp_size, 4096u);
-
-    OtOTPStorage *otp = &s->otp;
-
-    otp->storage = blk_blockalign(s->blk, otp_size);
-    uintptr_t base = (uintptr_t)otp->storage;
-    g_assert(!(base & (sizeof(uint64_t) - 1u)));
-
-    if (s->blk) {
-        uint64_t perm = BLK_PERM_CONSISTENT_READ |
-                        (blk_supports_write_perm(s->blk) ? BLK_PERM_WRITE : 0);
-        (void)blk_set_perm(s->blk, perm, perm, errp);
-
-        int rc = blk_pread(s->blk, 0, (int64_t)otp_size, otp->storage, 0);
-        if (rc < 0) {
-            error_setg(errp, "failed to read the initial OTP content: %d", rc);
-            return;
-        }
-
-        const struct otp_header *otp_hdr = (const struct otp_header *)base;
-
-        if (memcmp(otp_hdr->magic, "vOTP", sizeof(otp_hdr->magic)) != 0) {
-            error_setg(errp, "OTP file is not a valid OTP backend");
-            return;
-        }
-        if (otp_hdr->version != 1u) {
-            error_setg(errp, "OTP file version is not supported");
-            return;
-        }
-
-        uintptr_t data_offset = otp_hdr->hlength + 8u;
-        uintptr_t ecc_offset = data_offset + otp_hdr->data_len;
-
-        otp->data = (uint32_t *)(base + data_offset);
-        otp->ecc = (uint32_t *)(base + ecc_offset);
-        otp->ecc_bit_count = otp_hdr->eccbits;
-        otp->ecc_granule = otp_hdr->eccgran;
-    } else {
-        memset(otp->storage, 0, otp_size);
-
-        otp->data = (uint32_t *)(base + sizeof(struct otp_header));
-        otp->ecc = NULL;
-        otp->ecc_bit_count = 0u;
-        otp->ecc_granule = 0u;
+    for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
+        ibex_irq_set(&s->alerts[ix], 0);
     }
 
-    otp->data_size = data_size;
-    otp->ecc_size = ecc_size;
+    for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
+        /* TODO: initialize with actual default partition data once known */
+        if (OtOTPPartDescs[ix].buffered) {
+            s->partctrls[ix].state.b = OTP_BUF_IDLE;
+        } else {
+            s->partctrls[ix].state.u = OTP_UNBUF_IDLE;
+            continue;
+        }
+        unsigned part_size = OT_OTP_PART_DATA_BYTE_SIZE(ix);
+        memset(s->partctrls[ix].buffer.data, 0, part_size);
+        s->partctrls[ix].buffer.digest = 0;
+    }
 
+    DAI_CHANGE_STATE(s, OTP_DAI_RESET);
+
+    trace_ot_otp_initialize();
+
+    ot_otp_dj_initialize_partitions(s);
     ot_otp_dj_decode_lc_partition(s);
     ot_otp_dj_load_hw_cfg(s);
+
+    ot_otp_dj_dai_init(s);
 }
 
 static void ot_otp_dj_realize(DeviceState *dev, Error **errp)
@@ -2208,10 +3020,21 @@ static void ot_otp_dj_init(Object *obj)
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+    }
+
+    for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
+        if (!OtOTPPartDescs[ix].buffered) {
+            continue;
+        }
+        size_t part_words = OT_OTP_PART_DATA_BYTE_SIZE(ix) / sizeof(uint32_t);
+        s->partctrls[ix].buffer.data = g_new0(uint32_t, part_words);
+    }
 
     s->hw_cfg = g_new0(OtOTPHWCfg, 1u);
-    s->dai_delay = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_otp_dj_complete_dai, s);
+    s->dai.delay = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_otp_dj_dai_complete, s);
+    s->dai.digest_bh = qemu_bh_new(&ot_otp_dj_dai_write_digest, s);
 }
 
 static void ot_otp_dj_class_init(ObjectClass *klass, void *data)

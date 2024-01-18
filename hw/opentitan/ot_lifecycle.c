@@ -249,14 +249,9 @@ static uint32_t ot_lifecycle_get_lc_state(OtLifeCycleState *s)
 {
     uint32_t lc_state;
 
-    if (s->otp_ctrl) {
-        OtOTPStateClass *oc =
-            OBJECT_GET_CLASS(OtOTPStateClass, s->otp_ctrl, TYPE_OT_OTP);
-        oc->get_lc_info(s->otp_ctrl, &lc_state, NULL);
-    } else {
-        qemu_log_mask(LOG_GUEST_ERROR, "OTP controller not connected\n");
-        lc_state = LC_STATE_INVALID;
-    }
+    OtOTPStateClass *oc =
+        OBJECT_GET_CLASS(OtOTPStateClass, s->otp_ctrl, TYPE_OT_OTP);
+    oc->get_lc_info(s->otp_ctrl, &lc_state, NULL, NULL, NULL);
 
     return lc_state;
 }
@@ -265,14 +260,9 @@ static uint32_t ot_lifecycle_get_lc_transition_count(OtLifeCycleState *s)
 {
     uint32_t lc_tcount;
 
-    if (s->otp_ctrl) {
-        OtOTPStateClass *oc =
-            OBJECT_GET_CLASS(OtOTPStateClass, s->otp_ctrl, TYPE_OT_OTP);
-        oc->get_lc_info(s->otp_ctrl, NULL, &lc_tcount);
-    } else {
-        qemu_log_mask(LOG_GUEST_ERROR, "OTP controller not connected\n");
-        lc_tcount = LC_TRANSITION_COUNT_MAX + 1u;
-    }
+    OtOTPStateClass *oc =
+        OBJECT_GET_CLASS(OtOTPStateClass, s->otp_ctrl, TYPE_OT_OTP);
+    oc->get_lc_info(s->otp_ctrl, NULL, &lc_tcount, NULL, NULL);
 
     return (uint32_t)lc_tcount;
 }
@@ -531,6 +521,8 @@ static const MemoryRegionOps ot_lifecycle_regs_ops = {
 static void ot_lifecycle_reset(DeviceState *dev)
 {
     OtLifeCycleState *s = OT_LIFECYCLE(dev);
+
+    g_assert(s->otp_ctrl);
 
     memset(s->regs, 0, REGS_SIZE);
 

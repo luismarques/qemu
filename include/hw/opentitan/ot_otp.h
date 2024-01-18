@@ -65,10 +65,15 @@ struct OtOTPStateClass {
      *
      * @s the OTP device
      * @lc_state if not NULL, updated with the encoded LifeCycle state
+     * @lc_valid if not NULL, update with the LC valid state
+     * @secret_valid if not NULL, update with the LC secret_valid info
      * @tcount if not NULL, updated with the LifeCycle transition count
+     *
+     * @note: lc_valid and secret_valid use OT_MULTIBITBOOL_LC4 encoding
      */
     void (*get_lc_info)(const OtOTPState *s, uint32_t *lc_state,
-                        unsigned *tcount);
+                        unsigned *tcount, uint8_t *lc_valid,
+                        uint8_t *secret_valid);
 
     /*
      * Retrieve HW configuration.

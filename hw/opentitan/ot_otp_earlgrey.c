@@ -34,6 +34,7 @@
 #include "qapi/error.h"
 #include "hw/irq.h"
 #include "hw/opentitan/ot_alert.h"
+#include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
 #include "hw/opentitan/ot_otp_earlgrey.h"
 #include "hw/qdev-properties-system.h"
@@ -1244,7 +1245,8 @@ static void ot_otp_eg_load_hw_cfg(OtOTPEgState *s)
 }
 
 static void ot_otp_eg_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
-                                       unsigned *tcount)
+                                       unsigned *tcount, uint8_t *lc_valid,
+                                       uint8_t *secret_valid)
 {
     OtOTPEgState *ds = OT_OTP_EARLGREY(s);
 
@@ -1253,6 +1255,16 @@ static void ot_otp_eg_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
     }
     if (tcount) {
         *tcount = ds->lc.tcount;
+    }
+    if (lc_valid) {
+        /* dummy implementation, should check status of secret0, secret2 & LC */
+        *lc_valid = OT_MULTIBITBOOL_LC4_TRUE;
+    }
+    if (secret_valid) {
+        *secret_valid =
+            ot_otp_eg_swcfg_get_part_digest(ds, OTP_PART_SECRET2) != 0 ?
+                OT_MULTIBITBOOL_LC4_TRUE :
+                OT_MULTIBITBOOL_LC4_FALSE;
     }
 }
 

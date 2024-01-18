@@ -29,7 +29,7 @@
 #define HW_OPENTITAN_OT_LC_DEFS_H
 
 /* Share lifecycle state definitions */
-enum lc_state {
+typedef enum {
     LC_STATE_RAW,
     LC_STATE_TESTUNLOCKED0,
     LC_STATE_TESTLOCKED0,
@@ -51,9 +51,11 @@ enum lc_state {
     LC_STATE_PRODEND,
     LC_STATE_RMA,
     LC_STATE_SCRAP,
-    LC_STATE_POST_TRANSITION,
+    LC_STATE_VALID_COUNT,
+    LC_STATE_POST_TRANSITION = LC_STATE_VALID_COUNT,
     LC_STATE_ESCALATE,
     LC_STATE_INVALID,
-};
+    LC_STATE_TOTAL_COUNT
+} OtLcState;
 
 #endif /* HW_OPENTITAN_OT_LC_DEFS_H */

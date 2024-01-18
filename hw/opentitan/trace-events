@@ -200,8 +200,17 @@ ot_kmac_debug(const char *msg) "%s"
 
 # ot_lc_ctrl.c
 
+ot_lc_ctrl_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
+ot_lc_ctrl_error(const char *msg) "%s"
+ot_lc_ctrl_info(const char *msg) "%s"
+ot_lc_ctrl_initialize(const char *cst, int cstix, unsigned tcount, const char *state, int six) "%s (%d), tcount %u, state %s (%u)"
 ot_lc_ctrl_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_lc_ctrl_io_read_out_repeat(unsigned int addr, const char * regname, unsigned count, uint64_t val) "addr=0x%02x (%s) repeated %u times, val=0x%" PRIx64
 ot_lc_ctrl_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_lc_ctrl_load_otp_token(const char *tk, unsigned tkix, const char *inv, uint64_t hi, uint64_t lo) "token %s (%u) %svalid: 0x%" PRIx64 "%" PRIx64
+ot_lc_ctrl_mismatch_token(const char *tkkind, const char *tkname, unsigned tok, uint64_t htkhi, uint64_t htklo, uint64_t rtkhi, uint64_t rtklo) "%s token %s (%u): 0x%" PRIx64 "%" PRIx64 ", ref 0x%" PRIx64 "%" PRIx64
+ot_lc_ctrl_start_transition(const char *sr, const char *kind, const char *cst, int cstix, const char *tst, int tstix, unsigned tcount) "%s start %s transit from %s (%d) to %s (%d) at tcount %u"
+ot_lc_ctrl_transit_request(const char *sr, const char *cst, int cstix, const char *tst, int tstix, const char *tk, int tkix) "%s req. transit from %s (%d) to %s (%d) with token %s (%d)"
 
 # ot_mbx.c
 
@@ -237,11 +246,11 @@ ot_otp_addr_to_part(unsigned addr, const char *part, unsigned pix) "addr 0x%08x 
 ot_otp_access_error_on(int part, unsigned addr) "part #%u, addr 0x%04x"
 ot_otp_dai_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
 ot_otp_dai_read(const char* part, unsigned pix, uint32_t hi, uint32_t lo) "DAI read %s (#%u): 0x%08x%08x"
+ot_otp_initial_lifecycle(uint32_t lc_state, unsigned tcount) "lifecyle 0x%x, transition count %u"
 ot_otp_initialize(void) ""
 ot_otp_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
 ot_otp_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
 ot_otp_integrity_report(const char* part, unsigned pix, const char *msg) "partition %s (#%u) %s"
-ot_otp_lifecycle(uint32_t lc_state, unsigned tcount) "lifecyle 0x%x, transition count %u"
 ot_otp_load_backend(unsigned ver, const char *mode) "loading OTP image v%u in %s mode"
 ot_otp_mismatch_digest(const char* part, unsigned pix, uint64_t sdig, uint64_t ldig) "Mismatch digest on %s (#%u), stored 0x%" PRIx64 " found 0x%" PRIx64
 ot_otp_set_error(unsigned pix, const char* err, unsigned eix) "#%u: %s (%u)"

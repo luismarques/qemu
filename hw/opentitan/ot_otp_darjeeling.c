@@ -1267,6 +1267,9 @@ ot_otp_dj_dai_change_state_line(OtOTPDjState *s, OtOTPDAIState state, int line);
     ((unsigned)(OtOTPPartDescs[(_pix_)].size - \
                 sizeof(uint32_t) * NUM_DIGEST_WORDS))
 
+/* initialized to zero, i.e. no valid token declared for now */
+static const OtOTPTokens OT_OTP_DARJEELING_TOKENS;
+
 /* NOLINTNEXTLINE */
 #include "ot_otp_darjeeling_lcvalues.c"
 
@@ -2728,7 +2731,7 @@ static void ot_otp_dj_decode_lc_partition(OtOTPDjState *s)
             break;
         }
     }
-    trace_ot_otp_lifecycle(s->lc.state, s->lc.tcount);
+    trace_ot_otp_initial_lifecycle(s->lc.state, s->lc.tcount);
 }
 
 static void ot_otp_dj_load_hw_cfg(OtOTPDjState *s)
@@ -2745,9 +2748,9 @@ static void ot_otp_dj_load_hw_cfg(OtOTPDjState *s)
     hw_cfg->en_sram_ifetch = (uint8_t)otp->data[R_EN_SRAM_IFETCH];
 }
 
-static void ot_otp_dj_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
-                                       unsigned *tcount, uint8_t *lc_valid,
-                                       uint8_t *secret_valid)
+static void ot_otp_dj_ctrl_get_lc_info(
+    const OtOTPState *s, uint32_t *lc_state, unsigned *tcount,
+    uint8_t *lc_valid, uint8_t *secret_valid, const OtOTPTokens **tokens)
 {
     OtOTPDjState *ds = OT_OTP_DARJEELING(s);
 
@@ -2769,6 +2772,9 @@ static void ot_otp_dj_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
                          ds->partctrls[OTP_PART_SECRET2].locked) ?
                             OT_MULTIBITBOOL_LC4_TRUE :
                             OT_MULTIBITBOOL_LC4_FALSE;
+    }
+    if (tokens) {
+        *tokens = &OT_OTP_DARJEELING_TOKENS;
     }
 }
 

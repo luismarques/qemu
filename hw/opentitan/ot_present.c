@@ -61,7 +61,7 @@ static const uint8_t OT_PRESENT_BIT_PERM_INV[64u] = {
 
 #ifdef OT_PRESENT_DEBUG
 #define TRACE_PRESENT(msg, ...) \
-    qemu_log("%s:" msg "\n", __func__, ##__VA_ARGS__);
+    qemu_log("%s: " msg "\n", __func__, ##__VA_ARGS__);
 #else
 #define TRACE_PRESENT(msg, ...)
 #endif

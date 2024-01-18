@@ -559,6 +559,9 @@ static const OtOTPPartition OtOTPPartitions[] = {
     },
 };
 
+/* initialized to zero, i.e. no valid token declared for now */
+static const OtOTPTokens OT_OTP_EARLGREY_TOKENS;
+
 /* clang-format on */
 
 /* NOLINTNEXTLINE */
@@ -1218,7 +1221,7 @@ static void ot_otp_eg_decode_lc_partition(OtOTPEgState *s)
             break;
         }
     }
-    trace_ot_otp_lifecycle(s->lc.state, s->lc.tcount);
+    trace_ot_otp_initial_lifecycle(s->lc.state, s->lc.tcount);
 }
 
 static void ot_otp_eg_load_hw_cfg(OtOTPEgState *s)
@@ -1244,9 +1247,9 @@ static void ot_otp_eg_load_hw_cfg(OtOTPEgState *s)
         (uint8_t)FIELD_EX32(cfg, HW_CFG_ENABLE, EN_ENTROPY_SRC_FW_OVER);
 }
 
-static void ot_otp_eg_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
-                                       unsigned *tcount, uint8_t *lc_valid,
-                                       uint8_t *secret_valid)
+static void ot_otp_eg_ctrl_get_lc_info(
+    const OtOTPState *s, uint32_t *lc_state, unsigned *tcount,
+    uint8_t *lc_valid, uint8_t *secret_valid, const OtOTPTokens **tokens)
 {
     OtOTPEgState *ds = OT_OTP_EARLGREY(s);
 
@@ -1265,6 +1268,9 @@ static void ot_otp_eg_ctrl_get_lc_info(const OtOTPState *s, uint32_t *lc_state,
             ot_otp_eg_swcfg_get_part_digest(ds, OTP_PART_SECRET2) != 0 ?
                 OT_MULTIBITBOOL_LC4_TRUE :
                 OT_MULTIBITBOOL_LC4_FALSE;
+    }
+    if (tokens) {
+        *tokens = &OT_OTP_EARLGREY_TOKENS;
     }
 }
 

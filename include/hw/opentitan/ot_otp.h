@@ -53,9 +53,28 @@ typedef struct {
     uint8_t en_entropy_src_fw_over;
 } OtOTPEntropyCfg;
 
+typedef enum {
+    OTP_TOKEN_TEST_UNLOCK,
+    OTP_TOKEN_TEST_EXIT,
+    OTP_TOKEN_RMA,
+    OTP_TOKEN_COUNT
+} OtOTPToken;
+
+typedef struct {
+    uint64_t lo;
+    uint64_t hi;
+} OtOTPTokenValue;
+
+typedef struct {
+    OtOTPTokenValue values[OTP_TOKEN_COUNT];
+    uint32_t valid_bm; /* OtLcCtrlToken-indexed valid bit flags */
+} OtOTPTokens;
+
 struct OtOTPState {
     SysBusDevice parent_obj;
 };
+
+typedef void (*ot_otp_program_ack_fn)(void *opaque, bool ack);
 
 struct OtOTPStateClass {
     SysBusDeviceClass parent_class;
@@ -64,16 +83,16 @@ struct OtOTPStateClass {
      * Provide OTP lifecycle information.
      *
      * @s the OTP device
-     * @lc_state if not NULL, updated with the encoded LifeCycle state
+     * @lc_state if not NULL, updated with the 5-bit encoded LifeCycle state
+     * @tcount if not NULL, updated with the LifeCycle transition count
      * @lc_valid if not NULL, update with the LC valid state
      * @secret_valid if not NULL, update with the LC secret_valid info
-     * @tcount if not NULL, updated with the LifeCycle transition count
      *
      * @note: lc_valid and secret_valid use OT_MULTIBITBOOL_LC4 encoding
      */
     void (*get_lc_info)(const OtOTPState *s, uint32_t *lc_state,
                         unsigned *tcount, uint8_t *lc_valid,
-                        uint8_t *secret_valid);
+                        uint8_t *secret_valid, const OtOTPTokens **tokens);
 
     /*
      * Retrieve HW configuration.
@@ -90,6 +109,23 @@ struct OtOTPStateClass {
      * @return the entropy config data (may be NULL if not present in OTP)
      */
     const OtOTPEntropyCfg *(*get_entropy_cfg)(const OtOTPState *s);
+
+    /**
+     * Request the OTP to program the state, transition count pair.
+     * OTP only accepts one request at a time. If another program request is
+     * on going, this function returns immediately and never invoke the
+     * callback. Conversely, it should always invoke the callback if the request
+     * is accepted.
+     *
+     * @s the OTP device
+     * @lc_state the LifeCycle 5-bit state
+     * @tcount the LifeCycle transition count
+     * @ack the callback to asynchronously invoke on OTP completion/error
+     * @opaque opaque data to forward to the ot_otp_program_ack_fn function
+     * @return @c true if request is accepted, @c false is rejected.
+     */
+    bool (*program_req)(OtOTPState *s, uint32_t lc_state, unsigned tcount,
+                        ot_otp_program_ack_fn ack, void *opaque);
 };
 
 #endif /* HW_OPENTITAN_OT_OTP_H */

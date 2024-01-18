@@ -7,7 +7,7 @@ virtual device.
 
 ````text
 usage: otpconv.py [-h] [-i vmem] [-c regfile] [-l svfile] [-O {lc_arrays,raw}] [-o file] [-e bits]
-                  [-b] [-s] [-v] [-d]
+                   [-C CONSTANT] [-I IV] [-P] [-b] [-s] [-v] [-d]
 
 
 Convert a VMEM OTP file into a RAW file.
@@ -25,6 +25,10 @@ options:
   -o file, --output file
                         output file
   -e bits, --ecc bits   ECC bit count
+  -C CONSTANT, --constant CONSTANT
+                        finalization constant for Present scrambler
+  -I IV, --iv IV        initialization vector for Present scrambler
+  -D, --digest          verify digests with Present scrambler
   -b, --bswap           reverse data byte order (swap endianess)
   -s, --show            dump decoded values to stdout
   -v, --verbose         increase verbosity
@@ -43,7 +47,17 @@ This script works in three different modes.
 
 * `-b` byte-swap in input VMEM words (should work Ok w/o this option)
 
-* `-c` specify the register file, which is only useful to decode OTP content (see `-s` option)
+* `-C` specify the finalization constant for the Present scrambler used for partition digests.
+  This value is "usually" found within the `hw/ip/otp_ctrl/rtl/otp_ctrl_part_pkg.sv` OT file,
+  from the last entry of `RndCnstDigestConst` array, _i.e._ item 0. It is used along with option
+  `-D` to verify partition digests, and stored in the optional output OTP RAW image file for use by
+  the virtual OTP controller when used along with the `-o` option.
+
+* `-c` specify the register file, which is only useful to decode OTP content (see `-s` option).
+  This option is required when `-D` Present digest checking is used.
+
+* `-D` performs a partition digest checks for all partitions with a defined digest. It requires the
+  following options: `-c`, `-C`, `-I`.
 
 * `-d` only useful to debug the script, reports any Python traceback to the standard error stream.
 
@@ -52,6 +66,12 @@ This script works in three different modes.
 
 * `-l` specify the life cycle system verilog file that defines the encoding of the life cycle
        states. This option is not required to generate a RAW image file.
+
+* `-I` specify the initialization vector for the Present scrambler used for partition digests.
+  This value is "usually" found within the `hw/ip/otp_ctrl/rtl/otp_ctrl_part_pkg.sv` OT file,
+  from the last entry of `RndCnstDigestIV` array, _i.e._ item 0. It is used along with option
+  `-D` to verify partition digests, and stored in the optional output OTP image file for use by
+  the virtual OTP controller when used along with the `-o` option.
 
 * `-i` specify the input VMEM file that contains the OTP fuse content.
 
@@ -65,6 +85,11 @@ This script works in three different modes.
 
 * `-v` can be repeated to increase verbosity of the script, mostly for debug purpose.
 
+
+#### Note
+
+Earlgrey OTP virtual device has not been updated to support Present scrambler, so neither `-C` nor
+`-I` option should be used to generate an Earlgrey-compatible RAW image.
 
 ### Examples
 

@@ -8,6 +8,7 @@
 
 from argparse import ArgumentParser, FileType
 from binascii import hexlify, unhexlify
+from collections import defaultdict
 from io import StringIO
 from logging import DEBUG, ERROR, getLogger, Formatter, StreamHandler
 from os.path import basename, splitext
@@ -16,11 +17,24 @@ from struct import calcsize as scalc, pack as spack
 from sys import exit as sysexit, modules, stderr, version_info
 from textwrap import fill
 from traceback import format_exc
-from typing import BinaryIO, Callable, Dict, List, Optional, Set, TextIO, Tuple
+from typing import (Any, BinaryIO, Callable, Dict, List, NamedTuple, Optional,
+                    Set, TextIO, Tuple)
+
+try:
+    from present import Present
+except ImportError:
+    Present = None
 
 # pylint: disable-msg=too-many-locals
 # pylint: disable-msg=too-many-branches
 # pylint: disable-msg=too-many-instance-attributes
+
+
+class Partition(NamedTuple):
+    """Partition record."""
+    name: str
+    size: int
+    offset: int
 
 
 class OtpConverter:
@@ -35,6 +49,11 @@ class OtpConverter:
         'eccgran': 'H',  # size in bytes of ECC granule
         'dlength': 'I',  # count of data bytes (padded to 64-bit entries)
         'elength': 'I',  # count of ecc bytes (padded to 64-bit entries)
+    }
+
+    HEADER_FORMAT_V2_EXT = {
+        'digiv':   '8s',  # Present digest scrambler IV
+        'digfc':   '16s',  # Present digest scrambler finalization constant
     }
 
     RE_LOC = r'(?i)^@((?:[0-9a-f]{2})+)\s((?:[0-9a-f]{2})+)$'
@@ -60,10 +79,13 @@ class OtpConverter:
         self._ecc_bits = ecc_bits
         self._ecc_bytes = (ecc_bits + 7) // 8
         self._ecc_granule = 0
+        self._digest_iv = 0
+        self._digest_constant = 0
         self._data = b''
         self._ecc = b''
         self._regs: Dict[str, Tuple[int, int]] = {}
         self._tables: Dict[str, Dict[str, str]] = {}
+        self._partitions: Dict[Partition] = {}
 
     @classmethod
     def get_output_types(cls) -> List[str]:
@@ -140,6 +162,11 @@ class OtpConverter:
                 print(fmt % args)
         else:
             emit = self._log.info
+
+        def _subdict():
+            return defaultdict(_subdict)
+
+        tree = _subdict()
         for line in hfp:
             line = line.strip()
             rmo = re_match(self.RE_REG, line)
@@ -161,6 +188,16 @@ class OtpConverter:
                     continue
                 addr = defs[name][0]
                 defs[name] = (addr, val)
+            else:
+                continue
+            if name.endswith('_REG'):
+                continue
+            parts = name.split('_')
+            path = tree
+            for part in parts:
+                path = path[part]
+            path[skind.upper()] = val
+        self._partitions = self._find_partitions_with_digest(tree)
         for name, (addr, size) in defs.items():
             if not size:
                 continue
@@ -242,8 +279,65 @@ class OtpConverter:
         """
         getattr(self, f'_save_{out_type}')(filename)
 
+    # pylint: disable=invalid-name
+    def set_digest_iv(self, iv: int) -> None:
+        """Set the Present digest initialization 64-bit vector."""
+        if iv >> 64:
+            raise ValueError('Invalid digest initialization vector')
+        self._digest_iv = iv
+
+    def set_digest_constant(self, constant: int) -> None:
+        """Set the Present digest finalization 128-bit constant."""
+        if constant >> 128:
+            raise ValueError('Invalid digest finalization constant')
+        self._digest_constant = constant
+
+    def check_digests(self) -> bool:
+        """Check digest with Present scrambler.
+        """
+        if Present is None:
+            raise RuntimeError('Cannot check digest, Present module not found')
+        results = []
+        for part in self._partitions.values():
+            data = self._data[part.offset:part.offset+part.size]
+            content, digest = data[:-8], data[-8:]
+            # don't ask about the byte order. Something is inverted
+            # somewhere, and this is all that matters for now
+            byteorder = 'little'
+            idigest = int.from_bytes(digest, byteorder=byteorder)
+            if idigest == 0:
+                self._log.debug('Partition %s digest empty', part.name)
+                continue
+            if len(content) % 8 != 0:
+                # this case is valid but not yet impplemented (paddding)
+                raise RuntimeError(f'Partition {part.name}: invalid size')
+            block_count = len(content) // 8
+            if block_count & 1:
+                content = b''.join((content, content[-8:]))
+            state = self._digest_iv
+            for offset in range(0, len(content), 16):
+                chunk = content[offset:offset+16]
+                b128 = int.from_bytes(chunk, byteorder=byteorder)
+                present = Present(b128)
+                tmp = present.encrypt(state)
+                state ^= tmp
+            present = Present(self._digest_constant)
+            state ^= present.encrypt(state)
+            if state != idigest:
+                self._log.error('Partition %s digest mismatch @ %d '
+                                '(%016x/%016x)',
+                                part.name, part.offset+part.size-8, state,
+                                idigest)
+                results.append(False)
+            else:
+                self._log.info('Partition %s digest match @ %d (%016x)',
+                               part.name, part.offset+part.size-8, state)
+                results.append(True)
+        return all(results)
+
     @property
     def logger(self):
+        """Return our logger instance."""
         return self._log
 
     def _save_raw(self, filename: str):
@@ -306,26 +400,85 @@ class OtpConverter:
             bfp.write(bytes(padsize-tail))
 
     def _build_header(self) -> bytes:
-        # dict in Python 3.7+ are kept ordered
+        # requirement: Python 3.7+: dict entries are kept in creation order
         if version_info[:2] < (3, 7):
             raise RuntimeError('Unsupported Python version')
-        # hlength is the length of header minus the two first items (T, L)
         hfmt = self.HEADER_FORMAT
+        # use V2 image format if Present scrambling constants are available,
+        # otherwise use V1
+        use_v2 = bool(self._digest_iv) or bool(self._digest_constant)
+        if use_v2:
+            hfmt.update(self.HEADER_FORMAT_V2_EXT)
         fhfmt = ''.join(hfmt.values())
         shfmt = ''.join(hfmt[k] for k in list(hfmt)[:2])
+        # hlength is the length of header minus the two first items (T, L)
         hlen = scalc(fhfmt)-scalc(shfmt)
         dlen = (len(self._data)+7) & ~0x7
         elen = (len(self._ecc)+7) & ~0x7
-        values = dict(magic=b'vOTP', hlength=hlen, version=1,
+        values = dict(magic=b'vOTP', hlength=hlen, version=1+int(use_v2),
                       eccbits=self._ecc_bits, eccgran=self._ecc_granule,
                       dlength=dlen, elength=elen)
+        if use_v2:
+            values['digiv'] = self._digest_iv.to_bytes(8, byteorder='little')
+            values['digfc'] = self._digest_constant.to_bytes(16,
+                                                             byteorder='little')
         args = [values[k] for k in hfmt]
         header = spack(f'<{fhfmt}', *args)
         return header
 
+    @classmethod
+    def _find_partitions_with_digest(cls, tree: dict[Any]) -> dict[Partition]:
+        leaves = list(cls._find_leaf_path(tree))
+        partitions = set()
+        # heuristic to find a partition with a digest
+        for leaf in leaves:
+            if leaf[-3] != 'DIGEST':
+                continue
+            partitions.add(leaf[:-3])
+        # remove false positives (digest names that are not related to a part.)
+        fakes = set()
+        for partition in partitions:
+            subtree = tree
+            for node in partition:
+                subtree = subtree[node]
+            if 'SIZE' not in subtree or 'OFFSET' not in subtree:
+                fakes.add(partition)
+        partitions -= fakes  # cannot remove while iterating the set
+        part_desc = set()
+        for partition in partitions:
+            subtree = tree
+            for node in partition:
+                subtree = subtree[node]
+            part_name = '_'.join(partition)
+            part_size = subtree['SIZE']
+            part_offset = subtree['OFFSET']
+            subtree = subtree['DIGEST']
+            digest_size = subtree['SIZE']
+            digest_offset = subtree['OFFSET']
+            assert digest_size == 8, f'Unexpected digest size for {part_name}'
+            assert digest_offset == part_offset + part_size - 8, \
+                   f'Unexpected digest offset for {part_name}'
+            part_desc.add(Partition(part_name, part_size, part_offset))
+        return {p.name: p for p in sorted(part_desc, key=lambda p: p.offset)}
+
+    @classmethod
+    def _find_leaf_path(cls, tree: dict):
+        for name, val in tree.items():
+            if not isinstance(val, dict):
+                yield (name, val)
+            else:
+                for subpath in cls._find_leaf_path(val):
+                    yield (name,)+subpath
+
+
+def hexint(val: str) -> int:
+    """Simple helper to support hexadecimal integer in argument parser."""
+    return int(val, val.startswith('0x') and 16 or 10)
+
 
 def main():
     """Main routine"""
+    # pylint: disable=too-many-statements
     debug = False
     out_types = OtpConverter.get_output_types()
     try:
@@ -346,6 +499,15 @@ def main():
                                metavar='file', help='output file')
         argparser.add_argument('-e', '--ecc', type=int, default=6,
                                metavar='bits', help='ECC bit count')
+        argparser.add_argument('-C', '--constant', type=hexint,
+                               help='finalization constant for Present '
+                                    'scrambler')
+        argparser.add_argument('-I', '--iv', type=hexint,
+                               help='initialization vector for Present '
+                                    'scrambler')
+        argparser.add_argument('-D', '--digest', action='store_true',
+                               default=False,
+                               help='verify digests with Present scrambler')
         argparser.add_argument('-b', '--bswap', default=True,
                                action='store_false',
                                help='reverse data byte order (swap endianess)')
@@ -378,8 +540,22 @@ def main():
             if not args.check:
                 print("Lifecycle decoding needs regfile option to run",
                       file=stderr)
+        if args.digest:
+            if not args.check:
+                argparser.error('Digest verification requires check option')
+            if not args.iv:
+                argparser.error('Digest verification requires IV argument')
+            if not args.constant:
+                argparser.error('Digest verification requires constant '
+                                'argument')
+        if args.iv:
+            otp.set_digest_iv(args.iv)
+        if args.constant:
+            otp.set_digest_constant(args.constant)
         if args.check:
             otp.load_registers(args.check, args.show)
+            if args.digest:
+                otp.check_digests()
         if args.output:
             otp.save(args.output_type, args.output)
 

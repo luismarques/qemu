@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan ROM controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
@@ -99,16 +99,8 @@ static const char *REG_NAMES[REGS_COUNT] = {
 };
 #undef REG_NAME_ENTRY
 
-static const OtKMACAppCfg kmac_app_cfg = {
-    .mode = OT_KMAC_MODE_CSHAKE,
-    .strength = 256u,
-    .prefix = {
-        .funcname = { "" },
-        .funcname_len = 0,
-        .customstr = { "ROM_CTRL" },
-        .customstr_len = 8u,
-    },
-};
+static const OtKMACAppCfg kmac_app_cfg =
+    OT_KMAC_CONFIG(CSHAKE, 256u, "", "ROM_CTRL");
 
 struct OtRomCtrlClass {
     DeviceClass parent_class;

@@ -79,6 +79,18 @@ typedef struct {
     bool done; /* digest_share updated (on last request) */
 } OtKMACAppRsp;
 
+/* KMAC application configuration helper */
+#define OT_KMAC_CONFIG(_mode_, _strength_, _fname_, _cust_) \
+    { \
+        .mode = (OT_KMAC_MODE_##_mode_), .strength = (_strength_), \
+        .prefix = { \
+            .funcname = (_fname_), \
+            .funcname_len = ARRAY_SIZE(_fname_) - 1u, \
+            .customstr = (_cust_), \
+            .customstr_len = ARRAY_SIZE(_cust_) - 1u, \
+        }, \
+    }
+
 /*
  * Function called by the KMAC instance whenever an application request has been
  * processed.

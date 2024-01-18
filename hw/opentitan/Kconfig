@@ -103,6 +103,9 @@ config OT_OTP_EARLGREY
 config OT_PINMUX
     bool
 
+config OT_PRESENT
+    bool
+
 config OT_PRNG
     bool
 

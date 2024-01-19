@@ -51,6 +51,7 @@
 #include "sysemu/block-backend.h"
 #include "trace.h"
 
+#undef OT_OTP_DEBUG
 
 #define NUM_IRQS                2u
 #define NUM_ALERTS              5u
@@ -522,11 +523,6 @@ REG32(CSR7, 0x1cu)
 #define SW_CFG_WINDOW      0x4000u
 #define SW_CFG_WINDOW_SIZE (NUM_SW_CFG_WINDOW_WORDS * sizeof(uint32_t))
 
-/* the following delays are arbitrary for now */
-#define DAI_READ_DELAY_NS   100000u /* 100us */
-#define DAI_WRITE_DELAY_NS  1000000u /* 1ms */
-#define DAI_DIGEST_DELAY_NS 5000000u /* 5ms */
-
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
 #define R_LAST_REG (R_SECRET3_DIGEST_1)
@@ -541,113 +537,11 @@ REG32(CSR7, 0x1cu)
 #define CSR_NAME(_reg_) \
     ((((_reg_) <= CSRS_COUNT) && CSR_NAMES[_reg_]) ? CSR_NAMES[_reg_] : "?")
 
-#define REG_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
-static const char *REG_NAMES[REGS_COUNT] = {
-    REG_NAME_ENTRY(INTR_STATE),
-    REG_NAME_ENTRY(INTR_ENABLE),
-    REG_NAME_ENTRY(INTR_TEST),
-    REG_NAME_ENTRY(ALERT_TEST),
-    REG_NAME_ENTRY(STATUS),
-    REG_NAME_ENTRY(ERR_CODE_0),
-    REG_NAME_ENTRY(ERR_CODE_1),
-    REG_NAME_ENTRY(ERR_CODE_2),
-    REG_NAME_ENTRY(ERR_CODE_3),
-    REG_NAME_ENTRY(ERR_CODE_4),
-    REG_NAME_ENTRY(ERR_CODE_5),
-    REG_NAME_ENTRY(ERR_CODE_6),
-    REG_NAME_ENTRY(ERR_CODE_7),
-    REG_NAME_ENTRY(ERR_CODE_8),
-    REG_NAME_ENTRY(ERR_CODE_9),
-    REG_NAME_ENTRY(ERR_CODE_10),
-    REG_NAME_ENTRY(ERR_CODE_11),
-    REG_NAME_ENTRY(ERR_CODE_12),
-    REG_NAME_ENTRY(ERR_CODE_13),
-    REG_NAME_ENTRY(ERR_CODE_14),
-    REG_NAME_ENTRY(ERR_CODE_15),
-    REG_NAME_ENTRY(ERR_CODE_16),
-    REG_NAME_ENTRY(ERR_CODE_17),
-    REG_NAME_ENTRY(ERR_CODE_18),
-    REG_NAME_ENTRY(ERR_CODE_19),
-    REG_NAME_ENTRY(ERR_CODE_20),
-    REG_NAME_ENTRY(ERR_CODE_21),
-    REG_NAME_ENTRY(ERR_CODE_22),
-    REG_NAME_ENTRY(ERR_CODE_23),
-    REG_NAME_ENTRY(DIRECT_ACCESS_REGWEN),
-    REG_NAME_ENTRY(DIRECT_ACCESS_CMD),
-    REG_NAME_ENTRY(DIRECT_ACCESS_ADDRESS),
-    REG_NAME_ENTRY(DIRECT_ACCESS_WDATA_0),
-    REG_NAME_ENTRY(DIRECT_ACCESS_WDATA_1),
-    REG_NAME_ENTRY(DIRECT_ACCESS_RDATA_0),
-    REG_NAME_ENTRY(DIRECT_ACCESS_RDATA_1),
-    REG_NAME_ENTRY(CHECK_TRIGGER_REGWEN),
-    REG_NAME_ENTRY(CHECK_TRIGGER),
-    REG_NAME_ENTRY(CHECK_REGWEN),
-    REG_NAME_ENTRY(CHECK_TIMEOUT),
-    REG_NAME_ENTRY(INTEGRITY_CHECK_PERIOD),
-    REG_NAME_ENTRY(CONSISTENCY_CHECK_PERIOD),
-    REG_NAME_ENTRY(VENDOR_TEST_READ_LOCK),
-    REG_NAME_ENTRY(CREATOR_SW_CFG_READ_LOCK),
-    REG_NAME_ENTRY(OWNER_SW_CFG_READ_LOCK),
-    REG_NAME_ENTRY(OWNERSHIP_SLOT_STATE_READ_LOCK),
-    REG_NAME_ENTRY(ROT_CREATOR_AUTH_READ_LOCK),
-    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT0_READ_LOCK),
-    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT1_READ_LOCK),
-    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT0_READ_LOCK),
-    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT1_READ_LOCK),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT0_READ_LOCK),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT1_READ_LOCK),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT2_READ_LOCK),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT3_READ_LOCK),
-    REG_NAME_ENTRY(EXT_NVM_READ_LOCK),
-    REG_NAME_ENTRY(ROM_PATCH_READ_LOCK),
-    REG_NAME_ENTRY(VENDOR_TEST_DIGEST_0),
-    REG_NAME_ENTRY(VENDOR_TEST_DIGEST_1),
-    REG_NAME_ENTRY(CREATOR_SW_CFG_DIGEST_0),
-    REG_NAME_ENTRY(CREATOR_SW_CFG_DIGEST_1),
-    REG_NAME_ENTRY(OWNER_SW_CFG_DIGEST_0),
-    REG_NAME_ENTRY(OWNER_SW_CFG_DIGEST_1),
-    REG_NAME_ENTRY(ROT_CREATOR_AUTH_DIGEST_0),
-    REG_NAME_ENTRY(ROT_CREATOR_AUTH_DIGEST_1),
-    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT0_DIGEST_0),
-    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT0_DIGEST_1),
-    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT1_DIGEST_0),
-    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT1_DIGEST_1),
-    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT0_DIGEST_0),
-    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT0_DIGEST_1),
-    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT1_DIGEST_0),
-    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT1_DIGEST_1),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT0_DIGEST_0),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT0_DIGEST_1),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT1_DIGEST_0),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT1_DIGEST_1),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT2_DIGEST_0),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT2_DIGEST_1),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT3_DIGEST_0),
-    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT3_DIGEST_1),
-    REG_NAME_ENTRY(ROM_PATCH_DIGEST_0),
-    REG_NAME_ENTRY(ROM_PATCH_DIGEST_1),
-    REG_NAME_ENTRY(HW_CFG0_DIGEST_0),
-    REG_NAME_ENTRY(HW_CFG0_DIGEST_1),
-    REG_NAME_ENTRY(HW_CFG1_DIGEST_0),
-    REG_NAME_ENTRY(HW_CFG1_DIGEST_1),
-    REG_NAME_ENTRY(SECRET0_DIGEST_0),
-    REG_NAME_ENTRY(SECRET0_DIGEST_1),
-    REG_NAME_ENTRY(SECRET1_DIGEST_0),
-    REG_NAME_ENTRY(SECRET1_DIGEST_1),
-    REG_NAME_ENTRY(SECRET2_DIGEST_0),
-    REG_NAME_ENTRY(SECRET2_DIGEST_1),
-    REG_NAME_ENTRY(SECRET3_DIGEST_0),
-    REG_NAME_ENTRY(SECRET3_DIGEST_1),
-};
-#undef REG_NAME_ENTRY
-
-#define CSR_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
-static const char CSR_NAMES[CSRS_COUNT][6u] = {
-    CSR_NAME_ENTRY(CSR0), CSR_NAME_ENTRY(CSR1), CSR_NAME_ENTRY(CSR2),
-    CSR_NAME_ENTRY(CSR3), CSR_NAME_ENTRY(CSR4), CSR_NAME_ENTRY(CSR5),
-    CSR_NAME_ENTRY(CSR6), CSR_NAME_ENTRY(CSR7),
-};
-#undef CSR_NAME_ENTRY
+/* the following delays are arbitrary for now */
+#define DAI_READ_DELAY_NS   100000u /* 100us */
+#define DAI_WRITE_DELAY_NS  1000000u /* 1ms */
+#define DAI_DIGEST_DELAY_NS 5000000u /* 5ms */
+#define LCI_PROG_DELAY_NS   500000u /* 500us*/
 
 #define OTP_PART_VENDOR_TEST_OFFSET           0u
 #define OTP_PART_VENDOR_TEST_SIZE             64u
@@ -789,6 +683,16 @@ typedef enum {
     OTP_DAI_DIG_WAIT,
 } OtOTPDAIState;
 
+typedef enum {
+    OTP_LCI_RESET,
+    OTP_LCI_IDLE,
+    OTP_LCI_WRITE,
+    OTP_LCI_WRITE_WAIT,
+    OTP_LCI_ERROR,
+} OtOTPLCIState;
+
+// TODO: wr and rd lock need to be rewritten (not simple boolean)
+
 typedef struct {
     uint16_t size;
     uint16_t offset;
@@ -800,299 +704,12 @@ typedef struct {
     uint16_t wr_lockable : 1;
     uint16_t rd_lockable : 1;
     uint16_t integrity : 1;
+    uint16_t is_keymgr : 1;
     uint16_t wide : 1; /* false: 32-bit granule, true: 64-bit granule */
 } OtOTPPartDesc;
 
-static const OtOTPPartDesc OtOTPPartDescs[] = {
-    [OTP_PART_VENDOR_TEST] = {
-        .size = OTP_PART_VENDOR_TEST_SIZE,
-        .offset = OTP_PART_VENDOR_TEST_OFFSET,
-        .digest_offset = A_VENDOR_TEST_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = false,
-        .wide = false,
-    },
-    [OTP_PART_CREATOR_SW_CFG] = {
-        .size = OTP_PART_CREATOR_SW_CFG_SIZE,
-        .offset = OTP_PART_CREATOR_SW_CFG_OFFSET,
-        .digest_offset = A_CREATOR_SW_CFG_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_OWNER_SW_CFG] = {
-        .size = OTP_PART_OWNER_SW_CFG_SIZE,
-        .offset = OTP_PART_OWNER_SW_CFG_OFFSET,
-        .digest_offset = A_OWNER_SW_CFG_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_OWNERSHIP_SLOT_STATE] = {
-        .size = OTP_PART_OWNERSHIP_SLOT_STATE_SIZE,
-        .offset = OTP_PART_OWNERSHIP_SLOT_STATE_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = false,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_ROT_CREATOR_AUTH] = {
-        .size = OTP_PART_ROT_CREATOR_AUTH_SIZE,
-        .offset = OTP_PART_ROT_CREATOR_AUTH_OFFSET,
-        .digest_offset = A_ROT_CREATOR_AUTH_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_ROT_OWNER_AUTH_SLOT0] = {
-        .size = OTP_PART_ROT_OWNER_AUTH_SLOT0_SIZE,
-        .offset = OTP_PART_ROT_OWNER_AUTH_SLOT0_OFFSET,
-        .digest_offset = A_ROT_OWNER_AUTH_SLOT0_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_ROT_OWNER_AUTH_SLOT1] = {
-        .size = OTP_PART_ROT_OWNER_AUTH_SLOT1_SIZE,
-        .offset = OTP_PART_ROT_OWNER_AUTH_SLOT1_OFFSET,
-        .digest_offset = A_ROT_OWNER_AUTH_SLOT1_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_INTEG_AUTH_SLOT0] = {
-        .size = OTP_PART_PLAT_INTEG_AUTH_SLOT0_SIZE,
-        .offset = OTP_PART_PLAT_INTEG_AUTH_SLOT0_OFFSET,
-        .digest_offset = A_PLAT_INTEG_AUTH_SLOT0_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_INTEG_AUTH_SLOT1] = {
-        .size = OTP_PART_PLAT_INTEG_AUTH_SLOT1_SIZE,
-        .offset = OTP_PART_PLAT_INTEG_AUTH_SLOT1_OFFSET,
-        .digest_offset = A_PLAT_INTEG_AUTH_SLOT1_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT0] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT0_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT0_OFFSET,
-        .digest_offset = A_PLAT_OWNER_AUTH_SLOT0_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT1] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT1_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT1_OFFSET,
-        .digest_offset = A_PLAT_OWNER_AUTH_SLOT1_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT2] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT2_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT2_OFFSET,
-        .digest_offset = A_PLAT_OWNER_AUTH_SLOT2_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_PLAT_OWNER_AUTH_SLOT3] = {
-        .size = OTP_PART_PLAT_OWNER_AUTH_SLOT3_SIZE,
-        .offset = OTP_PART_PLAT_OWNER_AUTH_SLOT3_OFFSET,
-        .digest_offset = A_PLAT_OWNER_AUTH_SLOT3_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_EXT_NVM] = {
-        .size = OTP_PART_EXT_NVM_SIZE,
-        .offset = OTP_PART_EXT_NVM_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = false,
-        .rd_lockable = true,
-        .integrity = false,
-        .wide = false,
-    },
-    [OTP_PART_ROM_PATCH] = {
-        .size = OTP_PART_ROM_PATCH_SIZE,
-        .offset = OTP_PART_ROM_PATCH_OFFSET,
-        .digest_offset = A_ROM_PATCH_DIGEST,
-        .hw_digest = false,
-        .sw_digest = true,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_HW_CFG0] = {
-        .size = OTP_PART_HW_CFG0_SIZE,
-        .offset = OTP_PART_HW_CFG0_OFFSET,
-        .digest_offset = A_HW_CFG0_DIGEST,
-        .hw_digest = true,
-        .sw_digest = false,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = false,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_HW_CFG1] = {
-        .size = OTP_PART_HW_CFG1_SIZE,
-        .offset = OTP_PART_HW_CFG1_OFFSET,
-        .digest_offset = A_HW_CFG1_DIGEST,
-        .hw_digest = true,
-        .sw_digest = false,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = false,
-        .integrity = true,
-        .wide = false,
-    },
-    [OTP_PART_SECRET0] = {
-        .size = OTP_PART_SECRET0_SIZE,
-        .offset = OTP_PART_SECRET0_OFFSET,
-        .digest_offset = A_SECRET0_DIGEST,
-        .hw_digest = true,
-        .sw_digest = false,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET1] = {
-        .size = OTP_PART_SECRET1_SIZE,
-        .offset = OTP_PART_SECRET1_OFFSET,
-        .digest_offset = A_SECRET1_DIGEST,
-        .hw_digest = true,
-        .sw_digest = false,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET2] = {
-        .size = OTP_PART_SECRET2_SIZE,
-        .offset = OTP_PART_SECRET2_OFFSET,
-        .digest_offset = A_SECRET2_DIGEST,
-        .hw_digest = true,
-        .sw_digest = false,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET3] = {
-        .size = OTP_PART_SECRET3_SIZE,
-        .offset = OTP_PART_SECRET3_OFFSET,
-        .digest_offset = A_SECRET3_DIGEST,
-        .hw_digest = true,
-        .sw_digest = false,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .integrity = true,
-        .wide = true,
-    },
-    [OTP_PART_LIFE_CYCLE] = {
-        .size = OTP_PART_LIFE_CYCLE_SIZE,
-        .offset = OTP_PART_LIFE_CYCLE_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .sw_digest = false,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = false,
-        .rd_lockable = false,
-        .integrity = true,
-        .wide = false,
-    },
-};
-
-#define OTP_PART_COUNT ARRAY_SIZE(OtOTPPartDescs)
+/* NOLINTNEXTLINE */
+#include "ot_otp_darjeeling_parts.c"
 
 static_assert(OTP_PART_COUNT == NUM_PART, "Invalid partition definitions");
 static_assert(OTP_PART_COUNT == _OTP_PART_COUNT,
@@ -1125,6 +742,21 @@ typedef struct {
 } OtOTPDAIController;
 
 typedef struct {
+    QEMUTimer *prog_delay; /* OTP cell prog delay */
+    QEMUBH *prog_bh; /* OTP prog trigger */
+    OtOTPLCIState state;
+    OtOTPError error;
+    struct {
+        uint32_t state;
+        unsigned tcount;
+    } lc;
+    ot_otp_program_ack_fn ack_fn;
+    void *ack_data;
+    uint16_t data[OTP_PART_LIFE_CYCLE_SIZE / sizeof(uint16_t)];
+    unsigned hpos; /* current offset in data */
+} OtOTPLCIController;
+
+typedef struct {
     uint32_t *storage; /* overall buffer for the storage backend */
     uint32_t *data; /* data buffer (all partitions) */
     uint32_t *ecc; /* ecc buffer for date */
@@ -1152,26 +784,132 @@ struct OtOTPDjState {
     struct {
         MemoryRegion csrs;
     } prim;
-    struct {
-        uint32_t state;
-        unsigned tcount;
-    } lc;
     IbexIRQ irqs[NUM_IRQS];
     IbexIRQ alerts[NUM_ALERTS];
 
     uint32_t regs[REGS_COUNT];
 
+    // TODO: allocate outside the structure
     OtOTPDAIController dai;
+    OtOTPLCIController lci;
     OtOTPPartController partctrls[OTP_PART_COUNT];
 
     OtOTPStorage otp;
     OtOTPHWCfg *hw_cfg;
+    OtOTPTokens *tokens;
 
     BlockBackend *blk; /* OTP backend */
-
     OtEDNState *edn;
     uint8_t edn_ep;
 };
+
+#define REG_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
+static const char *REG_NAMES[REGS_COUNT] = {
+    REG_NAME_ENTRY(INTR_STATE),
+    REG_NAME_ENTRY(INTR_ENABLE),
+    REG_NAME_ENTRY(INTR_TEST),
+    REG_NAME_ENTRY(ALERT_TEST),
+    REG_NAME_ENTRY(STATUS),
+    REG_NAME_ENTRY(ERR_CODE_0),
+    REG_NAME_ENTRY(ERR_CODE_1),
+    REG_NAME_ENTRY(ERR_CODE_2),
+    REG_NAME_ENTRY(ERR_CODE_3),
+    REG_NAME_ENTRY(ERR_CODE_4),
+    REG_NAME_ENTRY(ERR_CODE_5),
+    REG_NAME_ENTRY(ERR_CODE_6),
+    REG_NAME_ENTRY(ERR_CODE_7),
+    REG_NAME_ENTRY(ERR_CODE_8),
+    REG_NAME_ENTRY(ERR_CODE_9),
+    REG_NAME_ENTRY(ERR_CODE_10),
+    REG_NAME_ENTRY(ERR_CODE_11),
+    REG_NAME_ENTRY(ERR_CODE_12),
+    REG_NAME_ENTRY(ERR_CODE_13),
+    REG_NAME_ENTRY(ERR_CODE_14),
+    REG_NAME_ENTRY(ERR_CODE_15),
+    REG_NAME_ENTRY(ERR_CODE_16),
+    REG_NAME_ENTRY(ERR_CODE_17),
+    REG_NAME_ENTRY(ERR_CODE_18),
+    REG_NAME_ENTRY(ERR_CODE_19),
+    REG_NAME_ENTRY(ERR_CODE_20),
+    REG_NAME_ENTRY(ERR_CODE_21),
+    REG_NAME_ENTRY(ERR_CODE_22),
+    REG_NAME_ENTRY(ERR_CODE_23),
+    REG_NAME_ENTRY(DIRECT_ACCESS_REGWEN),
+    REG_NAME_ENTRY(DIRECT_ACCESS_CMD),
+    REG_NAME_ENTRY(DIRECT_ACCESS_ADDRESS),
+    REG_NAME_ENTRY(DIRECT_ACCESS_WDATA_0),
+    REG_NAME_ENTRY(DIRECT_ACCESS_WDATA_1),
+    REG_NAME_ENTRY(DIRECT_ACCESS_RDATA_0),
+    REG_NAME_ENTRY(DIRECT_ACCESS_RDATA_1),
+    REG_NAME_ENTRY(CHECK_TRIGGER_REGWEN),
+    REG_NAME_ENTRY(CHECK_TRIGGER),
+    REG_NAME_ENTRY(CHECK_REGWEN),
+    REG_NAME_ENTRY(CHECK_TIMEOUT),
+    REG_NAME_ENTRY(INTEGRITY_CHECK_PERIOD),
+    REG_NAME_ENTRY(CONSISTENCY_CHECK_PERIOD),
+    REG_NAME_ENTRY(VENDOR_TEST_READ_LOCK),
+    REG_NAME_ENTRY(CREATOR_SW_CFG_READ_LOCK),
+    REG_NAME_ENTRY(OWNER_SW_CFG_READ_LOCK),
+    REG_NAME_ENTRY(OWNERSHIP_SLOT_STATE_READ_LOCK),
+    REG_NAME_ENTRY(ROT_CREATOR_AUTH_READ_LOCK),
+    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT0_READ_LOCK),
+    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT1_READ_LOCK),
+    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT0_READ_LOCK),
+    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT1_READ_LOCK),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT0_READ_LOCK),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT1_READ_LOCK),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT2_READ_LOCK),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT3_READ_LOCK),
+    REG_NAME_ENTRY(EXT_NVM_READ_LOCK),
+    REG_NAME_ENTRY(ROM_PATCH_READ_LOCK),
+    REG_NAME_ENTRY(VENDOR_TEST_DIGEST_0),
+    REG_NAME_ENTRY(VENDOR_TEST_DIGEST_1),
+    REG_NAME_ENTRY(CREATOR_SW_CFG_DIGEST_0),
+    REG_NAME_ENTRY(CREATOR_SW_CFG_DIGEST_1),
+    REG_NAME_ENTRY(OWNER_SW_CFG_DIGEST_0),
+    REG_NAME_ENTRY(OWNER_SW_CFG_DIGEST_1),
+    REG_NAME_ENTRY(ROT_CREATOR_AUTH_DIGEST_0),
+    REG_NAME_ENTRY(ROT_CREATOR_AUTH_DIGEST_1),
+    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT0_DIGEST_0),
+    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT0_DIGEST_1),
+    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT1_DIGEST_0),
+    REG_NAME_ENTRY(ROT_OWNER_AUTH_SLOT1_DIGEST_1),
+    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT0_DIGEST_0),
+    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT0_DIGEST_1),
+    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT1_DIGEST_0),
+    REG_NAME_ENTRY(PLAT_INTEG_AUTH_SLOT1_DIGEST_1),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT0_DIGEST_0),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT0_DIGEST_1),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT1_DIGEST_0),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT1_DIGEST_1),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT2_DIGEST_0),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT2_DIGEST_1),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT3_DIGEST_0),
+    REG_NAME_ENTRY(PLAT_OWNER_AUTH_SLOT3_DIGEST_1),
+    REG_NAME_ENTRY(ROM_PATCH_DIGEST_0),
+    REG_NAME_ENTRY(ROM_PATCH_DIGEST_1),
+    REG_NAME_ENTRY(HW_CFG0_DIGEST_0),
+    REG_NAME_ENTRY(HW_CFG0_DIGEST_1),
+    REG_NAME_ENTRY(HW_CFG1_DIGEST_0),
+    REG_NAME_ENTRY(HW_CFG1_DIGEST_1),
+    REG_NAME_ENTRY(SECRET0_DIGEST_0),
+    REG_NAME_ENTRY(SECRET0_DIGEST_1),
+    REG_NAME_ENTRY(SECRET1_DIGEST_0),
+    REG_NAME_ENTRY(SECRET1_DIGEST_1),
+    REG_NAME_ENTRY(SECRET2_DIGEST_0),
+    REG_NAME_ENTRY(SECRET2_DIGEST_1),
+    REG_NAME_ENTRY(SECRET3_DIGEST_0),
+    REG_NAME_ENTRY(SECRET3_DIGEST_1),
+};
+#undef REG_NAME_ENTRY
+
+#define CSR_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
+static const char CSR_NAMES[CSRS_COUNT][6u] = {
+    CSR_NAME_ENTRY(CSR0), CSR_NAME_ENTRY(CSR1), CSR_NAME_ENTRY(CSR2),
+    CSR_NAME_ENTRY(CSR3), CSR_NAME_ENTRY(CSR4), CSR_NAME_ENTRY(CSR5),
+    CSR_NAME_ENTRY(CSR6), CSR_NAME_ENTRY(CSR7),
+};
+#undef CSR_NAME_ENTRY
 
 #define OTP_NAME_ENTRY(_st_) [_st_] = stringify(_st_)
 
@@ -1197,6 +935,14 @@ static const char *DAI_STATE_NAMES[] = {
     OTP_NAME_ENTRY(OTP_DAI_DIG_PAD),
     OTP_NAME_ENTRY(OTP_DAI_DIG_FIN),
     OTP_NAME_ENTRY(OTP_DAI_DIG_WAIT),
+};
+
+static const char *LCI_STATE_NAMES[] = {
+    OTP_NAME_ENTRY(OTP_LCI_RESET),
+    OTP_NAME_ENTRY(OTP_LCI_IDLE),
+    OTP_NAME_ENTRY(OTP_LCI_WRITE),
+    OTP_NAME_ENTRY(OTP_LCI_WRITE_WAIT),
+    OTP_NAME_ENTRY(OTP_LCI_ERROR),
 };
 
 static const char *PART_NAMES[] = {
@@ -1250,6 +996,10 @@ static const char *ERR_CODE_NAMES[] = {
     ((_st_) >= 0 && (_st_) < ARRAY_SIZE(DAI_STATE_NAMES) ? \
          DAI_STATE_NAMES[(_st_)] : \
          "?")
+#define LCI_STATE_NAME(_st_) \
+    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(LCI_STATE_NAMES) ? \
+         LCI_STATE_NAMES[(_st_)] : \
+         "?")
 #define PART_NAME(_pt_) \
     (((unsigned)(_pt_)) < ARRAY_SIZE(PART_NAMES) ? PART_NAMES[(_pt_)] : "?")
 #define ERR_CODE_NAME(_err_) \
@@ -1263,20 +1013,56 @@ ot_otp_dj_dai_change_state_line(OtOTPDjState *s, OtOTPDAIState state, int line);
 #define DAI_CHANGE_STATE(_s_, _st_) \
     ot_otp_dj_dai_change_state_line(_s_, _st_, __LINE__)
 
+static void
+ot_otp_dj_lci_change_state_line(OtOTPDjState *s, OtOTPLCIState state, int line);
+
+#define LCI_CHANGE_STATE(_s_, _st_) \
+    ot_otp_dj_lci_change_state_line(_s_, _st_, __LINE__)
+
 #define OT_OTP_PART_DATA_BYTE_SIZE(_pix_) \
     ((unsigned)(OtOTPPartDescs[(_pix_)].size - \
                 sizeof(uint32_t) * NUM_DIGEST_WORDS))
-
-/* initialized to zero, i.e. no valid token declared for now */
-static const OtOTPTokens OT_OTP_DARJEELING_TOKENS;
 
 /* NOLINTNEXTLINE */
 #include "ot_otp_darjeeling_lcvalues.c"
 
 #define LC_TRANSITION_COUNT_MAX 24u
+#define LC_STATE_BIT_WIDTH      5u
 #define LC_ENCODE_STATE(_x_) \
-    (((_x_) << 0u) | ((_x_) << 5u) | ((_x_) << 10u) | ((_x_) << 15u) | \
-     ((_x_) << 20u) | ((_x_) << 25u))
+    (((_x_) << (LC_STATE_BIT_WIDTH * 0)) | \
+     ((_x_) << (LC_STATE_BIT_WIDTH * 1u)) | \
+     ((_x_) << (LC_STATE_BIT_WIDTH * 2u)) | \
+     ((_x_) << (LC_STATE_BIT_WIDTH * 3u)) | \
+     ((_x_) << (LC_STATE_BIT_WIDTH * 4u)) | \
+     ((_x_) << (LC_STATE_BIT_WIDTH * 5u)))
+#define LC_STATE_BITS(_elc_) ((_elc_) & ((1u << LC_STATE_BIT_WIDTH) - 1u))
+
+#ifdef OT_OTP_DEBUG
+#define TRACE_OTP(msg, ...) qemu_log("%s: " msg "\n", __func__, ##__VA_ARGS__);
+#else
+#define TRACE_OTP(msg, ...)
+#endif
+
+#ifdef OT_OTP_DEBUG
+static char hexbuf[256u];
+static const char *ot_otp_hexdump(const void *data, size_t size)
+{
+    static const char _hex[] = "0123456789abcdef";
+    const uint8_t *buf = (const uint8_t *)data;
+
+    if (size > ((sizeof(hexbuf) / 2u) - 2u)) {
+        size = sizeof(hexbuf) / 2u - 2u;
+    }
+
+    char *hexstr = hexbuf;
+    for (size_t ix = 0; ix < size; ix++) {
+        hexstr[(ix * 2u)] = _hex[(buf[ix] >> 4u) & 0xfu];
+        hexstr[(ix * 2u) + 1u] = _hex[buf[ix] & 0xfu];
+    }
+    hexstr[size * 2u] = '\0';
+    return hexbuf;
+}
+#endif
 
 static void ot_otp_dj_update_irqs(OtOTPDjState *s)
 {
@@ -1551,6 +1337,15 @@ ot_otp_dj_dai_change_state_line(OtOTPDjState *s, OtOTPDAIState state, int line)
     s->dai.state = state;
 }
 
+static void
+ot_otp_dj_lci_change_state_line(OtOTPDjState *s, OtOTPLCIState state, int line)
+{
+    trace_ot_otp_lci_change_state(line, LCI_STATE_NAME(s->lci.state),
+                                  s->lci.state, LCI_STATE_NAME(state), state);
+
+    s->lci.state = state;
+}
+
 static uint64_t ot_otp_dj_compute_partition_digest(
     OtOTPDjState *s, const uint8_t *base, unsigned size)
 {
@@ -1673,6 +1468,11 @@ static void ot_otp_dj_initialize_partitions(OtOTPDjState *s)
     }
 }
 
+static bool ot_otp_dj_is_backend_writable(OtOTPDjState *s)
+{
+    return (s->blk != NULL) && blk_is_writable(s->blk);
+}
+
 static void ot_otp_dj_dai_init(OtOTPDjState *s)
 {
     DAI_CHANGE_STATE(s, OTP_DAI_IDLE);
@@ -1684,6 +1484,7 @@ static void ot_otp_dj_dai_set_error(OtOTPDjState *s, OtOTPError err)
 
     switch (err) {
     case OTP_FSM_STATE_ERROR:
+    case OTP_MACRO_ERROR:
     case OTP_MACRO_ECC_UNCORR_ERROR:
         DAI_CHANGE_STATE(s, OTP_DAI_ERROR);
         break;
@@ -1767,6 +1568,14 @@ static void ot_otp_dj_dai_write(OtOTPDjState *s)
         return;
     }
 
+    if (!ot_otp_dj_is_backend_writable(s)) {
+        /* OTP backend missing or read-only; reject any write request */
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: OTP backend file is missing or R/O\n", __func__);
+        ot_otp_dj_dai_set_error(s, OTP_MACRO_ERROR);
+        return;
+    }
+
     DAI_CHANGE_STATE(s, OTP_DAI_WRITE);
 
     ot_otp_dj_dai_clear_error(s);
@@ -1804,8 +1613,10 @@ static void ot_otp_dj_dai_write(OtOTPDjState *s)
 
     if (is_digest) {
         if (OtOTPPartDescs[partition].hw_digest) {
+            /* should have been a Digest command, not a Write command */
             qemu_log_mask(LOG_GUEST_ERROR,
-                          "%s: Partition %s (%u) cannot write a HW digest\n",
+                          "%s: Partition %s (%u) HW digest cannot be directly "
+                          "written\n",
                           __func__, PART_NAME(partition), partition);
             ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
             return;
@@ -1857,6 +1668,14 @@ static void ot_otp_dj_dai_digest(OtOTPDjState *s)
 {
     if (ot_otp_dj_dai_is_busy(s)) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: DAI controller busy\n", __func__);
+        return;
+    }
+
+    if (!ot_otp_dj_is_backend_writable(s)) {
+        /* OTP backend missing or read-only; reject any write request */
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: OTP backend file is missing or R/O\n", __func__);
+        ot_otp_dj_dai_set_error(s, OTP_MACRO_ERROR);
         return;
     }
 
@@ -1980,6 +1799,11 @@ static void ot_otp_dj_dai_complete(void *opaque)
         g_assert_not_reached();
         break;
     };
+}
+
+static void ot_otp_dj_lci_init(OtOTPDjState *s)
+{
+    LCI_CHANGE_STATE(s, OTP_LCI_IDLE);
 }
 
 static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
@@ -2716,22 +2540,30 @@ static void ot_otp_dj_csrs_write(void *opaque, hwaddr addr, uint64_t value,
 static void ot_otp_dj_decode_lc_partition(OtOTPDjState *s)
 {
     OtOTPStorage *otp = &s->otp;
-    s->lc.state = LC_ENCODE_STATE(LC_STATE_INVALID);
-    s->lc.tcount = LC_TRANSITION_COUNT_MAX + 1u;
-    for (unsigned ix = 0; ix < ARRAY_SIZE(lc_states); ix++) {
-        if (!memcmp(&otp->data[R_LC_STATE], lc_states[ix], LC_STATE_SIZE)) {
-            s->lc.state = LC_ENCODE_STATE(ix);
-            break;
-        }
-    }
+    OtOTPLCIController *lci = &s->lci;
+    const OtOTPPartDesc *lcdesc = &OtOTPPartDescs[OTP_PART_LIFE_CYCLE];
+
+    g_assert(lcdesc->offset == A_LC_TRANSITION_CNT);
+
+    lci->lc.state = LC_ENCODE_STATE(LC_STATE_INVALID);
+    lci->lc.tcount = LC_TRANSITION_COUNT_MAX + 1u;
+
     for (unsigned ix = 0; ix < ARRAY_SIZE(lc_transition_cnts); ix++) {
         if (!memcmp(&otp->data[R_LC_TRANSITION_CNT], lc_transition_cnts[ix],
                     LC_TRANSITION_CNT_SIZE)) {
-            s->lc.tcount = ix;
+            lci->lc.tcount = ix;
             break;
         }
     }
-    trace_ot_otp_initial_lifecycle(s->lc.state, s->lc.tcount);
+
+    for (unsigned ix = 0; ix < ARRAY_SIZE(lc_states); ix++) {
+        if (!memcmp(&otp->data[R_LC_STATE], lc_states[ix], LC_STATE_SIZE)) {
+            lci->lc.state = LC_ENCODE_STATE(ix);
+            break;
+        }
+    }
+
+    trace_ot_otp_initial_lifecycle(lci->lc.state, lci->lc.tcount);
 }
 
 static void ot_otp_dj_load_hw_cfg(OtOTPDjState *s)
@@ -2748,17 +2580,41 @@ static void ot_otp_dj_load_hw_cfg(OtOTPDjState *s)
     hw_cfg->en_sram_ifetch = (uint8_t)otp->data[R_EN_SRAM_IFETCH];
 }
 
-static void ot_otp_dj_ctrl_get_lc_info(
+static void ot_otp_dj_load_tokens(OtOTPDjState *s)
+{
+    memset(s->tokens, 0, sizeof(*s->tokens));
+
+    const uint32_t *data = s->otp.data;
+    OtOTPTokenValue *values = s->tokens->values;
+
+    if (s->partctrls[OTP_PART_SECRET0].locked) {
+        memcpy(&values[OTP_TOKEN_TEST_UNLOCK], &data[R_TEST_UNLOCK_TOKEN], 16u);
+        s->tokens->valid_bm |= 1u << OTP_TOKEN_TEST_UNLOCK;
+    }
+
+    if (s->partctrls[OTP_PART_SECRET0].locked) {
+        memcpy(&values[OTP_TOKEN_TEST_EXIT], &data[R_TEST_EXIT_TOKEN], 16u);
+        s->tokens->valid_bm |= 1u << OTP_TOKEN_TEST_EXIT;
+    }
+
+    if (s->partctrls[OTP_PART_SECRET2].locked) {
+        memcpy(&values[OTP_TOKEN_RMA], &data[R_RMA_TOKEN], 16u);
+        s->tokens->valid_bm |= 1u << OTP_TOKEN_RMA;
+    }
+}
+
+static void ot_otp_dj_get_lc_info(
     const OtOTPState *s, uint32_t *lc_state, unsigned *tcount,
     uint8_t *lc_valid, uint8_t *secret_valid, const OtOTPTokens **tokens)
 {
-    OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    const OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    const OtOTPLCIController *lci = &ds->lci;
 
     if (lc_state) {
-        *lc_state = ds->lc.state;
+        *lc_state = lci->lc.state;
     }
     if (tcount) {
-        *tcount = ds->lc.tcount;
+        *tcount = lci->lc.tcount;
     }
     if (lc_valid) {
         *lc_valid = !(ds->partctrls[OTP_PART_SECRET0].failed ||
@@ -2774,23 +2630,201 @@ static void ot_otp_dj_ctrl_get_lc_info(
                             OT_MULTIBITBOOL_LC4_FALSE;
     }
     if (tokens) {
-        *tokens = &OT_OTP_DARJEELING_TOKENS;
+        *tokens = ds->tokens;
     }
 }
 
-static const OtOTPHWCfg *ot_otp_dj_ctrl_get_hw_cfg(const OtOTPState *s)
+static const OtOTPHWCfg *ot_otp_dj_get_hw_cfg(const OtOTPState *s)
 {
-    OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    const OtOTPDjState *ds = OT_OTP_DARJEELING(s);
 
     return ds->hw_cfg;
 }
 
-static const OtOTPEntropyCfg *
-ot_otp_dj_ctrl_get_entropy_cfg(const OtOTPState *s)
+static const OtOTPEntropyCfg *ot_otp_dj_get_entropy_cfg(const OtOTPState *s)
 {
     (void)s;
     /* not present Darjeeling OTP */
     return NULL;
+}
+
+static void ot_otp_dj_create_lc_data(OtOTPLCIController *lci, uint32_t lc_state,
+                                     unsigned tcount)
+{
+    if (tcount >= ARRAY_SIZE(lc_transition_cnts)) {
+        error_setg(&error_fatal, "%s: Invalid tcount: 0x%08x", __func__,
+                   lc_state);
+        /* linter does not know error_setg never returns */
+        return;
+    }
+
+    unsigned lcix = LC_STATE_BITS(lc_state);
+    if (LC_ENCODE_STATE(lcix) != lc_state || lcix >= ARRAY_SIZE(lc_states)) {
+        error_setg(&error_fatal, "%s: Invalid lc_state: 0x%08x", __func__,
+                   lc_state);
+        /* linter does not know error_setg never returns */
+        return;
+    }
+
+    unsigned hpos = 0;
+    memcpy(&lci->data[hpos], lc_transition_cnts[tcount],
+           sizeof(lc_transition_cnts[tcount]));
+    hpos += sizeof(lc_transition_cnts[lcix]) / sizeof(uint16_t);
+    memcpy(&lci->data[hpos], lc_states[lcix], sizeof(lc_states[lcix]));
+    hpos += sizeof(lc_states[lcix]) / sizeof(uint16_t);
+    g_assert(hpos ==
+             OtOTPPartDescs[OTP_PART_LIFE_CYCLE].size / sizeof(uint16_t));
+
+    /* current position in LC buffer to write to backend */
+    lci->hpos = 0;
+}
+
+static bool ot_otp_dj_program_req(OtOTPState *s, uint32_t lc_state,
+                                  unsigned tcount, ot_otp_program_ack_fn ack,
+                                  void *opaque)
+{
+    OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    OtOTPLCIController *lci = &ds->lci;
+
+    switch (lci->state) {
+    case OTP_LCI_IDLE:
+    case OTP_LCI_ERROR:
+        /* error case is handled asynchronously */
+        g_assert(!(lci->ack_fn || lci->ack_data));
+        break;
+    case OTP_LCI_WRITE:
+    case OTP_LCI_WRITE_WAIT:
+        /* another LC programming request is on-going */
+        return false;
+    case OTP_LCI_RESET:
+        /* cannot reach this point if PwrMgr init has been executed */
+    default:
+        g_assert_not_reached();
+        break;
+    }
+
+    lci->ack_fn = ack;
+    lci->ack_data = opaque;
+
+    if (lci->state == OTP_LCI_IDLE) {
+        ot_otp_dj_create_lc_data(lci, lc_state, tcount);
+    }
+
+    /*
+     * schedule even if LCI FSM is already in error to report the issue
+     * asynchronously
+     */
+    qemu_bh_schedule(lci->prog_bh);
+
+    return true;
+}
+
+static void ot_otp_dj_lci_write_complete(OtOTPDjState *s, bool success)
+{
+    OtOTPLCIController *lci = &s->lci;
+
+    if (lci->hpos) {
+        /*
+         * if the LC partition has been modified somehow, even if the request
+         * has failed, update the backend file
+         */
+        const OtOTPPartDesc *lcdesc = &OtOTPPartDescs[OTP_PART_LIFE_CYCLE];
+        unsigned lc_data_off = lcdesc->offset / sizeof(uint32_t);
+        uintptr_t offset = (uintptr_t)s->otp.data - (uintptr_t)s->otp.storage;
+        if (blk_pwrite(s->blk, (int64_t)(intptr_t)(offset + lcdesc->offset),
+                       lcdesc->size, &s->otp.data[lc_data_off],
+                       (BdrvRequestFlags)0)) {
+            error_report("%s: cannot update OTP backend", __func__);
+            if (lci->error == OTP_NO_ERROR) {
+                lci->error = OTP_MACRO_ERROR;
+                LCI_CHANGE_STATE(s, OTP_LCI_ERROR);
+            }
+        }
+    }
+
+    g_assert(lci->ack_fn);
+    ot_otp_program_ack_fn ack_fn = lci->ack_fn;
+    void *ack_data = lci->ack_data;
+    lci->ack_fn = NULL;
+    lci->ack_data = NULL;
+    lci->hpos = 0;
+
+    if (!success && lci->error != OTP_NO_ERROR) {
+        ot_otp_dj_set_error(s, OTP_PART_LIFE_CYCLE, lci->error);
+    }
+
+    (*ack_fn)(ack_data, success);
+}
+
+static void ot_otp_dj_lci_write_word(void *opaque)
+{
+    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    OtOTPLCIController *lci = &s->lci;
+    const OtOTPPartDesc *lcdesc = &OtOTPPartDescs[OTP_PART_LIFE_CYCLE];
+
+    /* should not be called if already in error */
+    if (lci->state == OTP_LCI_ERROR) {
+        lci->error = OTP_FSM_STATE_ERROR;
+        ot_otp_dj_lci_write_complete(s, false);
+        return;
+    }
+
+    if (!ot_otp_dj_is_backend_writable(s)) {
+        /* OTP backend missing or read-only; reject any write request */
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: OTP backend file is missing or R/O\n", __func__);
+        lci->error = OTP_MACRO_ERROR;
+        LCI_CHANGE_STATE(s, OTP_LCI_ERROR);
+        ot_otp_dj_lci_write_complete(s, false);
+        /* abort immediately */
+        return;
+    }
+
+    if (lci->hpos >= lcdesc->size / sizeof(uint16_t)) {
+        /* the whole LC partition has been updated */
+        if (lci->error == OTP_NO_ERROR) {
+            LCI_CHANGE_STATE(s, OTP_LCI_IDLE);
+            ot_otp_dj_lci_write_complete(s, true);
+        } else {
+            LCI_CHANGE_STATE(s, OTP_LCI_ERROR);
+            ot_otp_dj_lci_write_complete(s, false);
+        }
+        return;
+    }
+
+    LCI_CHANGE_STATE(s, OTP_LCI_WRITE);
+
+    uint16_t *lc_dst =
+        (uint16_t *)&s->otp.data[lcdesc->offset / sizeof(uint32_t)];
+
+    uint16_t cur_val = lc_dst[lci->hpos];
+    uint16_t new_val = lci->data[lci->hpos];
+
+    trace_ot_otp_lci_write(lci->hpos, cur_val, new_val);
+
+    if (cur_val & ~new_val) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Cannot clear OTP bits @ %u: 0x%04x / 0x%04x\n",
+                      __func__, lci->hpos, cur_val, new_val);
+        if (lci->error == OTP_NO_ERROR) {
+            lci->error = OTP_MACRO_WRITE_BLANK_ERROR;
+        }
+        /*
+         * "Note that if errors occur, we aggregate the error code but still
+         *  attempt to program all remaining words. This is done to ensure that
+         *  a life cycle state with ECC correctable errors in some words can
+         * still be scrapped."
+         */
+        new_val |= cur_val;
+    }
+
+    lc_dst[lci->hpos] = new_val;
+    lci->hpos += 1;
+
+    timer_mod(lci->prog_delay,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + LCI_PROG_DELAY_NS);
+
+    LCI_CHANGE_STATE(s, OTP_LCI_WRITE_WAIT);
 }
 
 static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
@@ -2860,7 +2894,9 @@ static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
     if (s->blk) {
         bool write = blk_supports_write_perm(s->blk);
         uint64_t perm = BLK_PERM_CONSISTENT_READ | (write ? BLK_PERM_WRITE : 0);
-        (void)blk_set_perm(s->blk, perm, perm, errp);
+        if (blk_set_perm(s->blk, perm, perm, errp)) {
+            warn_report("%s: OTP backend is R/O", __func__);
+        }
 
         int rc = blk_pread(s->blk, 0, (int64_t)otp_size, otp->storage, 0);
         if (rc < 0) {
@@ -2935,6 +2971,7 @@ static void ot_otp_dj_reset(DeviceState *dev)
     OtOTPDjState *s = OT_OTP_DARJEELING(dev);
 
     timer_del(s->dai.delay);
+    timer_del(s->lci.prog_delay);
 
     memset(&s->regs, 0, sizeof(s->regs));
 
@@ -2976,14 +3013,19 @@ static void ot_otp_dj_reset(DeviceState *dev)
     }
 
     DAI_CHANGE_STATE(s, OTP_DAI_RESET);
+    LCI_CHANGE_STATE(s, OTP_LCI_RESET);
 
     trace_ot_otp_initialize();
+
+    // TODO: update initialization from PwrMgr triggers
 
     ot_otp_dj_initialize_partitions(s);
     ot_otp_dj_decode_lc_partition(s);
     ot_otp_dj_load_hw_cfg(s);
+    ot_otp_dj_load_tokens(s);
 
     ot_otp_dj_dai_init(s);
+    ot_otp_dj_lci_init(s);
 }
 
 static void ot_otp_dj_realize(DeviceState *dev, Error **errp)
@@ -3039,8 +3081,12 @@ static void ot_otp_dj_init(Object *obj)
     }
 
     s->hw_cfg = g_new0(OtOTPHWCfg, 1u);
+    s->tokens = g_new0(OtOTPTokens, 1u);
     s->dai.delay = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_otp_dj_dai_complete, s);
     s->dai.digest_bh = qemu_bh_new(&ot_otp_dj_dai_write_digest, s);
+    s->lci.prog_delay =
+        timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_otp_dj_lci_write_word, s);
+    s->lci.prog_bh = qemu_bh_new(&ot_otp_dj_lci_write_word, s);
 }
 
 static void ot_otp_dj_class_init(ObjectClass *klass, void *data)
@@ -3055,9 +3101,10 @@ static void ot_otp_dj_class_init(ObjectClass *klass, void *data)
 
     OtOTPStateClass *odc = OT_OTP_CLASS(klass);
 
-    odc->get_lc_info = &ot_otp_dj_ctrl_get_lc_info;
-    odc->get_hw_cfg = &ot_otp_dj_ctrl_get_hw_cfg;
-    odc->get_entropy_cfg = &ot_otp_dj_ctrl_get_entropy_cfg;
+    odc->get_lc_info = &ot_otp_dj_get_lc_info;
+    odc->get_hw_cfg = &ot_otp_dj_get_hw_cfg;
+    odc->get_entropy_cfg = &ot_otp_dj_get_entropy_cfg;
+    odc->program_req = &ot_otp_dj_program_req;
 }
 
 static const TypeInfo ot_otp_dj_info = {

@@ -251,6 +251,8 @@ ot_otp_initialize(void) ""
 ot_otp_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
 ot_otp_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
 ot_otp_integrity_report(const char* part, unsigned pix, const char *msg) "partition %s (#%u) %s"
+ot_otp_lci_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
+ot_otp_lci_write(unsigned pos, uint16_t cval, uint16_t nval) "@ %u 0x%04x -> 0x%04x"
 ot_otp_load_backend(unsigned ver, const char *mode) "loading OTP image v%u in %s mode"
 ot_otp_mismatch_digest(const char* part, unsigned pix, uint64_t sdig, uint64_t ldig) "Mismatch digest on %s (#%u), stored 0x%" PRIx64 " found 0x%" PRIx64
 ot_otp_set_error(unsigned pix, const char* err, unsigned eix) "#%u: %s (%u)"

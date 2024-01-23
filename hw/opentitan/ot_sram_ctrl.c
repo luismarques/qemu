@@ -71,23 +71,32 @@ REG32(CTRL_REGWEN, 0x10u)
 REG32(CTRL, 0x14u)
     FIELD(CTRL, RENEW_SCR_KEY, 0u, 1u)
     FIELD(CTRL, INIT, 1u, 1u)
+REG32(SCR_KEY_ROTATED, 0x1cu)
+    FIELD(SCR_KEY_ROTATED, SUCCESS, 0u, 4u)
+
 /* clang-format on */
 
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
-#define R_LAST_REG (R_CTRL)
+#define R_LAST_REG (R_SCR_KEY_ROTATED)
 #define REGS_COUNT (R_LAST_REG + 1u)
 #define REGS_SIZE  (REGS_COUNT * sizeof(uint32_t))
 #define REG_NAME(_reg_) \
     ((((_reg_) <= REGS_COUNT) && REG_NAMES[_reg_]) ? REG_NAMES[_reg_] : "?")
 
+/* clang-format off */
 #define REG_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
 static const char *REG_NAMES[REGS_COUNT] = {
-    REG_NAME_ENTRY(ALERT_TEST),  REG_NAME_ENTRY(STATUS),
-    REG_NAME_ENTRY(EXEC_REGWEN), REG_NAME_ENTRY(EXEC),
-    REG_NAME_ENTRY(CTRL_REGWEN), REG_NAME_ENTRY(CTRL),
+    REG_NAME_ENTRY(ALERT_TEST),
+    REG_NAME_ENTRY(STATUS),
+    REG_NAME_ENTRY(EXEC_REGWEN),
+    REG_NAME_ENTRY(EXEC),
+    REG_NAME_ENTRY(CTRL_REGWEN),
+    REG_NAME_ENTRY(CTRL),
+    REG_NAME_ENTRY(SCR_KEY_ROTATED),
 };
 #undef REG_NAME_ENTRY
+/* clang-format on */
 
 struct OtSramCtrlState {
     SysBusDevice parent_obj;
@@ -120,6 +129,7 @@ static uint64_t ot_sram_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_EXEC:
     case R_CTRL_REGWEN:
     case R_CTRL:
+    case R_SCR_KEY_ROTATED:
         val32 = s->regs[reg];
         break;
     case R_ALERT_TEST:
@@ -193,6 +203,9 @@ static void ot_sram_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
                           s->sram_id);
         }
         break;
+    case R_SCR_KEY_ROTATED:
+        qemu_log_mask(LOG_UNIMP, "%s: R_SCR_KEY_ROTATED\n", __func__);
+        break;
     case R_STATUS:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s R/O register 0x%02" HWADDR_PRIx " (%s)\n",
@@ -232,8 +245,9 @@ static void ot_sram_ctrl_reset(DeviceState *dev)
     /* note: SRAM storage is -not- reset */
 
     s->regs[R_EXEC_REGWEN] = 0x1u;
-    s->regs[R_EXEC] = 0x9u;
+    s->regs[R_EXEC] = OT_MULTIBITBOOL4_FALSE;
     s->regs[R_CTRL_REGWEN] = 0x1u;
+    s->regs[R_SCR_KEY_ROTATED] = OT_MULTIBITBOOL4_FALSE;
 
     if (s->otp_ctrl) {
         OtOTPStateClass *oc =

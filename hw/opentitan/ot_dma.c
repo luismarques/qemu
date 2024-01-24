@@ -1087,9 +1087,9 @@ static uint64_t ot_dma_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_dma_io_read_out(s->dma_id, (unsigned)addr, REG_NAME(reg),
-                             (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_dma_io_read_out(s->dma_id, (uint32_t)addr, REG_NAME(reg), val32,
+                             pc);
 
     return (uint64_t)val32;
 };
@@ -1103,8 +1103,8 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_dma_io_write(s->dma_id, (unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_dma_io_write(s->dma_id, (uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -1122,7 +1122,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         if (!ot_dma_is_configurable(s)) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s: %s (0x%03x) not configurable", __func__,
-                          s->dma_id, REG_NAME(reg), (unsigned)addr);
+                          s->dma_id, REG_NAME(reg), (uint32_t)addr);
             return;
         }
         break;

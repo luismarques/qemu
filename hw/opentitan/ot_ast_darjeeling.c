@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Darjeeling Analog Sensor Top device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -267,9 +267,8 @@ static uint64_t ot_ast_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_ast_dj_io_read_out((unsigned)addr, REG_NAME(reg), (uint64_t)val32,
-                                pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_ast_dj_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -283,8 +282,8 @@ static void ot_ast_dj_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_ast_dj_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_ast_dj_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_REGA0:

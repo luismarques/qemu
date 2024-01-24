@@ -745,12 +745,12 @@ static void ot_otp_eg_direct_read(OtOTPEgState *s)
 
     s->dai_busy = true;
 
-    unsigned address = s->regs[R_DIRECT_ACCESS_ADDRESS];
+    uint32_t address = s->regs[R_DIRECT_ACCESS_ADDRESS];
 
     int partition = ot_otp_eg_swcfg_get_part(address);
 
     if (partition >= 0) {
-        if (ot_otp_eg_is_readable(s, partition, (unsigned)address)) {
+        if (ot_otp_eg_is_readable(s, partition, address)) {
             const uint32_t *data = s->otp.data;
             address >>= 2u;
             s->regs[R_DIRECT_ACCESS_RDATA_0] = data[address];
@@ -901,8 +901,8 @@ static uint64_t ot_otp_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_read_out((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -916,8 +916,8 @@ static void ot_otp_eg_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_write((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -1099,24 +1099,24 @@ static uint64_t ot_otp_eg_swcfg_read(void *opaque, hwaddr addr, unsigned size)
     int partition = ot_otp_eg_swcfg_get_part(addr);
 
     if (partition >= 0) {
-        if (ot_otp_eg_is_readable(s, partition, (unsigned)addr)) {
+        if (ot_otp_eg_is_readable(s, partition, addr)) {
             const uint32_t *data = s->otp.data;
             val32 = data[reg];
             ot_otp_eg_set_error(s, partition, OTP_NO_ERROR);
         } else {
             val32 = 0u;
-            trace_ot_otp_access_error_on(partition, (unsigned)addr);
+            trace_ot_otp_access_error_on(partition, (uint32_t)addr);
             ot_otp_eg_set_error(s, partition, OTP_ACCESS_ERROR);
         }
     } else {
-        trace_ot_otp_access_error_on(partition, (unsigned)addr);
+        trace_ot_otp_access_error_on(partition, (uint32_t)addr);
         val32 = 0;
     }
 
     uint64_t pc;
 
     pc = ibex_get_current_pc();
-    trace_ot_otp_io_read_out((unsigned)addr, ot_otp_eg_swcfg_reg_name(reg),
+    trace_ot_otp_io_read_out((uint32_t)addr, ot_otp_eg_swcfg_reg_name(reg),
                              val32, pc);
 
     return (uint64_t)val32;
@@ -1163,8 +1163,8 @@ static uint64_t ot_otp_eg_csrs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_read_out((unsigned)addr, CSR_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_read_out((uint32_t)addr, CSR_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -1178,8 +1178,8 @@ static void ot_otp_eg_csrs_write(void *opaque, hwaddr addr, uint64_t value,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_write((unsigned)addr, CSR_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_write((uint32_t)addr, CSR_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_CSR0:

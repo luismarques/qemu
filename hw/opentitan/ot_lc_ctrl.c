@@ -1154,9 +1154,9 @@ static uint32_t ot_lc_ctrl_regs_read(OtLcCtrlState *s, hwaddr addr,
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
+    uint32_t pc = ibex_get_current_pc();
     if (reg != R_STATUS) {
-        trace_ot_lc_ctrl_io_read_out((unsigned)addr, REG_NAME(reg), val32, pc);
+        trace_ot_lc_ctrl_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
         s->status_cache.count = 0;
     } else {
         /*
@@ -1170,14 +1170,14 @@ static uint32_t ot_lc_ctrl_regs_read(OtLcCtrlState *s, hwaddr addr,
             s->status_cache.count += 1;
         } else {
             if (s->status_cache.count) {
-                trace_ot_lc_ctrl_io_read_out_repeat((unsigned)addr,
+                trace_ot_lc_ctrl_io_read_out_repeat((uint32_t)addr,
                                                     REG_NAME(reg),
                                                     s->status_cache.count,
                                                     s->status_cache.value);
             }
             s->status_cache.value = val32;
             s->status_cache.count = 1;
-            trace_ot_lc_ctrl_io_read_out((unsigned)addr, REG_NAME(reg), val32,
+            trace_ot_lc_ctrl_io_read_out((uint32_t)addr, REG_NAME(reg), val32,
                                          pc);
         }
     }
@@ -1190,8 +1190,8 @@ static void ot_lc_ctrl_regs_write(OtLcCtrlState *s, hwaddr addr, uint32_t val32,
 {
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_lc_ctrl_io_write((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_lc_ctrl_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_ALERT_TEST:

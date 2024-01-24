@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan SPI Device controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -1317,7 +1317,7 @@ static void ot_spi_device_flash_exec_read_data(OtSPIDeviceState *s)
         address >>= 8u;
     }
 
-    trace_ot_spi_device_flash_set_read_addr(address);
+    trace_ot_spi_device_flash_set_read_addr((uint32_t)address);
 
     f->address = address;
     FLASH_CHANGE_STATE(f, READ);
@@ -1773,9 +1773,9 @@ ot_spi_device_spi_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_device_io_spi_read_out((unsigned)addr, SPI_REG_NAME(reg),
-                                        (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_device_io_spi_read_out((uint32_t)addr, SPI_REG_NAME(reg),
+                                        val32, pc);
 
     return (uint64_t)val32;
 };
@@ -1789,9 +1789,9 @@ static void ot_spi_device_spi_regs_write(void *opaque, hwaddr addr,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_device_io_spi_write_in((unsigned)addr, SPI_REG_NAME(reg),
-                                        val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_device_io_spi_write_in((uint32_t)addr, SPI_REG_NAME(reg),
+                                        val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -2015,9 +2015,9 @@ ot_spi_device_tpm_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_device_io_tpm_read_out((unsigned)addr, TPM_REG_NAME(reg),
-                                        (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_device_io_tpm_read_out((uint32_t)addr, TPM_REG_NAME(reg),
+                                        val32, pc);
 
     return (uint64_t)val32;
 };
@@ -2031,9 +2031,9 @@ static void ot_spi_device_tpm_regs_write(void *opaque, hwaddr addr,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_device_io_tpm_write_in((unsigned)addr, TPM_REG_NAME(reg),
-                                        val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_device_io_tpm_write_in((uint32_t)addr, TPM_REG_NAME(reg),
+                                        val32, pc);
 
     switch (reg) {
     case R_TPM_CFG:
@@ -2122,8 +2122,8 @@ static MemTxResult ot_spi_device_buf_read_with_attrs(
         }
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_device_buf_read_out((unsigned)addr, size, (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_device_buf_read_out((uint32_t)addr, size, val32, pc);
 
     *val64 = (uint64_t)val32;
 
@@ -2136,8 +2136,9 @@ static MemTxResult ot_spi_device_buf_write_with_attrs(
     OtSPIDeviceState *s = opaque;
     (void)attrs;
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_device_buf_write_in((unsigned)addr, size, val64, pc);
+    uint32_t val32 = (uint32_t)val64;
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_device_buf_write_in((uint32_t)addr, size, val32, pc);
 
     hwaddr last = addr + size - 1u;
 
@@ -2149,7 +2150,7 @@ static MemTxResult ot_spi_device_buf_write_with_attrs(
             return MEMTX_DECODE_ERROR;
         }
 
-        s->sram[addr >> 2u] = (uint32_t)val64;
+        s->sram[addr >> 2u] = val32;
     } else {
         if (last >= SPI_SRAM_PAYLOAD_OFFSET) {
             qemu_log_mask(LOG_GUEST_ERROR,
@@ -2158,7 +2159,7 @@ static MemTxResult ot_spi_device_buf_write_with_attrs(
                           __func__, addr);
             return MEMTX_DECODE_ERROR;
         }
-        s->sram[addr >> 2u] = (uint32_t)val64;
+        s->sram[addr >> 2u] = val32;
     }
 
     return MEMTX_OK;

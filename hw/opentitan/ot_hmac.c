@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan HMAC device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
@@ -362,8 +362,8 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_hmac_io_read_out((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_hmac_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -377,8 +377,8 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_hmac_io_write((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_hmac_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -528,8 +528,8 @@ static void ot_hmac_fifo_write(void *opaque, hwaddr addr, uint64_t value,
 {
     OtHMACState *s = OT_HMAC(opaque);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_hmac_fifo_write((unsigned int)addr, (uint32_t)value, size, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_hmac_fifo_write((uint32_t)addr, (uint32_t)value, size, pc);
 
     if (!s->regs->cmd) {
         ot_hmac_report_error(s, R_ERR_CODE_PUSH_MSG_WHEN_DISALLOWED);

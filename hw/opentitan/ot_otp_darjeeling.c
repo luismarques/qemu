@@ -1151,7 +1151,7 @@ static int ot_otp_dj_swcfg_get_part(hwaddr addr)
         const OtOTPPartDesc *part = &OtOTPPartDescs[ix];
         if ((addr >= part->offset) &&
             ((addr + sizeof(uint32_t)) <= (part->offset + part->size))) {
-            trace_ot_otp_addr_to_part((unsigned)addr, PART_NAME(ix), ix);
+            trace_ot_otp_addr_to_part((uint32_t)addr, PART_NAME(ix), ix);
             return (OtOTPPartitionType)ix;
         }
     }
@@ -2077,8 +2077,8 @@ static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_read_out((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -2092,9 +2092,9 @@ static void ot_otp_dj_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
+    uint32_t pc = ibex_get_current_pc();
 
-    trace_ot_otp_io_write((unsigned)addr, REG_NAME(reg), val32, pc);
+    trace_ot_otp_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_DIRECT_ACCESS_CMD:
@@ -2436,12 +2436,12 @@ static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
     int partition = ot_otp_dj_swcfg_get_part(addr);
 
     if (partition < 0) {
-        trace_ot_otp_access_error_on(partition, (unsigned)addr);
+        trace_ot_otp_access_error_on(partition, addr);
         val32 = 0;
     }
 
     if (ot_otp_dj_is_buffered(partition)) {
-        trace_ot_otp_access_error_on(partition, (unsigned)addr);
+        trace_ot_otp_access_error_on(partition, addr);
         ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
 
         /* real HW seems to stall the Tile Link bus in this case */
@@ -2449,7 +2449,7 @@ static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
     }
 
     if (!ot_otp_dj_is_readable(s, partition)) {
-        trace_ot_otp_access_error_on(partition, (unsigned)addr);
+        trace_ot_otp_access_error_on(partition, addr);
         ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
 
         return MEMTX_DECODE_ERROR;
@@ -2463,7 +2463,7 @@ static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
     uint64_t pc;
 
     pc = ibex_get_current_pc();
-    trace_ot_otp_io_read_out((unsigned)addr, ot_otp_dj_swcfg_reg_name(reg),
+    trace_ot_otp_io_read_out((uint32_t)addr, ot_otp_dj_swcfg_reg_name(reg),
                              val32, pc);
 
     *data = (uint64_t)val32;
@@ -2497,8 +2497,8 @@ static uint64_t ot_otp_dj_csrs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_read_out((unsigned)addr, CSR_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_read_out((uint32_t)addr, CSR_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -2512,8 +2512,8 @@ static void ot_otp_dj_csrs_write(void *opaque, hwaddr addr, uint64_t value,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otp_io_write((unsigned)addr, CSR_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otp_io_write((uint32_t)addr, CSR_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_CSR0:

@@ -2,13 +2,13 @@
 
 # ot_aes.c
 
-ot_aes_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_aes_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_aes_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_aes_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_aes_buffer(const char *mode, const char * msg, const char * hexbuf) "[%s] %s: %s"
 ot_aes_request_entropy(void) ""
 ot_aes_schedule(void) ""
 ot_aes_reseed(const char *reason) "%s"
-ot_aes_fill_entropy(uint32_t bits, bool fips) "0x%08" PRIx32 " fips:%u"
+ot_aes_fill_entropy(uint32_t bits, bool fips) "0x%08x fips:%u"
 ot_aes_init(const char *what) "%s"
 ot_aes_debug(const char *func, int line, const char *msg) "%s:%d %s"
 ot_aes_error(const char *func, int line, const char *err) "%s:%d %s"
@@ -16,32 +16,32 @@ ot_aes_info(const char *func, int line, const char *errl) "%s:%d %s"
 
 # ot_alert.c
 
-ot_alert_io_read_out(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%02x, val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_alert_io_write(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%02x, val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_alert_io_read_out(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%02x, val=0x%x, pc=0x%x"
+ot_alert_io_write(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%02x, val=0x%x, pc=0x%x"
 
 # ot_aon_timer.c
 
 ot_aon_timer_irqs(bool wakeup, bool bark, bool bite) "wkup:%u bark:%u bite:%u"
-ot_aon_timer_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_aon_timer_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_aon_timer_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_aon_timer_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_ast_darjeeling.c
 
-ot_ast_dj_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_ast_dj_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_ast_dj_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_ast_dj_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_ast_dj_no_entropy(unsigned count) "only %u words available"
 
 # ot_ast_earlgrey.c
 
-ot_ast_eg_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_ast_eg_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_ast_eg_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_ast_eg_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_clkmgr.c
 
 ot_clkmgr_clock_hint(const char *name, unsigned clock, bool active) "%s(%u): %u"
 ot_clkmgr_get_clock_hints(uint32_t req, uint32_t status, uint32_t hint) "req:0x%02x clk:0x%02x hint:0x%02x"
-ot_clkmgr_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_clkmgr_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_clkmgr_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_clkmgr_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_csrng.c
 
@@ -60,8 +60,8 @@ ot_csrng_hwapp_ready(unsigned slot, bool ready, unsigned rem) "#%u: %u rem %u"
 ot_csrng_info(const char *func, int line, const char *msg, uint32_t value) "%s:%d %s: 0x%08x"
 ot_csrng_instanciate(unsigned slot, bool on) "#%u: %u"
 ot_csrng_invalid_state(const char *func, const char *state, int st) "%s [%s:%d]"
-ot_csrng_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_csrng_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_csrng_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_csrng_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_csrng_irqs(uint32_t active, uint32_t mask, uint32_t eff) "act:0x%08x msk:0x%08x eff:0x%08x"
 ot_csrng_push_command(unsigned slot, const char *cmd, unsigned acmd, char code, unsigned len) "#%u: %s(%u) %clen: %u"
 ot_csrng_read_state_db(unsigned slot, unsigned pos, uint32_t val) "#%u [%u] = 0x%08x"
@@ -96,8 +96,8 @@ ot_dma_abort(const char *did) "%s"
 ot_dma_change_state(int line, const char *state, int stateval) "@%d: %s [%d]"
 ot_dma_check_device(const char *did, const char *dir, const char *asname, uint64_t addr, uint64_t size, const char *rootname, unsigned ram) "%s: %s as=%s addr=0x%" PRIx64 " size:0x%" PRIx64 " %s ram:%u"
 ot_dma_complete(const char *did, int res) "%s: %d"
-ot_dma_io_read_out(const char *did, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_dma_io_write(const char *did, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_dma_io_read_out(const char *did, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_dma_io_write(const char *did, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_dma_irqs(uint32_t active, uint32_t mask, uint32_t eff) "act:0x%08x msk:0x%08x eff:0x%08x"
 ot_dma_new_op(const char *did, const char *dir, const char *asname, const char *mname, uint64_t addr, uint64_t size) "%s: %s as:%s m:%s a:0x%" PRIx64 " s:0x%" PRIx64
 ot_dma_operation(const char *op, bool init) "%s: %u"
@@ -119,8 +119,8 @@ ot_edn_fill_endpoint(unsigned appid, unsigned epid, uint32_t bits, bool fips, si
 ot_edn_dinfo(unsigned appid, const char *func, int line, const char *msg, uint32_t value) "a#%u %s:%d %s %u"
 ot_edn_xinfo(unsigned appid, const char *func, int line, const char *msg, uint32_t value) "a#%u %s:%d %s 0x%08x"
 ot_edn_invalid_state(unsigned appid, const char *func, const char *state, int st) "a#%u %s [%s:%d]"
-ot_edn_io_read_out(unsigned appid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "a#%u addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_edn_io_write(unsigned appid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "a#%u addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_edn_io_read_out(unsigned appid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "a#%u addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_edn_io_write(unsigned appid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "a#%u addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_edn_irqs(unsigned appid, uint32_t active, uint32_t mask, uint32_t eff) "#%u act:0x%08x msk:0x%08x eff:0x%08x"
 ot_edn_request_entropy(unsigned appid, unsigned epid) "a#%u:e#%u"
 ot_edn_schedule(unsigned appid, const char *cause) "a#%u %s"
@@ -136,8 +136,8 @@ ot_entropy_src_error(const char *msg, const char *state, int st) "%s [%s:%u]"
 ot_entropy_src_fill_noise(unsigned count, unsigned infifo) "up to %u, input fifo %u"
 ot_entropy_src_info(const char *msg) "%s"
 ot_entropy_src_init_ongoing(const char *state, int st) "entropy source still initializing in [%s:%u]"
-ot_entropy_src_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_entropy_src_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_entropy_src_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_entropy_src_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_entropy_src_is_fips_capable(bool en, bool es_route, bool es_type, bool rng_bit_en, bool res) "en:%u rt:%u tp:%u !rb:%u => %u"
 ot_entropy_src_no_entropy(unsigned count) "only %u words available"
 ot_entropy_src_obs_fifo(unsigned level, unsigned thold) "level %u, threshold %u"
@@ -149,47 +149,47 @@ ot_entropy_src_update_generation(unsigned gennum) "%u"
 
 # ot_flash.c
 
-ot_flash_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_flash_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_flash_mem_read_out(unsigned addr, unsigned size, uint32_t val, uint64_t pc) "addr=0x%02x (%u), val=0x%08x, pc=0x%" PRIx64
+ot_flash_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_flash_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_flash_mem_read_out(uint32_t addr, unsigned size, uint32_t val, uint32_t pc) "addr=0x%02x (%u), val=0x%08x, pc=0x%x"
 ot_flash_op_start(int op) "%d"
 ot_flash_op_complete(int op, bool success) "%d: %u"
 ot_flash_error(const char *func, int line, const char *err) "%s:%d %s"
 ot_flash_info(const char *func, int line, const char *msg, uint32_t value) "%s:%d %s: 0x%08x"
-ot_flash_info_part(uint32_t op_addr, unsigned bank, unsigned infosel, unsigned addr) "op_addr 0x%06x bank %u infosel %u addr 0x%06x"
+ot_flash_info_part(uint32_t op_addr, unsigned bank, unsigned infosel, uint32_t addr) "op_addr 0x%06x bank %u infosel %u addr 0x%06x"
 
 # ot_gpio.c
 
 ot_gpio_debug(const char *msg) "%s"
-ot_gpio_io_read(unsigned int addr, const char *regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_gpio_io_write(unsigned int addr, const char *regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_gpio_io_read_out(uint32_t addr, const char *regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_gpio_io_write(uint32_t addr, const char *regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_gpio_irqs(uint32_t active, uint32_t mask, uint32_t eff) "act:0x%08x msk:0x%08x eff:0x%08x"
 ot_gpio_update_input(uint32_t prev, uint32_t indata, uint32_t mix) "input prev:0x%08x new:0x%08x -> mix:0x%08x"
 
 # ot_hmac.c
 
-ot_hmac_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_hmac_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_hmac_fifo_write(unsigned int addr, uint64_t val, unsigned int size, uint64_t pc) "addr=0x%02x, val=0x%" PRIx64 " (%u), pc=0x%" PRIx64
+ot_hmac_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_hmac_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_hmac_fifo_write(uint32_t addr, uint32_t val, unsigned size, uint32_t pc) "addr=0x%02x, val=0x%x (%u), pc=0x%x"
 ot_hmac_debug(const char *msg) "%s"
 
 # ot_ibex_wrapper.c
 
-ot_ibex_wrapper_io_read_out(unsigned int addr, const char * regname, uint32_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%08x, pc=0x%" PRIx64
-ot_ibex_wrapper_io_write(unsigned int addr, const char * regname, uint32_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%08x, pc=0x%" PRIx64
+ot_ibex_wrapper_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%08x, pc=0x%x"
+ot_ibex_wrapper_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%08x, pc=0x%x"
 ot_ibex_wrapper_info(const char *func, int line, const char *msg) "%s:%d %s"
 ot_ibex_wrapper_map(unsigned slot, uint32_t src, uint32_t dst, uint32_t size, const char *name, uint32_t offset) "region %u from 0x%08x to 0x%08x on 0x%x bytes (%s), off 0x%x"
-ot_ibex_wrapper_fill_entropy(uint32_t bits, bool fips) "0x%08" PRIx32 " fips:%u"
+ot_ibex_wrapper_fill_entropy(uint32_t bits, bool fips) "0x%08x fips:%u"
 ot_ibex_wrapper_request_entropy(bool again) "%u"
 ot_ibex_wrapper_unmap(unsigned slot) "region %u"
 ot_ibex_wrapper_error(const char *func, int line, const char *msg) "%s:%d %s"
 ot_ibex_wrapper_exit(const char *msg, int val) "%s (%d)"
 
 # ot_kmac.c
-ot_kmac_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_kmac_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_kmac_state_read_out(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%03x, val=0x%" PRIx64", pc=0x%" PRIx64
-ot_kmac_msgfifo_write(unsigned int addr, uint64_t val, unsigned int size, uint64_t pc) "addr=0x%03x, val=0x%" PRIx64 " (%u), pc=0x%" PRIx64
+ot_kmac_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_kmac_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_kmac_state_read_out(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%03x, val=0x%x, pc=0x%x"
+ot_kmac_msgfifo_write(uint32_t addr, uint32_t val, unsigned size, uint32_t pc) "addr=0x%03x, val=0x%x (%u), pc=0x%x"
 ot_kmac_change_state_app(unsigned app_idx, int line, const char *old, int nold, const char *new, int nnew) "#%u @ %d [%s:%d] -> [%s:%d]"
 ot_kmac_change_state_sw(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
 ot_kmac_process_sw_command(int cmd, const char *cmd_str) "cmd=0x%02x (%s)"
@@ -204,9 +204,9 @@ ot_lc_ctrl_change_state(int line, const char *old, int nold, const char *new, in
 ot_lc_ctrl_error(const char *msg) "%s"
 ot_lc_ctrl_info(const char *msg) "%s"
 ot_lc_ctrl_initialize(const char *cst, int cstix, unsigned tcount, const char *state, int six) "%s (%d), tcount %u, state %s (%u)"
-ot_lc_ctrl_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_lc_ctrl_io_read_out_repeat(unsigned int addr, const char * regname, unsigned count, uint64_t val) "addr=0x%02x (%s) repeated %u times, val=0x%" PRIx64
-ot_lc_ctrl_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_lc_ctrl_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_lc_ctrl_io_read_out_repeat(uint32_t addr, const char * regname, unsigned count, uint32_t val) "addr=0x%02x (%s) repeated %u times, val=0x%x"
+ot_lc_ctrl_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_lc_ctrl_load_otp_token(const char *tk, unsigned tkix, const char *inv, uint64_t hi, uint64_t lo) "token %s (%u) %svalid: 0x%" PRIx64 "%" PRIx64
 ot_lc_ctrl_mismatch_token(const char *tkkind, const char *tkname, unsigned tok, uint64_t htkhi, uint64_t htklo, uint64_t rtkhi, uint64_t rtklo) "%s token %s (%u): 0x%" PRIx64 "%" PRIx64 ", ref 0x%" PRIx64 "%" PRIx64
 ot_lc_ctrl_start_transition(const char *sr, const char *kind, const char *cst, int cstix, const char *tst, int tstix, unsigned tcount) "%s start %s transit from %s (%d) to %s (%d) at tcount %u"
@@ -216,20 +216,20 @@ ot_lc_ctrl_transit_request(const char *sr, const char *cst, int cstix, const cha
 
 ot_mbx_busy(const char * mid, const char *state) "%s: %s"
 ot_mbx_change_state(const char * mid, const char *state) "%s: %s"
-ot_mbx_host_io_read_out(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_mbx_host_io_write(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_mbx_host_io_read_out(const char * mid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_mbx_host_io_write(const char * mid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_mbx_host_update_irq(int prev, int next) "%d -> %d"
 ot_mbx_status(const char *mbx_id, int line, bool abort, bool error, bool busy) "%s: [%d] abort:%u error:%u busy:%u"
-ot_mbx_sys_io_read_out(const char * mid, unsigned int addr, const char * regname, uint64_t val) "%s: addr=0x%02x (%s), val=0x%" PRIx64
-ot_mbx_sys_io_write(const char * mid, unsigned int addr, const char * regname, uint64_t val) "%s: addr=0x%02x (%s), val=0x%" PRIx64
+ot_mbx_sys_io_read_out(const char * mid, uint32_t addr, const char * regname, uint32_t val) "%s: addr=0x%02x (%s), val=0x%x"
+ot_mbx_sys_io_write(const char * mid, uint32_t addr, const char * regname, uint32_t val) "%s: addr=0x%02x (%s), val=0x%x"
 
 # ot_otbn.c
 
 ot_otbn_change_status(const char * status) "status=%s"
-ot_otbn_deny(uint64_t pc, const char *msg) "pc=0x%" PRIx64 ", %s"
+ot_otbn_deny(uint32_t pc, const char *msg) "pc=0x%x %s"
 ot_otbn_error(const char *msg) "%s"
-ot_otbn_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_otbn_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_otbn_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_otbn_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_otbn_irq(uint32_t active, uint32_t mask, bool level) "act:0x%08x msk:0x%08x lvl:%u"
 ot_otbn_mem_read(char mem, uint32_t addr, uint32_t value) "%cmem addr=0x%04x, val=0x%08x"
 ot_otbn_mem_write(char mem, uint32_t addr, uint32_t value, const char *outcome) "%cmem addr=0x%04x, val=0x%08x%s"
@@ -242,14 +242,14 @@ ot_otbn_request_entropy(unsigned ep) "ep:%u"
 
 # ot_otp.c
 
-ot_otp_addr_to_part(unsigned addr, const char *part, unsigned pix) "addr 0x%08x partition %s (#%u)"
-ot_otp_access_error_on(int part, unsigned addr) "part #%u, addr 0x%04x"
+ot_otp_addr_to_part(uint32_t addr, const char *part, unsigned pix) "addr 0x%08x partition %s (#%u)"
+ot_otp_access_error_on(int part, uint32_t addr) "part #%u, addr 0x%04x"
 ot_otp_dai_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
 ot_otp_dai_read(const char* part, unsigned pix, uint32_t hi, uint32_t lo) "DAI read %s (#%u): 0x%08x%08x"
 ot_otp_initial_lifecycle(uint32_t lc_state, unsigned tcount) "lifecyle 0x%x, transition count %u"
 ot_otp_initialize(void) ""
-ot_otp_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_otp_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_otp_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_otp_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_otp_integrity_report(const char* part, unsigned pix, const char *msg) "partition %s (#%u) %s"
 ot_otp_lci_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
 ot_otp_lci_write(unsigned pos, uint16_t cval, uint16_t nval) "@ %u 0x%04x -> 0x%04x"
@@ -260,8 +260,8 @@ ot_otp_skip_digest(const char* part, unsigned pix) "skipping empty digest on %s 
 
 # ot_pinmux.c
 
-ot_pinmux_io_read_out(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%02x, val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_pinmux_io_write(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%02x, val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_pinmux_io_read_out(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%02x, val=0x%x, pc=0x%x"
+ot_pinmux_io_write(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%02x, val=0x%x, pc=0x%x"
 
 # ot_pwrmgr.c
 
@@ -270,40 +270,40 @@ ot_pwrmgr_wkup(const char *name, unsigned src, bool active) "%s(%u): %u"
 ot_pwrmgr_rst_req(const char *name, unsigned src, bool active) "%s(%u): %u"
 ot_pwrmgr_sw_rst_req(unsigned src, bool active) "%u: %u"
 ot_pwrmgr_reset_req(const char *name, unsigned val) "%s: %u"
-ot_pwrmgr_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_pwrmgr_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_pwrmgr_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_pwrmgr_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_rom_ctrl.c
 
-ot_rom_ctrl_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_rom_ctrl_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_rom_ctrl_mem_read_out(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%04x, val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_rom_ctrl_mem_write(unsigned int addr, uint64_t val, uint64_t pc) "addr=0x%04x, val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_rom_ctrl_mem_accepts(unsigned int addr, bool is_write, uint64_t pc) "addr=0x%04x, is_write=%u, pc=0x%" PRIx64
+ot_rom_ctrl_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_rom_ctrl_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_rom_ctrl_mem_read_out(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%04x, val=0x%x, pc=0x%x"
+ot_rom_ctrl_mem_write(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%04x, val=0x%x, pc=0x%x"
+ot_rom_ctrl_mem_accepts(uint32_t addr, bool is_write, uint32_t pc) "addr=0x%04x, is_write=%u, pc=0x%x"
 
 # ot_rstmgr.c
 
-ot_rstmgr_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_rstmgr_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_rstmgr_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_rstmgr_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_rstmgr_reset_req(const char *req, unsigned reqix, bool fastclk) "%s(%u) @%u"
 ot_rstmgr_sw_rst(const char *path, bool reset) "%s: reset:%u"
 
 # ot_sensor.c
 
-ot_sensor_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_sensor_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_sensor_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_sensor_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_soc_proxy.c
 
-ot_soc_proxy_io_read_out(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_soc_proxy_io_write(const char * mid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_soc_proxy_io_read_out(const char * mid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_soc_proxy_io_write(const char * mid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_soc_proxy_ingress_irq(const char * mid, unsigned n, bool level) "%s: #%u: %u"
 ot_soc_proxy_update_irq(const char * mid, unsigned n, int prev, int next) "%s: #%u %d -> %d"
 
 # ot_spi_device.c
 
-ot_spi_device_buf_read_out(unsigned int addr, unsigned int size, uint64_t val, uint64_t pc) "addr=0x%02x, sz=%u, val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_spi_device_buf_write_in(unsigned int addr, unsigned int size, uint64_t val, uint64_t pc) "addr=0x%02x, sz=%u,  val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_spi_device_buf_read_out(uint32_t addr, unsigned size, uint32_t val, uint32_t pc) "addr=0x%02x, sz=%u, val=0x%x, pc=0x%x"
+ot_spi_device_buf_write_in(uint32_t addr, unsigned size, uint32_t val, uint32_t pc) "addr=0x%02x, sz=%u,  val=0x%x, pc=0x%x"
 ot_spi_device_bus_change_state(int line, const char *state, int stateval) "@%d: %s [%d]"
 ot_spi_device_chr_cs_assert(unsigned count, bool release, char rx, char tx, const char *st) "0x%x bytes, /cs: %u, rx: %csb, tx: %csb, mode:%s"
 ot_spi_device_chr_error(const char *err) "%s"
@@ -326,41 +326,41 @@ ot_spi_device_gen_fifo_error(const char *msg) "%s"
 ot_spi_device_gen_phase(const char *func, unsigned off, unsigned lim, bool phase) "%s off:0x%03x lim:0x%03x ph:%u"
 ot_spi_device_gen_rx_timeout(unsigned count) "%d"
 ot_spi_device_gen_update_fifo(const char *fifo, int line, uint32_t val) "%s@%d: 0x%08x"
-ot_spi_device_io_spi_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_spi_device_io_spi_write_in(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_spi_device_io_spi_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_spi_device_io_spi_write_in(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_spi_device_set_irq(const char *name, unsigned irq) "%s [%u]"
-ot_spi_device_io_tpm_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_spi_device_io_tpm_write_in(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_spi_device_io_tpm_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_spi_device_io_tpm_write_in(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_spi_device_update_last_read_addr(uint32_t addr) "0x%08x"
 
 # ot_spi_host.c
 
 ot_spi_host_reset(const char *msg) "%s"
-ot_spi_host_transfer(uint32_t tx_data, uint32_t rx_data) "tx_data: 0x%02" PRIx32 " rx_data: 0x%02" PRIx32
-ot_spi_host_read(uint64_t addr, const char * regname, uint64_t val, uint64_t pc) "addr:0x%02" PRIx64 " (%s), val:0x%" PRIx64 ", pc:0x%" PRIx64
+ot_spi_host_transfer(uint32_t tx_data, uint32_t rx_data) "tx_data: 0x%02x rx_data: 0x%02x"
+ot_spi_host_read(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr:0x%02x (%s), val:0x%x, pc:0x%x"
 ot_spi_host_read_repeat(size_t count) "last read repeated %zu times"
-ot_spi_host_write(uint64_t addr, const char * regname, uint64_t val, uint64_t pc) "addr:0x%02" PRIx64 " (%s), val:0x%" PRIx64 ", pc:0x%" PRIx64
+ot_spi_host_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr:0x%02x (%s), val:0x%x, pc:0x%x"
 ot_spi_host_cs(uint32_t csid, const char *level) "cs#:%u %sselected"
-ot_spi_host_status(const char *msg, uint32_t status, const char *str, unsigned cmd, unsigned rxd, unsigned txd) "%s 0x%08" PRIx32 " s:%s cq:%u rq:%u tq:%u"
+ot_spi_host_status(const char *msg, uint32_t status, const char *str, unsigned cmd, unsigned rxd, unsigned txd) "%s 0x%08x s:%s cq:%u rq:%u tq:%u"
 ot_spi_host_command(const char *dir, const char *spd, uint32_t csid, bool active, unsigned len, bool start) "d:%s s:%s cs#:%u csa:%u len:%u (t:%u)"
 ot_spi_host_fsm(const char *cause) "step %s"
 ot_spi_host_reject(const char *msg) "%s"
 ot_spi_host_debug(const char *msg) "%s"
-ot_spi_host_debug1(const char *msg, uint32_t val) "%s 0x%" PRIx32
+ot_spi_host_debug1(const char *msg, uint32_t val) "%s 0x%x"
 
 # ot_sram_ctrl.c
 
-ot_sram_ctrl_io_read_out(const char *sid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_sram_ctrl_io_write(const char *sid, unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "%s: addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_sram_ctrl_io_read_out(const char *sid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_sram_ctrl_io_write(const char *sid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_timer.c
 
-ot_timer_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_timer_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_timer_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_timer_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_uart.c
 
 ot_uart_debug(const char *msg) "%s"
-ot_uart_io_read(unsigned int addr, const char *regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64", pc=0x%" PRIx64
-ot_uart_io_write(unsigned int addr, const char *regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_uart_io_read_out(uint32_t addr, const char *regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_uart_io_write(uint32_t addr, const char *regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_uart_irqs(uint32_t active, uint32_t mask, uint32_t eff) "act:0x%08x msk:0x%08x eff:0x%08x"

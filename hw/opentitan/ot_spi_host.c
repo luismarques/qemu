@@ -992,7 +992,7 @@ static uint64_t ot_spi_host_read(void *opaque, hwaddr addr, unsigned int size)
                       __func__, addr);
     }
 
-    uint64_t pc = ibex_get_current_pc();
+    uint32_t pc = ibex_get_current_pc();
 
 #ifdef DISCARD_REPEATED_STATUS_TRACES
     static TraceCache trace_cache;
@@ -1003,7 +1003,7 @@ static uint64_t ot_spi_host_read(void *opaque, hwaddr addr, unsigned int size)
             trace_ot_spi_host_read_repeat(trace_cache.count);
         }
 #endif /* DISCARD_REPEATED_STATUS_TRACES */
-        trace_ot_spi_host_read(addr, REG_NAME(reg), val32, pc);
+        trace_ot_spi_host_read((uint32_t)addr, REG_NAME(reg), val32, pc);
         if (reg == R_STATUS) {
             ot_spi_host_trace_status("", val32);
         }
@@ -1028,8 +1028,8 @@ static void ot_spi_host_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_spi_host_write(addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_spi_host_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     if (s->on_reset) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: device in reset\n", __func__);

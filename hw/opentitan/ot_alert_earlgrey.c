@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan EarlGrey Alert handler device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -410,8 +410,8 @@ static uint64_t ot_alert_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_alert_io_read_out((unsigned)addr, (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_alert_io_read_out((uint32_t)addr, val32, pc);
 
     return (uint64_t)val32;
 };
@@ -426,8 +426,8 @@ static void ot_alert_eg_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_alert_io_write((unsigned)addr, val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_alert_io_write((uint32_t)addr, val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:

@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Data Object Exchange Mailbox
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -325,9 +325,9 @@ static uint64_t ot_mbx_host_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_mbx_host_io_read_out(s->mbx_id, (unsigned)addr,
-                                  REG_NAME(HOST, reg), (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_mbx_host_io_read_out(s->mbx_id, (uint32_t)addr,
+                                  REG_NAME(HOST, reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -343,10 +343,9 @@ static void ot_mbx_host_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_mbx_host_io_write(s->mbx_id, (unsigned)addr, REG_NAME(HOST, reg),
-                               val64, pc);
-
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_mbx_host_io_write(s->mbx_id, (uint32_t)addr, REG_NAME(HOST, reg),
+                               val32, pc);
     switch (reg) {
     case R_HOST_INTR_STATE:
         val32 &= HOST_INTR_MASK;
@@ -582,8 +581,8 @@ static MemTxResult ot_mbx_sys_regs_read_with_attrs(
         break;
     }
 
-    trace_ot_mbx_sys_io_read_out(s->mbx_id, (unsigned)addr, REG_NAME(SYS, reg),
-                                 (uint64_t)val32);
+    trace_ot_mbx_sys_io_read_out(s->mbx_id, (uint32_t)addr, REG_NAME(SYS, reg),
+                                 val32);
 
     *val64 = (uint64_t)val32;
 
@@ -603,8 +602,8 @@ static MemTxResult ot_mbx_sys_regs_write_with_attrs(
 
     hwaddr reg = R32_OFF(addr);
 
-    trace_ot_mbx_sys_io_write(s->mbx_id, (unsigned)addr, REG_NAME(SYS, reg),
-                              val64);
+    trace_ot_mbx_sys_io_write(s->mbx_id, (uint32_t)addr, REG_NAME(SYS, reg),
+                              val32);
 
     switch (reg) {
     case R_SYS_INTR_MSG_ADDR:

@@ -1145,8 +1145,8 @@ static uint64_t ot_kmac_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_kmac_io_read_out((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_kmac_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -1160,8 +1160,8 @@ static void ot_kmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_kmac_io_write((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_kmac_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -1386,8 +1386,8 @@ static uint64_t ot_kmac_state_read(void *opaque, hwaddr addr, unsigned size)
         }
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_kmac_state_read_out((unsigned)addr, val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_kmac_state_read_out((uint32_t)addr, val32, pc);
 
     return (uint64_t)val32;
 }
@@ -1418,8 +1418,8 @@ static void ot_kmac_msgfifo_write(void *opaque, hwaddr addr, uint64_t value,
 {
     OtKMACState *s = OT_KMAC(opaque);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_kmac_msgfifo_write((unsigned)addr, (uint32_t)value, size, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_kmac_msgfifo_write((uint32_t)addr, (uint32_t)value, size, pc);
 
     /* trigger error if an app is running of not in MSG_FEED state */
     if (s->current_app || s->state != KMAC_ST_MSG_FEED) {

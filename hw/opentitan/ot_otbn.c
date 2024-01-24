@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Big Number device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -393,7 +393,7 @@ static uint64_t ot_otbn_regs_read(void *opaque, hwaddr addr, unsigned size)
     (void)size;
     uint32_t val32;
 
-    uint64_t pc = ibex_get_current_pc();
+    uint32_t pc = ibex_get_current_pc();
 
     hwaddr reg = R32_OFF(addr);
     switch (reg) {
@@ -435,8 +435,7 @@ static uint64_t ot_otbn_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    trace_ot_otbn_io_read_out((unsigned)addr, REG_NAME(reg), (uint64_t)val32,
-                              pc);
+    trace_ot_otbn_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 }
@@ -450,8 +449,8 @@ static void ot_otbn_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_otbn_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_otbn_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     if (ot_otbn_is_locked(s)) {
         trace_ot_otbn_deny(pc, "write denied: locked");
@@ -525,7 +524,7 @@ static void ot_otbn_update_checksum(OtOTBNState *s, bool doi, uint32_t addr,
 static uint32_t ot_otbn_mem_read(OtOTBNState *s, bool doi, hwaddr addr)
 {
     uint32_t value = ot_otbn_proxy_read_memory(s->proxy, doi, addr);
-    trace_ot_otbn_mem_read(doi ? 'I' : 'D', addr, value);
+    trace_ot_otbn_mem_read(doi ? 'I' : 'D', (uint32_t)addr, value);
     return value;
 }
 
@@ -533,10 +532,10 @@ static void ot_otbn_mem_write(OtOTBNState *s, bool doi, hwaddr addr,
                               uint32_t value)
 {
     bool written = ot_otbn_proxy_write_memory(s->proxy, doi, addr, value);
-    trace_ot_otbn_mem_write(doi ? 'I' : 'D', addr, value,
+    trace_ot_otbn_mem_write(doi ? 'I' : 'D', (uint32_t)addr, value,
                             written ? "" : " FAILED");
     if (written) {
-        ot_otbn_update_checksum(s, doi, (uint32_t)addr, value);
+        ot_otbn_update_checksum(s, doi, addr, value);
     }
 }
 

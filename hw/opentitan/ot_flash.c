@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Flash controller device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -1007,9 +1007,8 @@ static uint64_t ot_flash_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_flash_io_read_out((unsigned)addr, REG_NAME(reg), (uint64_t)val32,
-                               pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_flash_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -1023,8 +1022,8 @@ static void ot_flash_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_flash_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_flash_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     if (ot_flash_is_disabled(s)) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: flash has been disabled\n",
@@ -1336,9 +1335,8 @@ static uint64_t ot_flash_csrs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_flash_io_read_out((unsigned)addr, CSR_NAME(csr), (uint64_t)val32,
-                               pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_flash_io_read_out((uint32_t)addr, CSR_NAME(csr), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -1352,8 +1350,8 @@ static void ot_flash_csrs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr csr = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_flash_io_write((unsigned)addr, CSR_NAME(csr), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_flash_io_write((uint32_t)addr, CSR_NAME(csr), val32, pc);
 
     if (ot_flash_is_disabled(s)) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: flash has been disabled\n",
@@ -1755,21 +1753,21 @@ static uint64_t ot_flash_mem_read(void *opaque, hwaddr addr, unsigned size)
         val32 = s->flash.data[addr >> 2u];
         unsigned offset = (unsigned)(addr & 0x3u);
         val32 >>= offset << 3u;
-        uint64_t pc = ibex_get_current_pc();
+        uint32_t pc = ibex_get_current_pc();
 #if LOG_GPR_ON_FLASH_DATA_ACCESS
 #if LOG_GPR_ON_FLASH_DATA_ACCESS != UINT32_MAX
-        if (pc == (uint64_t)LOG_GPR_ON_FLASH_DATA_ACCESS)
+        if (pc == (uint32_t)LOG_GPR_ON_FLASH_DATA_ACCESS)
 #endif
             ibex_log_vcpu_registers(
                 RV_GPR_PC | RV_GPR_T0 | RV_GPR_T1 | RV_GPR_T2 | RV_GPR_A0 |
                 RV_GPR_A1 | RV_GPR_A2);
 #endif /* LOG_GPR_ON_FLASH_DATA_ACCESS */
-        trace_ot_flash_mem_read_out((unsigned)addr, size, val32, pc);
+        trace_ot_flash_mem_read_out((uint32_t)addr, size, val32, pc);
     } else {
-        uint64_t pc = ibex_get_current_pc();
+        uint32_t pc = ibex_get_current_pc();
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: Bad offset 0x%" HWADDR_PRIx ", pc=0x%x\n", __func__,
-                      addr, (unsigned)pc);
+                      addr, pc);
         val32 = 0;
     }
 

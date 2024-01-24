@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Entropy Distribution Network device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -1090,9 +1090,9 @@ static uint64_t ot_edn_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_edn_io_read_out(s->rng.appid, (unsigned)addr, REG_NAME(reg),
-                             (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_edn_io_read_out(s->rng.appid, (uint32_t)addr, REG_NAME(reg), val32,
+                             pc);
 
     return (uint64_t)val32;
 };
@@ -1111,8 +1111,8 @@ static void ot_edn_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_edn_io_write(c->appid, (unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_edn_io_write(c->appid, (uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:

@@ -454,7 +454,7 @@ uint32_t ibex_load_kernel(AddressSpace *as);
  * If a HW access is performed from another device but the CPU, reported PC
  * is 0.
  */
-uint64_t ibex_get_current_pc(void);
+uint32_t ibex_get_current_pc(void);
 
 enum {
     RV_GPR_PC = (1u << 0u),

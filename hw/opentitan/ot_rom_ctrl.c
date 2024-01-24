@@ -319,9 +319,8 @@ static uint64_t ot_rom_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_rom_ctrl_io_read_out((unsigned)addr, REG_NAME(reg),
-                                  (uint64_t)val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_rom_ctrl_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -335,8 +334,8 @@ static void ot_rom_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_rom_ctrl_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_rom_ctrl_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_ALERT_TEST:
@@ -496,9 +495,9 @@ static void ot_rom_ctrl_mem_write(void *opaque, hwaddr addr, uint64_t value,
                                   unsigned size)
 {
     OtRomCtrlState *s = opaque;
-    uint64_t pc = ibex_get_current_pc();
+    uint32_t pc = ibex_get_current_pc();
 
-    trace_ot_rom_ctrl_mem_write((unsigned int)addr, (uint32_t)value, pc);
+    trace_ot_rom_ctrl_mem_write((uint32_t)addr, (uint32_t)value, pc);
 
     uint8_t *rom_ptr = (uint8_t *)memory_region_get_ram_ptr(&s->mem);
 
@@ -507,7 +506,7 @@ static void ot_rom_ctrl_mem_write(void *opaque, hwaddr addr, uint64_t value,
     } else {
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Bad offset 0x%" HWADDR_PRIx ", pc=0x%x\n",
-                      __func__, s->rom_id, addr, (unsigned)pc);
+                      __func__, s->rom_id, addr, pc);
     }
 }
 
@@ -516,9 +515,9 @@ static bool ot_rom_ctrl_mem_accepts(void *opaque, hwaddr addr, unsigned size,
 {
     OtRomCtrlState *s = opaque;
     (void)attrs;
-    uint64_t pc = ibex_get_current_pc();
+    uint32_t pc = ibex_get_current_pc();
 
-    trace_ot_rom_ctrl_mem_accepts((unsigned int)addr, is_write, pc);
+    trace_ot_rom_ctrl_mem_accepts((uint32_t)addr, is_write, pc);
 
     if (!is_write) {
         /*

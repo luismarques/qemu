@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Darjeeling Ibex wrapper device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -1290,8 +1290,8 @@ ot_ibex_wrapper_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_ibex_wrapper_io_read_out((unsigned)addr, REG_NAME(reg), val32, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_ibex_wrapper_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -1305,8 +1305,8 @@ static void ot_ibex_wrapper_dj_regs_write(void *opaque, hwaddr addr,
 
     hwaddr reg = R32_OFF(addr);
 
-    uint64_t pc = ibex_get_current_pc();
-    trace_ot_ibex_wrapper_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_ibex_wrapper_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_ALERT_TEST:

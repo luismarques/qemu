@@ -907,7 +907,8 @@ class QEMUContext:
                         raise OSError(ret,
                                       f'Cannot execute [{ctx_name}] command')
         if ctx_name == 'post':
-            self._qfm.delete_default_dir(self._test_name)
+            if not self._qfm.keep_temporary:
+                self._qfm.delete_default_dir(self._test_name)
 
     def check_error(self) -> int:
         """Check if any background worker exited in error.

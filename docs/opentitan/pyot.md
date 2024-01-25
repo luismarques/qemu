@@ -130,9 +130,9 @@ This tool may be used in two ways, which can be combined:
    When no ROM is specified, test applications are executed immediately, as a replacement of the ROM
    executable.
 *  `-O` / `--otp-raw` specify a RAW image file for OTP fuses, which can be generated with the
-   [`otpconv.py`](otpconf.md) tool. Alternatively, see the `-o` option.
+   [`otptool.py`](otpconf.md) tool. Alternatively, see the `-o` option.
 *  `-o` / ` --otp` specify an OTP VMEM file. This option is mutually exclusive with the `-O` option.
-   This script takes care of calling [`otpconv.py`](otpconf.md) to generate a temporary OTP file
+   This script takes care of calling [`otptool.py`](otpconf.md) to generate a temporary OTP file
    that is discarded when this script exits.
 *  `-f` / `--flash` specify a RAW image file that stores the embedded Flash content, which can be
    generated with the [`flashgen.py`](flashgen.md) tool. Alternatively, see the `-x` option.

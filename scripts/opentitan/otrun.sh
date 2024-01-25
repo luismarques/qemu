@@ -221,7 +221,7 @@ if [ ${VERBOSE} -gt 0 ];then
     set -x
 fi
 
-${SCRIPT_DIR}/otpconv.py -v -i "${OT_OTP_VMEM}" -o otp.raw || \
+${SCRIPT_DIR}/otptool.py -v -m "${OT_OTP_VMEM}" -r otp.raw || \
     die "Cannot generate OTP image"
 
 # note: it is recommended to place the original ELF file from which the binary

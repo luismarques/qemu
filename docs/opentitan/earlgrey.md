@@ -91,7 +91,7 @@ qemu-system-riscv32 -M ot-earlgrey -display none -serial mon:stdio \
 ````
 
 where `otp.raw` contains the RMA OTP image and `flash.raw` contains the signed binary file of the
-ROM_EXT and the BL0. See [`otpconv.py`](otpconv.md) and [`flashgen.py`](flashgen.md) tools to
+ROM_EXT and the BL0. See [`otptool.py`](otptool.md) and [`flashgen.py`](flashgen.md) tools to
 generate the `.raw` image files.
 
 See [`rom_ctrl.md`](rom_ctrl.md) for information on ROM option.
@@ -102,7 +102,7 @@ Launching a QEMU VM with the right option switches may rapidly become complex du
 of options and the available features. Several helper tools are provided in the `scripts/opentitan`
 directory to help with these tasks.
 
-* [`otpconv.py`](otpconv.md) can be used to generate an OTP image from a OTP VMEM file and can be
+* [`otptool.py`](otptool.md) can be used to generate an OTP image from a OTP VMEM file and can be
   used to decode (some of the) encoded data in the OTP image.
 * [`flashgen.py`](flashgen.md) can be used to generate a flash image with either a ROM_EXT and BL0
   signed files, or a single OpenTitan signed test files.
@@ -165,7 +165,7 @@ directory to help with these tasks.
 
 * `-drive if=pflash,file=otp.raw,format=raw` should be used to specify a path to a QEMU RAW image
   file used as the OpenTitan OTP image. This _RAW_ file should have been generated with the
-  [`otpconv.py`](otpconv.md) tool.
+  [`otptool.py`](otptool.md) tool.
 
 ### SPI Host
 
@@ -242,4 +242,3 @@ script for more details.
 Finally, a Rust demangler has been added to QEMU, which enables the QEMU integrated dissambler to
 emit the demangled names of the Rust symbols for Rust-written guest applications rather than their
 mangled versions as stored in the ELF file.
-

@@ -182,7 +182,7 @@ if [ ${VERBOSE} -gt 0 ];then
     set -x
 fi
 
-${SCRIPT_DIR}/otpconv.py -v -i "${OT_OTP_VMEM}" -o otp.raw || die "optconv.py failed"
+${SCRIPT_DIR}/otptool.py -v -m "${OT_OTP_VMEM}" -r otp.raw || die "otptool.py failed"
 
 # note: it is recommended to place the original ELF file from which the binary
 # files have been generated from. If flashgen.py locates the matching ELF file,
@@ -196,4 +196,3 @@ echo "Use [Ctrl-A] + x to quit QEMU"
     -M ot-earlgrey -display none -serial mon:stdio ${QEMU_GUEST_OPT} \
     -drive if=pflash,file=${QEMU_DIR}/otp.raw,format=raw \
     -drive if=mtd,bus=1,file=${QEMU_DIR}/flash.raw,format=raw $*)
-

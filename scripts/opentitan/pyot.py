@@ -597,16 +597,17 @@ class QEMUFileManager:
             self._log.debug('Use existing %s', basename(otp_file))
             self._otp_files[vmem] = (otp_file, ref_count + 1)
             return otp_file
-        from otpconv import OtpConverter
-        otp = OtpConverter(self.DEFAULT_OTP_ECC_BITS)
+        from otptool import OtpImage
+        otp = OtpImage()
         self._configure_logger(otp)
         with open(vmem, 'rt', encoding='utf-8') as vfp:
-            otp.parse(vfp)
+            otp.load_vmem(vfp, 'otp')
         otp_fd, otp_file = mkstemp(suffix='.raw', prefix='qemu_ot_otp_')
         self._log.debug('Create %s', basename(otp_file))
         self._in_fly.add(otp_file)
         close(otp_fd)
-        otp.save('raw', otp_file)
+        with open(otp_file, 'wb') as rfp:
+            otp.save_raw(rfp)
         self._otp_files[vmem] = (otp_file, 1)
         return otp_file
 

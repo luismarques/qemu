@@ -237,8 +237,6 @@ class FlashGen:
        :accept_invalid: accept invalid input files (fully ignore content)
     """
 
-    # pylint: disable=too-many-instance-attributes
-
     NUM_BANKS = 2
     PAGES_PER_BANK = 256
     NUM_REGIONS = 8
@@ -429,9 +427,6 @@ class FlashGen:
 
     def store_rom_ext(self, bank: int, dfp: BinaryIO,
                       elfpath: Optional[str] = None) -> None:
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-statements
         if not 0 <= bank < self.NUM_BANKS:
             raise ValueError(f'Invalid bank {bank}')
         data = dfp.read()
@@ -512,8 +507,6 @@ class FlashGen:
 
     def store_bootloader(self, bank: int, dfp: BinaryIO,
                          elfpath: Optional[str] = None) -> None:
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
         if self._bl_offset == 0:
             raise ValueError('Bootloader cannot be used')
         if not 0 <= bank < self.NUM_BANKS:
@@ -790,9 +783,6 @@ def hexint(val: str) -> int:
 
 def main():
     """Main routine"""
-    # pylint: disable=too-many-statements
-    # pylint: disable=too-many-locals
-    # pylint: disable=too-many-branches
     debug = True
     banks = list(range(FlashGen.NUM_BANKS))
     try:

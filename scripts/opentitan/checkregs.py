@@ -26,8 +26,7 @@ class ValueLocation(NamedTuple):
 RegisterDefs = Dict[str, Tuple[int, ValueLocation]]
 """Definition of a register value (name, value, location)."""
 
-# pylint: disable-msg=unspecified-encoding
-# pylint: disable-msg=missing-function-docstring
+# pylint: disable=missing-function-docstring
 
 
 class OtRegisters:
@@ -205,8 +204,6 @@ class OtRegisters:
 
 def main():
     """Main routine"""
-    # pylint: disable-msg=too-many-locals
-    # pylint: disable-msg=too-many-statements
     debug = False
     qemu_default_dir = dirname(dirname(dirname(__file__)))
     try:
@@ -271,7 +268,7 @@ def main():
             sysexit(1)
         print('No differences', file=stderr)
 
-    # pylint: disable-msg=broad-except
+    # pylint: disable=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

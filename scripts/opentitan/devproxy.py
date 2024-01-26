@@ -183,8 +183,6 @@ class DeviceProxy:
        :paran regcount: count of 32-bit registers in the remote device
     """
 
-    # pylint: disable=too-many-instance-attributes
-
     MB4_TRUE = 0x6
     """Multibit bool true value."""
 
@@ -196,7 +194,6 @@ class DeviceProxy:
 
     def __init__(self, proxy: 'Proxy', name: str, devid: int, addr: int,
                  count: int, offset: int):
-        # pylint: disable=too-many-arguments
         logname = self.__class__.__name__.lower().replace('proxy', '')
         self._log = getLogger(f'proxy.{logname}')
         if offset > 0xffff:
@@ -441,8 +438,6 @@ class MbxHostProxy(DeviceProxy):
        :param args: forwarded as is to the parent, see #DevicePRoxy
        :param role: optional access role
     """
-
-    # pylint: disable=too-many-public-methods
 
     DEVICE_ID = 'mbh'
 
@@ -1101,8 +1096,6 @@ class ProxyEngine:
     """Tool to access and remotely drive devices and memories.
     """
 
-    # pylint: disable=too-many-instance-attributes
-
     VERSION = (0, 12)
     """Protocol version."""
 
@@ -1191,7 +1184,6 @@ class ProxyEngine:
     def discover_devices(self) -> None:
         """Enumerate and store supported remote devices.
         """
-        # pylint: disable=too-many-locals
         try:
             devices = self.exchange('ED')
         except ProxyCommandError as exc:
@@ -1313,7 +1305,6 @@ class ProxyEngine:
                         specified count of access. Use 0 to disable auto-discard
            :param prority: priority of the intercepter
         """
-        # pylint: disable=too-many-arguments
         if not read and not write:
             raise ValueError('Read or/and Write should be specified')
         if not isinstance(priority, int) or not priority or priority > 0x3f:
@@ -1431,8 +1422,6 @@ class ProxyEngine:
     def _receive(self):
         """Worker thread that handle data reception.
         """
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-statements
         buffer = bytearray()
         cmd = ''
         length = 0
@@ -1601,7 +1590,7 @@ def _main():
         proxy.connect('localhost', 8003)
         proxy.discover_devices()
         proxy.discover_memory_spaces()
-    # pylint: disable-msg=broad-except
+    # pylint: disable=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

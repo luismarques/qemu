@@ -37,8 +37,6 @@ from typing import (Any, Deque, Dict, Iterator, List, NamedTuple, Optional, Set,
                     Tuple)
 
 
-# pylint: disable=too-many-lines
-
 DEFAULT_MACHINE = 'ot-earlgrey'
 DEFAULT_DEVICE = 'localhost:8000'
 DEFAULT_TIMEOUT = 60  # seconds
@@ -190,11 +188,6 @@ class QEMUWrapper:
            :param start_delay: start up delay
            :return: a 3-uple of exit code, execution time, and last guest error
         """
-        # pylint: disable=too-many-arguments
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-statements
-
         # stdout and stderr belongs to QEMU VM
         # OT's UART0 is redirected to a TCP stream that can be accessed through
         # self._device. The VM pauses till the TCP socket is connected
@@ -208,7 +201,6 @@ class QEMUWrapper:
         xend = None
         log = self._log
         last_error = ''
-        # pylint: disable=too-many-nested-blocks
         try:
             workdir = dirname(qemu_args[0])
             log.debug('Executing QEMU as %s', ' '.join(qemu_args))
@@ -411,7 +403,6 @@ class QEMUFileManager:
 
        :param keep_temp: do not automatically discard generated files on exit
     """
-    # pylint: disable=too-few-public-methods
 
     DEFAULT_OTP_ECC_BITS = 6
 
@@ -668,7 +659,6 @@ class QEMUFileManager:
     def _cleanup(self) -> None:
         """Remove a generated, temporary flash image file.
         """
-        # pylint: disable=too-many-branches
         removed: Set[str] = set()
         for tmpfile in self._in_fly:
             if not isfile(tmpfile):
@@ -752,7 +742,6 @@ class QEMUContextWorker:
         return normpath(self._cmd.split(' ', 1)[0])
 
     def _run(self):
-        #pylint: disable=too-many-branches
         self._resume = True
         #pylint: disable=consider-using-with
         proc = Popen(self._cmd,  bufsize=1, stdout=PIPE, stderr=PIPE,
@@ -846,9 +835,6 @@ class QEMUContext:
 
            :param code: a previous error completion code, if any
         """
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-nested-blocks
         ctx = self._context.get(ctx_name, None)
         if ctx_name == 'post' and code:
             self._clog.info("Discard execution of '%s' commands after failure "
@@ -947,7 +933,6 @@ class QEMUExecuter:
        :param config: configuration dictionary
        :param args: parsed arguments
     """
-    # pylint: disable=too-many-instance-attributes
 
     RESULT_MAP = {
         0: 'PASS',
@@ -991,7 +976,6 @@ class QEMUExecuter:
 
            :return: success or the code of the first encountered error
         """
-        # pylint: disable=too-many-locals
         qot = QEMUWrapper(self._vcp, debug)
         ret = 0
         results = defaultdict(int)
@@ -1134,9 +1118,6 @@ class QEMUExecuter:
                     a dictionary of generated temporary files and the start
                     delay
         """
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-statements
         if args.qemu is None:
             raise ValueError('QEMU path is not defined')
         qemu_args = [
@@ -1242,9 +1223,6 @@ class QEMUExecuter:
         return qemu_cmd, args, timeout, temp_files, ctx, sdelay
 
     def _build_test_list(self, alphasort: bool = True) -> List[str]:
-        # pylint: disable=too-many-branches
-        # pylint: disable=too-many-locals
-        # pylint: disable=too-many-nested-blocks
         pathnames = set()
         testdir = normpath(self._qfm.interpolate(self._config.get('testdir',
                                                                   curdir)))
@@ -1312,7 +1290,6 @@ class QEMUExecuter:
         if not isinstance(items, list):
             raise ValueError(f'Invalid configuration file: '
                              f'"{config_entry}" is not a list')
-        # pylint: disable=too-many-nested-blocks
         for item in items:
             if isinstance(item, str):
                 cfglist.append(item)
@@ -1402,10 +1379,6 @@ class QEMUExecuter:
 
 def main():
     """Main routine"""
-    # pylint: disable=too-many-branches
-    # pylint: disable=too-many-locals
-    # pylint: disable=too-many-statements
-    # pylint: disable=too-many-nested-blocks
     debug = True
     qemu_dir = normpath(joinpath(dirname(dirname(dirname(__file__)))))
     qemu_path = normpath(joinpath(qemu_dir, 'build', 'qemu-system-riscv32'))

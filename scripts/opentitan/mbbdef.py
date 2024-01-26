@@ -15,7 +15,6 @@ from sys import exit as sysexit, modules, stderr
 from traceback import format_exc
 from typing import Dict, Iterator, List, TextIO
 
-# pylint: disable=too-few-public-methods
 
 try:
     from hjson import load as jload
@@ -136,7 +135,7 @@ def main():
             mbb = MbbChecker()
             mbb.parse(hjson)
 
-    # pylint: disable-msg=broad-except
+    # pylint: disable=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

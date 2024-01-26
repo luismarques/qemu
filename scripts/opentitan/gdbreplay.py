@@ -455,8 +455,6 @@ class QEMUGDBReplay:
        :param rv64: RV64 vs. RV32
     """
 
-    #py;int: disable=too-many-instance-attributes
-
     DEFAULT_SERVICE = 'localhost:3333'
     """Default TCP host:port to serve GDB remote clients."""
 

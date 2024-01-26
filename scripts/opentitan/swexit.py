@@ -53,7 +53,7 @@ def main():
         out = args.output or stdout.buffer
         out.write(bincode)
 
-    # pylint: disable-msg=broad-except
+    # pylint: disable=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

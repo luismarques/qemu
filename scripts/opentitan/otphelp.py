@@ -118,10 +118,6 @@ class OtpHelper:
 
 def main():
     """Main routine"""
-    # pylint: disable=too-many-branches
-    # pylint: disable=too-many-locals
-    # pylint: disable=too-many-statements
-    # pylint: disable=too-many-nested-blocks
     debug = True
     try:
         argparser = ArgumentParser(description=modules[__name__].__doc__)

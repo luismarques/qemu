@@ -79,7 +79,6 @@ def check(lfp: TextIO, comp: str, defs: RegisterDefs):
 
 def main():
     """Main routine"""
-    # pylint: disable-msg=too-many-locals
     debug = False
     try:
         desc = modules[__name__].__doc__.split('.', 1)[0].strip()
@@ -113,7 +112,7 @@ def main():
         defs = parse_defs(args.reg) if args.reg else {}
         check(args.log[0], args.component, defs)
 
-    # pylint: disable-msg=broad-except
+    # pylint: disable=broad-except
     except Exception as exc:
         print(f'\nError: {exc}', file=stderr)
         if debug:

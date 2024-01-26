@@ -7,9 +7,6 @@
 #pylint: disable=missing-function-docstring
 #pylint: disable=consider-using-f-string
 #pylint: disable=missing-class-docstring
-#pylint: disable=too-few-public-methods
-#pylint: disable=too-many-branches
-#pylint: disable=too-many-instance-attributes
 
 
 try:
@@ -163,8 +160,8 @@ class OtGPIO:
 
 if __name__ == '__main__':
     if not usb_cdc.data:
-        # boot.py should be used to enable the secondary, data CDC serial-over-USB
-        # device. The first port is reserved for the Console.
+        # boot.py should be used to enable the secondary, data CDC
+        # serial-over-USB device. The first port is reserved for the Console.
         raise RuntimeError('No serial port available')
     gpio = OtGPIO(usb_cdc.data)
     gpio.run()

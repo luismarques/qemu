@@ -6,8 +6,8 @@ controller virtual device.
 ## Usage
 
 ````text
-usage: otptool.py [-h] [-j HJSON] [-m VMEM] [-l SV] [-o C] [-r RAW] [-e BITS] [-c INT] [-i INT]
-                  [-w] [-n] [-s] [-D] [-L | -P | -R] [-v] [-d]
+usage: otptool.py [-h] [-j HJSON] [-m VMEM] [-l SV] [-o C] [-r RAW] [-k {auto,otp,fuz}] [-e BITS]
+                  [-c INT] [-i INT] [-w] [-n] [-s] [-D] [-L | -P | -R] [-v] [-d]
 
 QEMU OT tool to manage OTP files.
 
@@ -24,6 +24,8 @@ Files:
   -r RAW, --raw RAW     QEMU OTP raw image file
 
 Parameters:
+  -k {auto,otp,fuz}, --kind {auto,otp,fuz}
+                        kind of content in VMEM input file, default: auto
   -e BITS, --ecc BITS   ECC bit count
   -c INT, --constant INT
                         finalization constant for Present scrambler
@@ -40,18 +42,20 @@ Commands:
 
 Extras:
   -v, --verbose         increase verbosity
-  -d, --debug           enable debug mode
+  -d, --debug           enable debug mode````
 ````
 
 This script can be used for several purposes:
 
-1. Creating a QEMU OT OTP image file that is used as the OTP controller backend, from a VMEM file
-   that is generated when the OT HW is built,
-2. Showing and decoding the content of such an image file, whether it is a pristine generated file
+1. Creating a QEMU OT OTP image file that is used as the OTP or Fuse controller backend, from a
+   VMEM file that is generated when the HW files are created,
+2. Showing and decoding the content of OTP image files, whether it is a pristine generated file
    or a file that has been modified by the QEMU machine,
 3. Verifying the Digest of the OTP partitions that support HW digest (using Present scrambling),
 4. Create QEMU C source files containining definition values that replicate the ones generated when
    the OT HW is built.
+
+Please note that only the first feature is supported for Fuse (non-OpenTitan) images.
 
 ### QEMU OTP RAW image versions
 
@@ -60,6 +64,8 @@ There are two versions of the RAW image file:
 v1 and v2 differs from the presence or not of the Present scrambling constants. When a QEMU OTP RAW
 image file contains the constants, the v2 format is used, otherwise the v1 format is used. The
 script supports both versions.
+
+Fuse RAW images only use the v1 type.
 
 ### Arguments
 
@@ -86,6 +92,10 @@ script supports both versions.
   image file needs to be interpreted, such as digest verification, content dump, C file generation,
   ...
 
+* `-k` specify the kind of input VMEM file, either OTP or Fuse kind. The script attempts to detect
+  the kind of the input VMEM file from its content when this option is not specified or set to
+  `auto`. It is fails to detect the file kind or if the kind needs to be enforced, use this option.
+
 * `-L` generate a file describing the LifeCycle contants as C arrays. Mutually exclusive with the
   `-P` and `-R` option switches. See `-o` to specify an output file.
 
@@ -99,7 +109,7 @@ script supports both versions.
   `-D` to verify partition digests, and stored in the optional output OTP image file for use by
   the virtual OTP controller when used along with the `-o` option.
 
-* `-m` specify the input VMEM file that contains the OTP fuse content.
+* `-m` specify the input VMEM file that contains the OTP fuse content. See also the `-k` option.
 
 * `-n` tell the script not to attempt to decode the content of encoded fields, such as the hardened
   booleans values. When used, the raw value of each field is printed out.
@@ -134,8 +144,15 @@ Earlgrey OTP virtual device has not been updated to support Present scrambler, s
 
 Generate a QEMU RAW v1 image for the virtual OTP controller, here with an RMA OTP configuration:
 ````sh
-scripts/opentitan/otptool.py -m img_rma.24.vmem -r otp.raw
+scripts/opentitan/otptool.py -m img_rma.24.vmem -r otp.raw [-k otp]
 ````
+
+Generate a QEMU RAW v1 image for the virtual OTP controller, here with an RMA OTP configuration:
+````sh
+scripts/opentitan/otptool.py -m fusemap.hex -r fuse.raw [-k fuz]
+````
+
+The following examples only apply with the OpenTitan OTP image files:
 
 Generate a QEMU RAW v2 image for the virtual OTP controller, here with an RMA OTP configuration:
 ````sh

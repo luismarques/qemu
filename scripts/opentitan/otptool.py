@@ -613,13 +613,20 @@ class OtpImage:
         'digfc':   '16s',  # Present digest scrambler finalization constant
     }
 
+    KINDS = {
+        'OTP MEM': 'otp',
+        'FUSEMAP': 'fuz',
+    }
+
     RE_VMEMLOC = r'(?i)^@((?:[0-9a-f]{2})+)\s((?:[0-9a-f]{2})+)$'
+    RE_VMEMDESC = r'(?i)^//\s?([\w\s]+) file with (\d+)[^\d]*(\d+)\s?bit layout'
 
     DEFAULT_ECC_BITS = 6
 
     def __init__(self, ecc_bits: Optional[int] = None):
         self._log = getLogger('otptool.img')
         self._header: Dict[str, Any] = {}
+        self._magic = b''
         self._data = b''
         self._ecc = b''
         if ecc_bits is None:
@@ -640,6 +647,16 @@ class OtpImage:
     def loaded(self) -> int:
         """Report whether data have been loaded into the image."""
         return len(self._data) > 0
+
+    @property
+    def is_opentitan(self) -> bool:
+        """Report whether the current image contains OpenTitan OTP data."""
+        return self._magic == b'vOTP'
+
+    @classproperty
+    def vmem_kinds(cls) -> List[str]:
+        """Reports the supported content kinds of VMEM files."""
+        return ['auto'] + list(cls.KINDS.values())
 
     @classproperty
     def logger(self):
@@ -666,16 +683,32 @@ class OtpImage:
         rfp.write(self._ecc)
         self._pad(rfp, 4096)
 
-    def load_vmem(self, vfp: TextIO, swap: bool = True):
+    def load_vmem(self, vfp: TextIO, vmem_kind: Optional[str] = None,
+                  swap: bool = True):
         """Parse a VMEM '24' text stream."""
         data_buf: List[bytes] = []
         ecc_buf: List[bytes] = []
         last_addr = 0
         granule_sizes: Set[int] = set()
+        vkind: Optional[str] = None
         row_count = 0
-        byte_count = 3
-        line_count = 8192
+        byte_count = 0
+        line_count = 0
+        if vmem_kind:
+            vmem_kind = vmem_kind.lower()
+            if vmem_kind == 'auto':
+                vmem_kind = None
+        if vmem_kind and vmem_kind not in self.KINDS.values():
+            raise ValueError(f"Unknown VMEM file kind '{vmem_kind}'")
         for lno, line in enumerate(vfp, start=1):
+            if vkind is None:
+                kmo = re_match(self.RE_VMEMDESC, line)
+                if kmo:
+                    vkind = kmo.group(1)
+                    row_count = int(kmo.group(2))
+                    bits = int(kmo.group(3))
+                    byte_count = bits // 8
+                    continue
             line = re_sub(r'//.*', '', line)
             line = line.strip()
             if not line:
@@ -712,6 +745,20 @@ class OtpImage:
         if row_count and row_count != line_count:
             self._log.error('Should have parsed %d lines, found %d',
                               row_count, line_count)
+        if not vkind:
+            if vmem_kind:
+                vkind = vmem_kind
+        else:
+            vkind = self.KINDS.get(vkind.upper(), None)
+            if vmem_kind:
+                if vkind and vkind != vmem_kind:
+                    self._log.warning("Detected VMEM kind '%s' differs from "
+                                      "'%s'", vkind, vmem_kind)
+                # use user provided type, even if it is not the one detected
+                vkind = vmem_kind
+        if not vkind:
+            raise ValueError(f'Unable to detect VMEM find, please specify')
+        self._magic = f'v{vkind[:3].upper()}'.encode()
 
     def load_lifecycle(self, lcext: OtpLifecycleExtension) -> None:
         """Load lifecyle values."""
@@ -794,8 +841,10 @@ class OtpImage:
         hdata = bfp.read(fhsize)
         parts = sunpack(f'<{fhfmt}', hdata)
         header = dict(zip(hfmt.keys(), parts))
-        if header['magic'] != b'vOTP':
+        magics = set(f'v{k.upper()}'.encode() for k in self.KINDS.values())
+        if header['magic'] not in magics:
             raise ValueError(f'{bfp.name} is not a QEMU OTP RAW image')
+        self._magic = header['magic']
         version = header['version']
         if version > 2:
             raise ValueError(f'{bfp.name} is not a valid QEMU OTP RAW image')
@@ -812,6 +861,7 @@ class OtpImage:
         return header
 
     def _build_header(self) -> bytes:
+        assert self._magic, "File kind unknown"
         hfmt = self.HEADER_FORMAT
         # use V2 image format if Present scrambling constants are available,
         # otherwise use V1
@@ -824,7 +874,7 @@ class OtpImage:
         hlen = scalc(fhfmt)-scalc(shfmt)
         dlen = (len(self._data)+7) & ~0x7
         elen = (len(self._ecc)+7) & ~0x7
-        values = dict(magic=b'vOTP', hlength=hlen, version=1+int(use_v2),
+        values = dict(magic=self._magic, hlength=hlen, version=1+int(use_v2),
                       eccbits=self._ecc_bits, eccgran=self._ecc_granule,
                       dlength=dlen, elength=elen)
         if use_v2:
@@ -863,6 +913,10 @@ def main():
         files.add_argument('-r', '--raw',
                            help='QEMU OTP raw image file')
         params = argparser.add_argument_group(title='Parameters')
+        params.add_argument('-k', '--kind',
+                            choices=OtpImage.vmem_kinds,
+                            help=f'kind of content in VMEM input file, '
+                                 f'default: {OtpImage.vmem_kinds[0]}')
         params.add_argument('-e', '--ecc', type=int,
                             default=OtpImage.DEFAULT_ECC_BITS,
                             metavar='BITS', help='ECC bit count')
@@ -911,6 +965,9 @@ def main():
             if args.show or args.digest:
                 argparser.error('At least one raw or vmem file is required')
 
+        if not args.vmem and args.kind:
+            argparser.error('VMEM kind only applies for VMEM input files')
+
         otpmap: Optional[OtpMap] = None
         lcext: Optional[OtpLifecycleExtension] = None
         partdesc: Optional[OTPPartitionDesc] = None
@@ -946,7 +1003,7 @@ def main():
             lcext.save(output)
 
         if args.vmem:
-            otp.load_vmem(args.vmem)
+            otp.load_vmem(args.vmem, args.kind)
         if args.raw:
             # if no VMEM is provided, select the RAW file as an input file
             # otherwise it is selected as an output file
@@ -955,6 +1012,16 @@ def main():
                     otp.load_raw(rfp)
 
         if otp.loaded:
+            if not otp.is_opentitan:
+                ot_opts = ('iv', 'constant', 'digest', 'generate_parts',
+                           'generate_regs', 'generate_lc', 'otp_map',
+                           'lifecycle')
+                if any(getattr(args, a) for a in ot_opts):
+                    argparser.error('Selected option only applies to OpenTitan '
+                                    'images')
+                if args.show:
+                    argparser.error('Showing content of non-OpenTitan image is '
+                                    'not supported')
             if args.iv:
                 otp.set_digest_iv(args.iv)
             if args.constant:

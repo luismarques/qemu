@@ -447,13 +447,6 @@ class QEMUFileManager:
         """
         self._env['CONFIG'] = abspath(path)
 
-    def set_extra_options(self, opts: List[str]) -> None:
-        """Assign the extra options defined on the command line.
-
-           :param opts: the options
-        """
-        self._env['XOPTS'] = ' '.join(opts)
-
     def interpolate(self, value: Any) -> str:
         """Interpolate a ${...} marker with shell substitutions or local
            substitution.
@@ -958,6 +951,11 @@ class QEMUExecuter:
         self._qemu_cmd: List[str] = []
         self._vcp: Optional[Tuple[str, int]] = None
         self._suffixes = []
+        if hasattr(self._args, 'opts'):
+            setattr(self._args, 'global_opts', getattr(self._args, 'opts'))
+            setattr(self._args, 'opts', [])
+        else:
+            setattr(self._args, 'global_opts', [])
 
     def build(self) -> None:
         """Build initial QEMU arguments.
@@ -1209,6 +1207,7 @@ class QEMUExecuter:
             qemu_args.extend(('-serial', 'chardev:serial0'))
         except TypeError as exc:
             raise ValueError('Invalid TCP serial device') from exc
+        qemu_args.extend(args.global_opts or [])
         if opts:
             qemu_args.extend((str(o) for o in opts))
         return qemu_args, tcpdev, temp_files, start_delay
@@ -1394,7 +1393,7 @@ def main():
         qvm.add_argument('-q', '--qemu',
                          help=f'path to qemu application '
                               f'(default: {rel_qemu_path})')
-        qvm.add_argument('-Q', '--opts', action='append', default=[],
+        qvm.add_argument('-Q', '--opts', action='append',
                          help='QEMU verbatim option (can be repeated)')
         qvm.add_argument('-m', '--machine',
                          help=f'virtual machine (default to {DEFAULT_MACHINE})')
@@ -1472,10 +1471,6 @@ def main():
             tmpfd, tmp_result = mkstemp(suffix='.csv')
             close(tmpfd)
             args.result = tmp_result
-        if opts:
-            qopts = getattr(args, 'opts')
-            qopts.extend(opts)
-            setattr(args, 'opts', qopts)
 
         loglevel = max(DEBUG, ERROR - (10 * (args.verbose or 0)))
         loglevel = min(ERROR, loglevel)
@@ -1487,7 +1482,6 @@ def main():
         log.addHandler(logh)
 
         qfm = QEMUFileManager(args.keep_tmp)
-        qfm.set_extra_options(cli_opts)
 
         # this is a bit circomvulted, as we need to parse the config filename
         # if any, and load the default values out of the configuration file,
@@ -1510,12 +1504,18 @@ def main():
                 if is_bool:
                     if not val:
                         continue
-                jargs.append(f'--{arg}' if len(arg) > 1 else f'-{arg}')
-                if is_bool:
-                    continue
-                # arg parser expects only string args, and substitute shell env.
-                val = qfm.interpolate(val)
-                jargs.append(val)
+                optname = f'--{arg}' if len(arg) > 1 else f'-{arg}'
+                if isinstance(val, list):
+                    for valit in val:
+                        jargs.append(f'{optname}={qfm.interpolate(valit)}')
+                else:
+                    jargs.append(optname)
+                    if is_bool:
+                        continue
+                    # arg parser expects only string args, and substitute shell
+                    # env.
+                    val = qfm.interpolate(val)
+                    jargs.append(val)
             if jargs:
                 jwargs = argparser.parse_args(jargs)
                 # pylint: disable=protected-access
@@ -1526,6 +1526,10 @@ def main():
                         setattr(args, name, val)
         elif args.filter:
             argparser.error('Filter option only valid with a config file')
+        if cli_opts:
+            qopts = getattr(args, 'opts') or []
+            qopts.extend(cli_opts)
+            setattr(args, 'opts', qopts)
         # as the JSON configuration file may contain default value, the
         # argparser default method cannot be used to define default values, or
         # they would take precedence over the JSON defined ones

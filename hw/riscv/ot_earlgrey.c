@@ -46,7 +46,7 @@
 #include "hw/opentitan/ot_hmac.h"
 #include "hw/opentitan/ot_ibex_wrapper_earlgrey.h"
 #include "hw/opentitan/ot_kmac.h"
-#include "hw/opentitan/ot_lifecycle.h"
+#include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_otbn.h"
 #include "hw/opentitan/ot_otp_earlgrey.h"
 #include "hw/opentitan/ot_pinmux.h"
@@ -410,7 +410,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         ),
     },
     [OT_EARLGREY_SOC_DEV_LC_CTRL] = {
-        .type = TYPE_OT_LIFECYCLE,
+        .type = TYPE_OT_LC_CTRL,
         .memmap = MEMMAPENTRIES(
             { 0x40140000u, 0x100u }
         ),

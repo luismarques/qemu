@@ -198,10 +198,10 @@ ot_kmac_app_finished(unsigned app_idx) "#%u"
 ot_kmac_report_error(int code, const char *code_str, uint32_t info) "code=0x%02x (%s) info=0x%06x"
 ot_kmac_debug(const char *msg) "%s"
 
-# ot_lifecycle.c
+# ot_lc_ctrl.c
 
-ot_lifecycle_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
-ot_lifecycle_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_lc_ctrl_io_read_out(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
+ot_lc_ctrl_io_write(unsigned int addr, const char * regname, uint64_t val, uint64_t pc) "addr=0x%02x (%s), val=0x%" PRIx64 ", pc=0x%" PRIx64
 
 # ot_mbx.c
 

@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Life Cycle controller device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -25,12 +25,12 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_LIFECYCLE_H
-#define HW_OPENTITAN_OT_LIFECYCLE_H
+#ifndef HW_OPENTITAN_OT_LC_CTRL_H
+#define HW_OPENTITAN_OT_LC_CTRL_H
 
 #include "qom/object.h"
 
-#define TYPE_OT_LIFECYCLE "ot-lifecycle"
-OBJECT_DECLARE_SIMPLE_TYPE(OtLifeCycleState, OT_LIFECYCLE)
+#define TYPE_OT_LC_CTRL "ot-lc_ctrl"
+OBJECT_DECLARE_SIMPLE_TYPE(OtLcCtrlState, OT_LC_CTRL)
 
-#endif /* HW_OPENTITAN_OT_LIFECYCLE_H */
+#endif /* HW_OPENTITAN_OT_LC_CTRL_H */

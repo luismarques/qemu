@@ -78,7 +78,7 @@ config OT_IBEX_WRAPPER_EARLGREY
 config OT_KMAC
     bool
 
-config OT_LIFECYCLE
+config OT_LC_CTRL
     bool
 
 config OT_MBX

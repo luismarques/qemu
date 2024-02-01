@@ -27,7 +27,7 @@ system_ss.add(when: 'CONFIG_OT_IBEX_WRAPPER', if_true: files('ot_ibex_wrapper.c'
 system_ss.add(when: 'CONFIG_OT_IBEX_WRAPPER_DARJEELING', if_true: files('ot_ibex_wrapper_darjeeling.c'))
 system_ss.add(when: 'CONFIG_OT_IBEX_WRAPPER_EARLGREY', if_true: files('ot_ibex_wrapper_earlgrey.c'))
 system_ss.add(when: 'CONFIG_OT_KMAC', if_true: [files('ot_kmac.c'), libtomcrypt_dep])
-system_ss.add(when: 'CONFIG_OT_LIFECYCLE', if_true: files('ot_lifecycle.c'))
+system_ss.add(when: 'CONFIG_OT_LC_CTRL', if_true: files('ot_lc_ctrl.c'))
 system_ss.add(when: 'CONFIG_OT_MBX', if_true: files('ot_mbx.c'))
 system_ss.add(when: 'CONFIG_OT_OTBN', if_true: files('ot_otbn.c'))
 system_ss.add(when: 'CONFIG_OT_OTP', if_true: files('ot_otp.c'))

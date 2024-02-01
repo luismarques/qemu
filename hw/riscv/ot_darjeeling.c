@@ -49,7 +49,7 @@
 #include "hw/opentitan/ot_hmac.h"
 #include "hw/opentitan/ot_ibex_wrapper_darjeeling.h"
 #include "hw/opentitan/ot_kmac.h"
-#include "hw/opentitan/ot_lifecycle.h"
+#include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_mbx.h"
 #include "hw/opentitan/ot_otbn.h"
 #include "hw/opentitan/ot_otp_darjeeling.h"
@@ -711,7 +711,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
     },
     [OT_DARJEELING_SOC_DEV_LC_CTRL] = {
-        .type = TYPE_OT_LIFECYCLE,
+        .type = TYPE_OT_LC_CTRL,
         .memmap = MEMMAPENTRIES(
             { 0x30140000u, 0x1000u }
         ),

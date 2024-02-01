@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Life Cycle controller device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -36,7 +36,7 @@
 #include "qapi/error.h"
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
-#include "hw/opentitan/ot_lifecycle.h"
+#include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_otp.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
@@ -209,7 +209,7 @@ enum lc_enc_state {
     LC_ENC_STATE_INVALID = LC_ENCODE_STATE(LC_STATE_INVALID),
 };
 
-struct OtLifeCycleState {
+struct OtLcCtrlState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
@@ -220,32 +220,32 @@ struct OtLifeCycleState {
     OtOTPState *otp_ctrl;
 };
 
-static void ot_lifecycle_lock_hw_mutex(OtLifeCycleState *s)
+static void ot_lc_ctrl_lock_hw_mutex(OtLcCtrlState *s)
 {
     FIELD_DP32(s->regs[R_TRANSITION_REGWEN], TRANSITION_REGWEN,
                TRANSITION_REGWEN, 1u);
 }
 
-static void ot_lifecycle_release_hw_mutex(OtLifeCycleState *s)
+static void ot_lc_ctrl_release_hw_mutex(OtLcCtrlState *s)
 {
     FIELD_DP32(s->regs[R_TRANSITION_REGWEN], TRANSITION_REGWEN,
                TRANSITION_REGWEN, 0u);
 }
 
-static bool ot_lifecycle_own_hw_mutex(OtLifeCycleState *s)
+static bool ot_lc_ctrl_own_hw_mutex(OtLcCtrlState *s)
 {
     return (bool)FIELD_EX32(s->regs[R_TRANSITION_REGWEN], TRANSITION_REGWEN,
                             TRANSITION_REGWEN);
 }
 
-static void ot_lifecycle_start_transition(OtLifeCycleState *s)
+static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
 {
     (void)s;
     qemu_log_mask(LOG_UNIMP, "%s: Transition commands not implemented\n",
                   __func__);
 }
 
-static uint32_t ot_lifecycle_get_lc_state(OtLifeCycleState *s)
+static uint32_t ot_lc_ctrl_get_lc_state(OtLcCtrlState *s)
 {
     uint32_t lc_state;
 
@@ -256,7 +256,7 @@ static uint32_t ot_lifecycle_get_lc_state(OtLifeCycleState *s)
     return lc_state;
 }
 
-static uint32_t ot_lifecycle_get_lc_transition_count(OtLifeCycleState *s)
+static uint32_t ot_lc_ctrl_get_lc_transition_count(OtLcCtrlState *s)
 {
     uint32_t lc_tcount;
 
@@ -267,7 +267,7 @@ static uint32_t ot_lifecycle_get_lc_transition_count(OtLifeCycleState *s)
     return (uint32_t)lc_tcount;
 }
 
-static bool ot_lifecycle_is_known_state(uint32_t state)
+static bool ot_lc_ctrl_is_known_state(uint32_t state)
 {
     switch (state) {
     case LC_ENC_STATE_RAW:
@@ -297,7 +297,7 @@ static bool ot_lifecycle_is_known_state(uint32_t state)
     }
 }
 
-static bool ot_lifecycle_is_vendor_test_state(uint32_t state)
+static bool ot_lc_ctrl_is_vendor_test_state(uint32_t state)
 {
     switch (state) {
     case LC_ENC_STATE_RAW:
@@ -323,9 +323,9 @@ static bool ot_lifecycle_is_vendor_test_state(uint32_t state)
     }
 }
 
-static uint64_t ot_lifecycle_regs_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t ot_lc_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtLifeCycleState *s = opaque;
+    OtLcCtrlState *s = opaque;
     (void)size;
     uint32_t val32;
 
@@ -333,16 +333,15 @@ static uint64_t ot_lifecycle_regs_read(void *opaque, hwaddr addr, unsigned size)
 
     switch (reg) {
     case R_LC_TRANSITION_CNT:
-        val32 = ot_lifecycle_get_lc_transition_count(s);
+        val32 = ot_lc_ctrl_get_lc_transition_count(s);
         break;
     case R_LC_STATE:
-        val32 = ot_lifecycle_get_lc_state(s);
+        val32 = ot_lc_ctrl_get_lc_state(s);
         break;
     case R_OTP_VENDOR_TEST_STATUS:
-        val32 =
-            ot_lifecycle_is_vendor_test_state(ot_lifecycle_get_lc_state(s)) ?
-                s->regs[reg] :
-                0u;
+        val32 = ot_lc_ctrl_is_vendor_test_state(ot_lc_ctrl_get_lc_state(s)) ?
+                    s->regs[reg] :
+                    0u;
         break;
     case R_STATUS:
     case R_TRANSITION_CMD: /* r0w1c */
@@ -391,23 +390,23 @@ static uint64_t ot_lifecycle_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint64_t pc = ibex_get_current_pc();
-    trace_ot_lifecycle_io_read_out((unsigned)addr, REG_NAME(reg),
-                                   (uint64_t)val32, pc);
+    trace_ot_lc_ctrl_io_read_out((unsigned)addr, REG_NAME(reg), (uint64_t)val32,
+                                 pc);
 
     return (uint64_t)val32;
 };
 
-static void ot_lifecycle_regs_write(void *opaque, hwaddr addr, uint64_t val64,
-                                    unsigned size)
+static void ot_lc_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
+                                  unsigned size)
 {
-    OtLifeCycleState *s = opaque;
+    OtLcCtrlState *s = opaque;
     (void)size;
     uint32_t val32 = (uint32_t)val64;
 
     hwaddr reg = R32_OFF(addr);
 
     uint64_t pc = ibex_get_current_pc();
-    trace_ot_lifecycle_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
+    trace_ot_lc_ctrl_io_write((unsigned)addr, REG_NAME(reg), val64, pc);
 
     switch (reg) {
     case R_ALERT_TEST:
@@ -425,20 +424,20 @@ static void ot_lifecycle_regs_write(void *opaque, hwaddr addr, uint64_t val64,
             R_CLAIM_TRANSITION_IF_REGWEN_EN_MASK) {
             val32 &= R_CLAIM_TRANSITION_IF_MUTEX_MASK;
             if (val32 == OT_MULTIBITBOOL8_TRUE) {
-                if (!ot_lifecycle_own_hw_mutex(s)) {
-                    ot_lifecycle_lock_hw_mutex(s);
+                if (!ot_lc_ctrl_own_hw_mutex(s)) {
+                    ot_lc_ctrl_lock_hw_mutex(s);
                     s->regs[reg] = OT_MULTIBITBOOL8_TRUE;
                 }
             } else if (val32 == 0u) {
-                ot_lifecycle_release_hw_mutex(s);
+                ot_lc_ctrl_release_hw_mutex(s);
                 s->regs[reg] = OT_MULTIBITBOOL8_FALSE;
             }
         }
         break;
     case R_TRANSITION_CMD:
         val32 &= R_TRANSITION_CMD_START_MASK;
-        if (val32 && ot_lifecycle_own_hw_mutex(s)) {
-            ot_lifecycle_start_transition(s);
+        if (val32 && ot_lc_ctrl_own_hw_mutex(s)) {
+            ot_lc_ctrl_start_transition(s);
         }
         break;
     case R_TRANSITION_CTRL:
@@ -452,20 +451,20 @@ static void ot_lifecycle_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     case R_TRANSITION_TOKEN_1:
     case R_TRANSITION_TOKEN_2:
     case R_TRANSITION_TOKEN_3:
-        if (ot_lifecycle_own_hw_mutex(s)) {
+        if (ot_lc_ctrl_own_hw_mutex(s)) {
             s->regs[reg] = val32;
         }
         break;
     case R_TRANSITION_TARGET:
-        if (ot_lifecycle_own_hw_mutex(s)) {
+        if (ot_lc_ctrl_own_hw_mutex(s)) {
             val32 &= R_TRANSITION_TARGET_STATE_MASK;
-            if (ot_lifecycle_is_known_state(val32)) {
+            if (ot_lc_ctrl_is_known_state(val32)) {
                 s->regs[reg] = val32;
             }
         }
         break;
     case R_OTP_VENDOR_TEST_CTRL:
-        if (ot_lifecycle_own_hw_mutex(s)) {
+        if (ot_lc_ctrl_own_hw_mutex(s)) {
             s->regs[reg] = val32;
         }
         break;
@@ -504,23 +503,23 @@ static void ot_lifecycle_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     }
 };
 
-static Property ot_lifecycle_properties[] = {
-    DEFINE_PROP_LINK("otp_ctrl", OtLifeCycleState, otp_ctrl, TYPE_OT_OTP,
+static Property ot_lc_ctrl_properties[] = {
+    DEFINE_PROP_LINK("otp_ctrl", OtLcCtrlState, otp_ctrl, TYPE_OT_OTP,
                      OtOTPState *),
     DEFINE_PROP_END_OF_LIST(),
 };
 
-static const MemoryRegionOps ot_lifecycle_regs_ops = {
-    .read = &ot_lifecycle_regs_read,
-    .write = &ot_lifecycle_regs_write,
+static const MemoryRegionOps ot_lc_ctrl_regs_ops = {
+    .read = &ot_lc_ctrl_regs_read,
+    .write = &ot_lc_ctrl_regs_write,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .impl.min_access_size = 4u,
     .impl.max_access_size = 4u,
 };
 
-static void ot_lifecycle_reset(DeviceState *dev)
+static void ot_lc_ctrl_reset(DeviceState *dev)
 {
-    OtLifeCycleState *s = OT_LIFECYCLE(dev);
+    OtLcCtrlState *s = OT_LC_CTRL(dev);
 
     g_assert(s->otp_ctrl);
 
@@ -530,44 +529,44 @@ static void ot_lifecycle_reset(DeviceState *dev)
     ibex_irq_set(&s->alert, 0);
 
     s->regs[R_CLAIM_TRANSITION_IF_REGWEN] = 1u;
-    /* temporary, till lifecycle state management is implemented */
+    /* temporary, till lc_ctrl state management is implemented */
     s->regs[R_STATUS] = FIELD_DP32(s->regs[R_STATUS], STATUS, INITIALIZED, 1u);
     s->regs[R_STATUS] = FIELD_DP32(s->regs[R_STATUS], STATUS, READY, 1u);
 }
 
-static void ot_lifecycle_init(Object *obj)
+static void ot_lc_ctrl_init(Object *obj)
 {
-    OtLifeCycleState *s = OT_LIFECYCLE(obj);
+    OtLcCtrlState *s = OT_LC_CTRL(obj);
 
-    memory_region_init_io(&s->mmio, obj, &ot_lifecycle_regs_ops, s,
-                          TYPE_OT_LIFECYCLE, REGS_SIZE);
+    memory_region_init_io(&s->mmio, obj, &ot_lc_ctrl_regs_ops, s,
+                          TYPE_OT_LC_CTRL, REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
     ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
 }
 
-static void ot_lifecycle_class_init(ObjectClass *klass, void *data)
+static void ot_lc_ctrl_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     (void)data;
 
-    dc->reset = &ot_lifecycle_reset;
-    device_class_set_props(dc, ot_lifecycle_properties);
+    dc->reset = &ot_lc_ctrl_reset;
+    device_class_set_props(dc, ot_lc_ctrl_properties);
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 
-static const TypeInfo ot_lifecycle_info = {
-    .name = TYPE_OT_LIFECYCLE,
+static const TypeInfo ot_lc_ctrl_info = {
+    .name = TYPE_OT_LC_CTRL,
     .parent = TYPE_SYS_BUS_DEVICE,
-    .instance_size = sizeof(OtLifeCycleState),
-    .instance_init = &ot_lifecycle_init,
-    .class_init = &ot_lifecycle_class_init,
+    .instance_size = sizeof(OtLcCtrlState),
+    .instance_init = &ot_lc_ctrl_init,
+    .class_init = &ot_lc_ctrl_class_init,
 };
 
-static void ot_lifecycle_register_types(void)
+static void ot_lc_ctrl_register_types(void)
 {
-    type_register_static(&ot_lifecycle_info);
+    type_register_static(&ot_lc_ctrl_info);
 }
 
-type_init(ot_lifecycle_register_types);
+type_init(ot_lc_ctrl_register_types);

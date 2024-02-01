@@ -1,7 +1,7 @@
 /*
- * QEMU OpenTitan LifeCycle states
+ * QEMU OpenTitan LifeCycle definitions
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -25,8 +25,8 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_LCSTATE_H
-#define HW_OPENTITAN_OT_LCSTATE_H
+#ifndef HW_OPENTITAN_OT_LC_DEFS_H
+#define HW_OPENTITAN_OT_LC_DEFS_H
 
 /* Share lifecycle state definitions */
 enum lc_state {
@@ -56,4 +56,4 @@ enum lc_state {
     LC_STATE_INVALID,
 };
 
-#endif /* HW_OPENTITAN_OT_LCSTATE_H */
+#endif /* HW_OPENTITAN_OT_LC_DEFS_H */

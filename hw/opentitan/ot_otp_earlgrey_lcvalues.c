@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan EarlGrey One Time Programmable (OTP) life cycle values
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -25,7 +25,7 @@
  * THE SOFTWARE.
  */
 
-#include "ot_lcstate.h"
+#include "ot_lc_defs.h"
 
 /* Section auto-generated with otpconv.py [-i/-c/-h/-O lc_arrays] script */
 

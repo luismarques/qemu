@@ -44,7 +44,7 @@
 #include "hw/riscv/ibex_common.h"
 #include "hw/riscv/ibex_irq.h"
 #include "hw/sysbus.h"
-#include "ot_lcstate.h"
+#include "ot_lc_defs.h"
 #include "trace.h"
 
 #define PARAM_PRODUCT_ID_WIDTH         16u

@@ -1528,8 +1528,7 @@ void ot_kmac_app_request(OtKMACState *s, unsigned app_idx,
 
     if (app->req_pending) {
         error_setg(&error_fatal,
-                   "%s: Dropping request to already busy app index %u",
-                   __func__, app_idx);
+                   "Dropping request to already busy app index %u", app_idx);
     }
 
     /* save request */

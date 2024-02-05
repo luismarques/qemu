@@ -564,8 +564,8 @@ ot_dma_check_device(OtDMAState *s, bool d_or_s, OtDMAAddrSpace *asix,
     }
 
     if (!s->ases[aix]) {
-        error_setg(&error_fatal, "%s: %s: %s address space not configured",
-                   __func__, s->ot_id, AS_NAME(aix));
+        error_setg(&error_fatal, "%s: %s address space not configured",
+                   s->ot_id, AS_NAME(aix));
         return NULL;
     }
 

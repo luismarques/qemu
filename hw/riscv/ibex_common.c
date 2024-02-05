@@ -129,8 +129,8 @@ void ibex_link_remote_devices(DeviceState **devices, const IbexDeviceDef *defs,
                      * the `object_property_set_link` silently fails. Read back
                      * the property to ensure it has been really set.
                      */
-                    error_setg(&error_fatal, "%s: cannot create %s link",
-                               __func__, link->propname);
+                    error_setg(&error_fatal, "cannot create %s link",
+                               link->propname);
                 }
                 link++;
             }

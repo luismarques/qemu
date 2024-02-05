@@ -1152,7 +1152,7 @@ static void ot_spi_device_flash_decode_command(OtSPIDeviceState *s, uint8_t cmd)
     bool upload = ot_spi_device_flash_is_upload(f);
     if (upload) {
         if (fifo8_is_full(&f->cmd_fifo)) {
-            error_setg(&error_warn, "%s: command FIFO overflow\n", __func__);
+            error_setg(&error_warn, "command FIFO overflow\n");
             return;
         }
 
@@ -1364,8 +1364,8 @@ static uint8_t ot_spi_device_flash_exec_hw_cfg_command(OtSPIDeviceState *s)
         ot_spi_device_flash_decode_write_enable(s);
         break;
     default:
-        error_setg(&error_fatal, "%s: invalid command info %u %u", __func__,
-                   f->slot, cmdinfo);
+        error_setg(&error_fatal, "invalid command info %u %u", f->slot,
+                   cmdinfo);
         g_assert_not_reached();
     }
 
@@ -1641,7 +1641,7 @@ static uint8_t ot_spi_device_flash_transfer(OtSPIDeviceState *s, uint8_t rx)
     case SPI_FLASH_ERROR:
         break;
     default:
-        error_setg(&error_fatal, "%s: unexpected state %s[%d]\n", __func__,
+        error_setg(&error_fatal, "unexpected state %s[%d]\n",
                    FLASH_STATE_NAME(f->state), f->state);
         g_assert_not_reached();
     }
@@ -2429,8 +2429,7 @@ static int ot_spi_device_chr_can_receive(void *opaque)
         length = 0;
         break;
     default:
-        error_setg(&error_fatal, "%s: unexpected state %d\n", __func__,
-                   bus->state);
+        error_setg(&error_fatal, "unexpected state %d\n", bus->state);
         /* linter does not know error_setg never returns */
         g_assert_not_reached();
     }

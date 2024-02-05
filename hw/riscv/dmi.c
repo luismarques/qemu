@@ -1,7 +1,7 @@
 /*
  * QEMU Debug Module Interface and Controller
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
  *
@@ -221,7 +221,7 @@ bool riscv_dmi_register_dm(DeviceState *dev, RISCVDebugDeviceState *dbgdev,
             continue;
         }
 
-        error_setg(&error_fatal, "%s: Debug Module overlap\n", __func__);
+        error_setg(&error_fatal, "Debug Module overlap\n");
     }
 
     object_ref(OBJECT(dbgdev));

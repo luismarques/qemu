@@ -192,7 +192,7 @@ enum OtDarjeelingMemoryRegion {
                                                            (_irq_) + 1u), \
                          OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(2, PLIC, \
                                                            (_irq_) + 2u)), \
-    .prop = IBEXDEVICEPROPDEFS(IBEX_DEV_STRING_PROP("id", stringify(_ix_)))
+    .prop = IBEXDEVICEPROPDEFS(IBEX_DEV_STRING_PROP("ot_id", stringify(_ix_)))
 
 #define OT_DARJEELING_SOC_DEV_MBX_DUAL(_ix_, _addr_, _irq_, _xaddr_) \
     .type = TYPE_OT_MBX, .instance = (_ix_), \
@@ -204,7 +204,7 @@ enum OtDarjeelingMemoryRegion {
                                                            (_irq_) + 1u), \
                          OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(2, PLIC, \
                                                            (_irq_) + 2u)), \
-    .prop = IBEXDEVICEPROPDEFS(IBEX_DEV_STRING_PROP("id", stringify(_ix_)))
+    .prop = IBEXDEVICEPROPDEFS(IBEX_DEV_STRING_PROP("ot_id", stringify(_ix_)))
 
 #define OT_DARJEELING_SOC_CLKMGR_HINT(_num_) \
     OT_DARJEELING_SOC_SIGNAL(OPENTITAN_CLOCK_ACTIVE, 0, CLKMGR, \
@@ -402,7 +402,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_UINT_PROP("size", 0x40000u),
-            IBEX_DEV_STRING_PROP("id", "ram")
+            IBEX_DEV_STRING_PROP("ot_id", "ram")
         ),
     },
     [OT_DARJEELING_SOC_DEV_SRAM_MBX] = {
@@ -417,7 +417,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_UINT_PROP("size", 0x1000u),
-            IBEX_DEV_STRING_PROP("id", "mbx")
+            IBEX_DEV_STRING_PROP("ot_id", "mbx")
         ),
     },
     [OT_DARJEELING_SOC_DEV_ROM0] = {
@@ -437,7 +437,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("kmac", KMAC)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_STRING_PROP("rom_id", "rom0"),
+            IBEX_DEV_STRING_PROP("ot_id", "rom0"),
             IBEX_DEV_UINT_PROP("size", 0x8000u),
             IBEX_DEV_UINT_PROP("kmac-app", 2u)
         ),
@@ -459,7 +459,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("kmac", KMAC)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_STRING_PROP("rom_id", "rom1"),
+            IBEX_DEV_STRING_PROP("ot_id", "rom1"),
             IBEX_DEV_UINT_PROP("size", 0x10000u),
             IBEX_DEV_UINT_PROP("kmac-app", 3u)
         ),
@@ -520,9 +520,9 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 133)
         ),
         .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_STRING_PROP("ot_id", "0"),
             IBEX_DEV_STRING_PROP("ot_as_name", "ot-dma"),
-            IBEX_DEV_STRING_PROP("ctn_as_name", "ctn-dma"),
-            IBEX_DEV_STRING_PROP("id", "0")
+            IBEX_DEV_STRING_PROP("ctn_as_name", "ctn-dma")
         )
     },
 
@@ -566,7 +566,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(31, PLIC, 114)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_STRING_PROP("id", "0")
+            IBEX_DEV_STRING_PROP("ot_id", "0")
         ),
     },
     [OT_DARJEELING_SOC_DEV_MBX_PCIE0] = {
@@ -853,7 +853,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_UINT_PROP("size", 0x1000u),
-            IBEX_DEV_STRING_PROP("id", "ret")
+            IBEX_DEV_STRING_PROP("ot_id", "ret")
         ),
     },
     /* clang-format on */
@@ -1050,9 +1050,9 @@ static void ot_darjeeling_soc_realize(DeviceState *dev, Error **errp)
     cpu->cpu_index = 0;
 
     /* Link, define properties and realize devices, then connect GPIOs */
-    ibex_configure_devices(s->devices, dev->parent_bus,
-                           ot_darjeeling_soc_devices,
-                           ARRAY_SIZE(ot_darjeeling_soc_devices));
+    ibex_configure_devices_with_id(s->devices, dev->parent_bus, "ot_id", "",
+                                   false, ot_darjeeling_soc_devices,
+                                   ARRAY_SIZE(ot_darjeeling_soc_devices));
 
     Object *oas;
 

@@ -586,7 +586,8 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_UINT_PROP("size", 0x1000u)
+            IBEX_DEV_UINT_PROP("size", 0x1000u),
+            IBEX_DEV_STRING_PROP("ot_id", "ret")
         ),
     },
     [OT_EARLGREY_SOC_DEV_FLASH_CTRL] = {
@@ -754,7 +755,8 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_UINT_PROP("size", 0x20000u)
+            IBEX_DEV_UINT_PROP("size", 0x20000u),
+            IBEX_DEV_STRING_PROP("ot_id", "ram")
         ),
     },
     [OT_EARLGREY_SOC_DEV_ROM_CTRL] = {
@@ -774,7 +776,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             OT_EARLGREY_SOC_DEVLINK("kmac", KMAC)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_STRING_PROP("rom_id", "rom"),
+            IBEX_DEV_STRING_PROP("ot_id", "rom"),
             IBEX_DEV_UINT_PROP("size", 0x8000u),
             IBEX_DEV_UINT_PROP("kmac-app", 2u)
         ),
@@ -1014,14 +1016,14 @@ static void ot_earlgrey_soc_realize(DeviceState *dev, Error **errp)
     (void)errp;
 
     /* Link, define properties and realize devices, then connect GPIOs */
-    ibex_link_devices(s->devices, ot_earlgrey_soc_devices,
-                      ARRAY_SIZE(ot_earlgrey_soc_devices));
-    ibex_define_device_props(s->devices, ot_earlgrey_soc_devices,
-                             ARRAY_SIZE(ot_earlgrey_soc_devices));
-    ibex_realize_system_devices(s->devices, ot_earlgrey_soc_devices,
-                                ARRAY_SIZE(ot_earlgrey_soc_devices));
-    ibex_connect_devices(s->devices, ot_earlgrey_soc_devices,
-                         ARRAY_SIZE(ot_earlgrey_soc_devices));
+    BusState *bus = sysbus_get_default();
+    ibex_configure_devices_with_id(s->devices, bus, "ot_id", "", false,
+                                   ot_earlgrey_soc_devices,
+                                   ARRAY_SIZE(ot_earlgrey_soc_devices));
+
+    MemoryRegion *mrs[] = { get_system_memory(), NULL, NULL, NULL };
+    ibex_map_devices(s->devices, mrs, ot_earlgrey_soc_devices,
+                     ARRAY_SIZE(ot_earlgrey_soc_devices));
 
     /* load kernel if provided */
     ibex_load_kernel(NULL);

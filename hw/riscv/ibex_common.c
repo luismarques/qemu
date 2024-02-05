@@ -316,6 +316,11 @@ void ibex_connect_devices(DeviceState **devices, const IbexDeviceDef *defs,
                     qemu_irq in_gpio =
                         qdev_get_gpio_in_named(devices[in_ix], conn->in.name,
                                                conn->in.num);
+                    if (!in_gpio) {
+                        error_setg(&error_fatal, "no such GPIO '%s.%s[%d]'\n",
+                                   object_get_typename(OBJECT(devices[in_ix])),
+                                   conn->in.name, conn->in.num);
+                    }
                     qdev_connect_gpio_out_named(dev, conn->out.name,
                                                 conn->out.num, in_gpio);
                 }
@@ -471,11 +476,10 @@ void ibex_connect_soc_devices(DeviceState **soc_devices, DeviceState **devices,
                 if (!in_gpio) {
                     error_setg(
                         &error_fatal,
-                        "%s: cannot connect %s.%s.%u, no such IRQ '%s.%s.%u'\n",
-                        __func__, object_get_typename(OBJECT(dev)),
-                        conn->out.name, conn->out.num,
-                        object_get_typename(OBJECT(socdev)), conn->in.name,
-                        in_ix);
+                        "cannot connect %s.%s[%d], no such IRQ '%s.%s[%d]'\n",
+                        object_get_typename(OBJECT(dev)), conn->out.name,
+                        conn->out.num, object_get_typename(OBJECT(socdev)),
+                        conn->in.name, in_ix);
                 }
                 qdev_connect_gpio_out_named(dev, conn->out.name, conn->out.num,
                                             in_gpio);

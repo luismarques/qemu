@@ -203,6 +203,7 @@ ot_kmac_debug(const char *msg) "%s"
 
 ot_lc_ctrl_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
 ot_lc_ctrl_error(const char *msg) "%s"
+ot_lc_ctrl_escalate(const char *fsm, const char *lc) "%s: %s"
 ot_lc_ctrl_info(const char *msg) "%s"
 ot_lc_ctrl_initialize(const char *cst, int cstix, unsigned tcount, const char *state, int six) "%s (%d), tcount %u, state %s (%u)"
 ot_lc_ctrl_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
@@ -210,8 +211,10 @@ ot_lc_ctrl_io_read_out_repeat(uint32_t addr, const char * regname, unsigned coun
 ot_lc_ctrl_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_lc_ctrl_load_otp_token(const char *tk, unsigned tkix, const char *inv, uint64_t hi, uint64_t lo) "token %s (%u) %svalid: 0x%" PRIx64 "%" PRIx64
 ot_lc_ctrl_mismatch_token(const char *tkkind, const char *tkname, unsigned tok, uint64_t htkhi, uint64_t htklo, uint64_t rtkhi, uint64_t rtklo) "%s token %s (%u): 0x%" PRIx64 "%" PRIx64 ", ref 0x%" PRIx64 "%" PRIx64
+ot_lc_ctrl_reset(void) ""
 ot_lc_ctrl_start_transition(const char *sr, const char *kind, const char *cst, int cstix, const char *tst, int tstix, unsigned tcount) "%s start %s transit from %s (%d) to %s (%d) at tcount %u"
 ot_lc_ctrl_transit_request(const char *sr, const char *cst, int cstix, const char *tst, int tstix, const char *tk, int tkix) "%s req. transit from %s (%d) to %s (%d) with token %s (%d)"
+ot_lc_ctrl_update_broadcast(const char *st, const char *bcast, bool olvl, bool nlvl) "%s: %s %u -> %u"
 
 # ot_mbx.c
 

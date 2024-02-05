@@ -264,16 +264,25 @@ typedef enum {
     LC_TK_COUNT,
 } OtLcCtrlToken;
 
+/* ife cycle state group diversification value for keymgr */
+typedef enum {
+    LC_DIV_INVALID,
+    LC_DIV_TEST_DEV_RMA,
+    LC_DIV_PROD,
+} OtLcCtrlKeyMgrDiv;
+
 struct OtLcCtrlState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
     MemoryRegion dmi_mmio;
     IbexIRQ alerts[NUM_ALERTS];
+    IbexIRQ broadcasts[OT_LC_BROADCAST_COUNT];
 
     uint32_t *regs; /* slots in xregs are not used in regs */
     uint32_t xregs[EXCLUSIVE_SLOTS_COUNT][EXCLUSIVE_REGS_COUNT];
     OtLcState lc_state;
+    OtLcCtrlKeyMgrDiv km_div;
     uint32_t lc_tcount;
     OtOTPTokenValue hash_token;
     OtLcCtrlIf owner;
@@ -289,7 +298,6 @@ struct OtLcCtrlState {
     bool volatile_unlocked; /* set on successful volatile unlock */
     uint8_t volatile_raw_unlock_bm; /* xslot-indexed bitmap */
     uint8_t state_invalid_error_bm; /* error bitmap */
-
 
     /* properties */
     OtOTPState *otp_ctrl;
@@ -393,6 +401,22 @@ static const char *LC_STATE_NAMES[] = {
     LC_NAME_ENTRY(LC_STATE_ESCALATE),
     LC_NAME_ENTRY(LC_STATE_INVALID),
 };
+
+static const char *LC_BROADCAST_NAMES[] = {
+    LC_NAME_ENTRY(OT_LC_RAW_TEST_RMA),
+    LC_NAME_ENTRY(OT_LC_DFT_EN),
+    LC_NAME_ENTRY(OT_LC_NVM_DEBUG_EN),
+    LC_NAME_ENTRY(OT_LC_HW_DEBUG_EN),
+    LC_NAME_ENTRY(OT_LC_CPU_EN),
+    LC_NAME_ENTRY(OT_LC_KEYMGR_EN),
+    LC_NAME_ENTRY(OT_LC_ESCALATE_EN),
+    LC_NAME_ENTRY(OT_LC_CHECK_BYP_EN),
+    LC_NAME_ENTRY(OT_LC_CREATOR_SEED_SW_RW_EN),
+    LC_NAME_ENTRY(OT_LC_OWNER_SEED_SW_RW_EN),
+    LC_NAME_ENTRY(OT_LC_ISO_PART_SW_RD_EN),
+    LC_NAME_ENTRY(OT_LC_ISO_PART_SW_WR_EN),
+    LC_NAME_ENTRY(OT_LC_SEED_HW_RD_EN),
+};
 /* clang-format on */
 
 #undef LC_NAME_ENTRY
@@ -413,6 +437,13 @@ static const char *LC_STATE_NAMES[] = {
 #define LC_STATE_NAME(_st_) \
     (((unsigned)(_st_)) < ARRAY_SIZE(LC_STATE_NAMES) ? \
          LC_STATE_NAMES[(_st_)] : \
+         "?")
+
+#define LC_BCAST_BIT(_sig_) (1u << (OT_LC_##_sig_))
+
+#define LC_BCAST_NAME(_bit_) \
+    (((unsigned)(_bit_)) < ARRAY_SIZE(LC_BROADCAST_NAMES) ? \
+         LC_BROADCAST_NAMES[(_bit_)] : \
          "?")
 
 #ifdef OT_LC_CTRL_DEBUG
@@ -452,6 +483,132 @@ ot_lc_ctrl_change_state_line(OtLcCtrlState *s, OtLcCtrlFsmState state, int line)
                                   LC_FSM_STATE_NAME(state), state);
 
     s->state = state;
+}
+
+static void ot_lc_ctrl_update_broadcast(OtLcCtrlState *s)
+{
+    uint32_t sigbm = 0;
+    OtLcCtrlKeyMgrDiv div = LC_DIV_INVALID;
+
+    switch (s->state) {
+    case ST_RESET:
+        break;
+    case ST_IDLE:
+    case ST_CLK_MUX:
+    case ST_CNT_INCR:
+    case ST_CNT_PROG:
+    case ST_TRANS_CHECK:
+    case ST_TOKEN_HASH:
+    case ST_FLASH_RMA:
+    case ST_TOKEN_CHECK0:
+    case ST_TOKEN_CHECK1:
+    case ST_TRANS_PROG:
+        switch (s->lc_state) {
+        case LC_STATE_RAW:
+        case LC_STATE_TESTLOCKED0:
+        case LC_STATE_TESTLOCKED1:
+        case LC_STATE_TESTLOCKED2:
+        case LC_STATE_TESTLOCKED3:
+        case LC_STATE_TESTLOCKED4:
+        case LC_STATE_TESTLOCKED5:
+        case LC_STATE_TESTLOCKED6:
+            sigbm = LC_BCAST_BIT(RAW_TEST_RMA);
+            break;
+        case LC_STATE_TESTUNLOCKED0:
+        case LC_STATE_TESTUNLOCKED1:
+        case LC_STATE_TESTUNLOCKED2:
+        case LC_STATE_TESTUNLOCKED3:
+        case LC_STATE_TESTUNLOCKED4:
+        case LC_STATE_TESTUNLOCKED5:
+        case LC_STATE_TESTUNLOCKED6:
+            sigbm = LC_BCAST_BIT(RAW_TEST_RMA) | LC_BCAST_BIT(DFT_EN) |
+                    LC_BCAST_BIT(NVM_DEBUG_EN) | LC_BCAST_BIT(HW_DEBUG_EN) |
+                    LC_BCAST_BIT(CPU_EN) | LC_BCAST_BIT(ISO_PART_SW_WR_EN);
+            div = LC_DIV_TEST_DEV_RMA;
+            break;
+        case LC_STATE_TESTUNLOCKED7:
+            sigbm = LC_BCAST_BIT(RAW_TEST_RMA) | LC_BCAST_BIT(DFT_EN) |
+                    LC_BCAST_BIT(HW_DEBUG_EN) | LC_BCAST_BIT(CPU_EN) |
+                    LC_BCAST_BIT(ISO_PART_SW_WR_EN);
+            div = LC_DIV_TEST_DEV_RMA;
+            break;
+        case LC_STATE_PROD:
+        case LC_STATE_PRODEND:
+            sigbm = LC_BCAST_BIT(CPU_EN) | LC_BCAST_BIT(KEYMGR_EN) |
+                    LC_BCAST_BIT(OWNER_SEED_SW_RW_EN) |
+                    LC_BCAST_BIT(ISO_PART_SW_WR_EN) |
+                    LC_BCAST_BIT(ISO_PART_SW_RD_EN);
+            /*
+             * "Only allow provisioning if the device has not yet been
+             * personalized."
+             */
+            if (s->regs[R_LC_ID_STATE] == LC_ID_STATE_BLANK) {
+                sigbm |= LC_BCAST_BIT(CREATOR_SEED_SW_RW_EN);
+            }
+            /*
+             * "Only allow hardware to consume the seeds once personalized."
+             */
+            if (s->regs[R_LC_ID_STATE] == LC_ID_STATE_PERSONALIZED) {
+                sigbm |= LC_BCAST_BIT(SEED_HW_RD_EN);
+            }
+            div = LC_DIV_PROD;
+            break;
+        case LC_STATE_DEV:
+            sigbm =
+                LC_BCAST_BIT(HW_DEBUG_EN) | LC_BCAST_BIT(CPU_EN) |
+                LC_BCAST_BIT(KEYMGR_EN) | LC_BCAST_BIT(OWNER_SEED_SW_RW_EN) |
+                LC_BCAST_BIT(ISO_PART_SW_WR_EN);
+            if (s->regs[R_LC_ID_STATE] == LC_ID_STATE_BLANK) {
+                sigbm |= LC_BCAST_BIT(CREATOR_SEED_SW_RW_EN);
+            }
+            if (s->regs[R_LC_ID_STATE] == LC_ID_STATE_PERSONALIZED) {
+                sigbm |= LC_BCAST_BIT(SEED_HW_RD_EN);
+            }
+            div = LC_DIV_TEST_DEV_RMA;
+            break;
+        case LC_STATE_RMA:
+            sigbm =
+                LC_BCAST_BIT(RAW_TEST_RMA) | LC_BCAST_BIT(DFT_EN) |
+                LC_BCAST_BIT(NVM_DEBUG_EN) | LC_BCAST_BIT(HW_DEBUG_EN) |
+                LC_BCAST_BIT(CPU_EN) | LC_BCAST_BIT(KEYMGR_EN) |
+                LC_BCAST_BIT(CHECK_BYP_EN) |
+                LC_BCAST_BIT(CREATOR_SEED_SW_RW_EN) |
+                LC_BCAST_BIT(OWNER_SEED_SW_RW_EN) |
+                LC_BCAST_BIT(ISO_PART_SW_RD_EN) |
+                LC_BCAST_BIT(ISO_PART_SW_WR_EN) | LC_BCAST_BIT(SEED_HW_RD_EN);
+            div = LC_DIV_TEST_DEV_RMA;
+            break;
+        case LC_STATE_SCRAP:
+        default:
+            trace_ot_lc_ctrl_escalate(LC_FSM_STATE_NAME(s->state),
+                                      LC_STATE_NAME(s->lc_state));
+            sigbm = LC_BCAST_BIT(ESCALATE_EN);
+            break;
+        }
+        break;
+    case ST_POST_TRANS:
+        break;
+    case ST_SCRAP:
+    case ST_ESCALATE:
+    case ST_INVALID:
+    default:
+        trace_ot_lc_ctrl_escalate(LC_FSM_STATE_NAME(s->state),
+                                  LC_STATE_NAME(s->lc_state));
+        sigbm = LC_BCAST_BIT(ESCALATE_EN);
+        break;
+    }
+
+    s->km_div = div;
+
+    for (unsigned ix = 0; ix < ARRAY_SIZE(s->broadcasts); ix++) {
+        bool level = (bool)(sigbm & (1u << ix));
+        bool curlvl = (bool)ibex_irq_get_level(&s->broadcasts[ix]);
+        if (level != curlvl) {
+            trace_ot_lc_ctrl_update_broadcast(LC_FSM_STATE_NAME(s->state),
+                                              LC_BCAST_NAME(ix), curlvl, level);
+        }
+        ibex_irq_set(&s->broadcasts[ix], (int)level);
+    }
 }
 
 static bool ot_lc_ctrl_match_token(const OtLcCtrlState *s, OtLcCtrlToken tok)
@@ -1385,6 +1542,8 @@ static void ot_lc_ctrl_reset(DeviceState *dev)
 {
     OtLcCtrlState *s = OT_LC_CTRL(dev);
 
+    trace_ot_lc_ctrl_reset();
+
     g_assert(s->otp_ctrl);
     g_assert(s->kmac);
     g_assert(s->kmac_app != UINT8_MAX);
@@ -1439,10 +1598,16 @@ static void ot_lc_ctrl_reset(DeviceState *dev)
         ibex_irq_set(&s->alerts[ix], 0);
     }
 
+    for (unsigned ix = 0; ix < ARRAY_SIZE(s->broadcasts); ix++) {
+        ibex_irq_set(&s->broadcasts[ix], 0);
+    }
+
     s->lc_state = LC_STATE_INVALID;
     s->lc_tcount = LC_TRANSITION_COUNT_MAX + 1u;
+    s->km_div = LC_DIV_INVALID;
 
     ot_lc_ctrl_initialize(s);
+    ot_lc_ctrl_update_broadcast(s);
 }
 
 static void ot_lc_ctrl_init(Object *obj)
@@ -1460,6 +1625,10 @@ static void ot_lc_ctrl_init(Object *obj)
     s->regs = g_new0(uint32_t, REGS_COUNT);
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
         ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+    }
+
+    for (unsigned ix = 0; ix < ARRAY_SIZE(s->broadcasts); ix++) {
+        ibex_qdev_init_irq(obj, &s->broadcasts[ix], OT_LC_BROADCAST);
     }
 }
 

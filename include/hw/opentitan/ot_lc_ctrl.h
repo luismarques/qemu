@@ -33,4 +33,24 @@
 #define TYPE_OT_LC_CTRL "ot-lc_ctrl"
 OBJECT_DECLARE_SIMPLE_TYPE(OtLcCtrlState, OT_LC_CTRL)
 
+#define OT_LC_BROADCAST TYPE_OT_LC_CTRL "-broadcast"
+
+/* Life cycle broadcast signals */
+typedef enum {
+    OT_LC_RAW_TEST_RMA, /* SoC debug control */
+    OT_LC_DFT_EN, /* pervasive, useless for current QEMU devices */
+    OT_LC_NVM_DEBUG_EN, /* for embed. flash, not used in DJ */
+    OT_LC_HW_DEBUG_EN, /* unfortunately highly pervasive */
+    OT_LC_CPU_EN, /* ibex core */
+    OT_LC_KEYMGR_EN, /* key manager */
+    OT_LC_ESCALATE_EN, /* unfortunately highly pervasive */
+    OT_LC_CHECK_BYP_EN, /* OTP: bypass consistency check while updating */
+    OT_LC_CREATOR_SEED_SW_RW_EN, /* for OTP and embed. flash */
+    OT_LC_OWNER_SEED_SW_RW_EN, /* for embed. flash, not used in DJ, but should*/
+    OT_LC_ISO_PART_SW_RD_EN, /* for embed. flash, not used in DJ */
+    OT_LC_ISO_PART_SW_WR_EN, /* for embed. flash, not used in DJ */
+    OT_LC_SEED_HW_RD_EN, /* for OTP and embed. flash */
+    OT_LC_BROADCAST_COUNT,
+} OtLcCtrlBroadcast;
+
 #endif /* HW_OPENTITAN_OT_LC_CTRL_H */

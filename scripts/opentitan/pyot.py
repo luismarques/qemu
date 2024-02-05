@@ -1227,7 +1227,8 @@ class QEMUExecuter:
         testdir = normpath(self._qfm.interpolate(self._config.get('testdir',
                                                                   curdir)))
         self._qfm.define({'testdir': testdir})
-        tfilters = self._args.filter or ['*']
+        cfilters = self._args.filter or ['*']
+        tfilters = [f for f in cfilters if not f.startswith('!')]
         inc_filters = self._build_config_list('include')
         if inc_filters:
             self._log.debug('Searching for tests from %s dir', testdir)
@@ -1251,9 +1252,11 @@ class QEMUExecuter:
                     pathnames.add(testfile)
         if not pathnames:
             return []
+        xtfilters = [f[1:].strip() for f in cfilters if f.startswith('!')]
         exc_filters = self._build_config_list('exclude')
-        if exc_filters:
-            for path_filter in filter(None, exc_filters):
+        xtfilters.extend(exc_filters)
+        if xtfilters:
+            for path_filter in filter(None, xtfilters):
                 if testdir:
                     path_filter = joinpath(testdir, path_filter)
                 paths = set(glob(path_filter, recursive=True))
@@ -1449,8 +1452,8 @@ def main():
                               f'(default: {DEFAULT_TIMEOUT} secs)')
         exe.add_argument('-F', '--filter', metavar='TEST',
                                action='append',
-                         help='only run tests whose filename matches any '
-                              'defined filter (may be repeated)')
+                         help='run tests with matching filter, prefix with "!" '
+                              'to exclude matching tests')
         exe.add_argument('-v', '--verbose', action='count',
                          help='increase verbosity')
         exe.add_argument('-d', '--debug', action='store_true',

@@ -57,7 +57,7 @@ Execution:
   -k SECONDS, --timeout SECONDS
                         exit after the specified seconds (default: 60 secs)
   -F TEST, --filter TEST
-                        only run tests whose filename matches any defined
+                        run tests with matching filter, prefix with "!" to exclude matching tests
                         filter (may be repeated)
   -v, --verbose         increase verbosity
   -d, --debug           enable debug mode
@@ -80,7 +80,8 @@ This tool may be used in two ways, which can be combined:
 * `-k` / `--timeout` define the maximal duration of each QEMU session. QEMU is terminated or killed
   after this delay if the executed test has not completed in time.
 * `-F` / `--filter` when used, only tests whose filenames match one of the selected filter are
-  considered. This option only applies to tests enumerated from the configuration file.
+  considered. This option only applies to tests enumerated from the configuration file. If a filter
+  starts with '!', any matching test is excluded.
 * `-K` / `--keep-tmp` do not automatically remove temporary files and directories on exit. The user
   is in charge of discarding any generated files and directories after execution. The paths to the
   generated items are emitted as warning messages.

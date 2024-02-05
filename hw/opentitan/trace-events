@@ -175,15 +175,16 @@ ot_hmac_debug(const char *msg) "%s"
 
 # ot_ibex_wrapper.c
 
-ot_ibex_wrapper_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%08x, pc=0x%x"
-ot_ibex_wrapper_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%08x, pc=0x%x"
-ot_ibex_wrapper_info(const char *func, int line, const char *msg) "%s:%d %s"
-ot_ibex_wrapper_map(unsigned slot, uint32_t src, uint32_t dst, uint32_t size, const char *name, uint32_t offset) "region %u from 0x%08x to 0x%08x on 0x%x bytes (%s), off 0x%x"
-ot_ibex_wrapper_fill_entropy(uint32_t bits, bool fips) "0x%08x fips:%u"
-ot_ibex_wrapper_request_entropy(bool again) "%u"
-ot_ibex_wrapper_unmap(unsigned slot) "region %u"
-ot_ibex_wrapper_error(const char *func, int line, const char *msg) "%s:%d %s"
-ot_ibex_wrapper_exit(const char *msg, int val) "%s (%d)"
+ot_ibex_wrapper_error(const char *id, const char *func, int line, const char *msg) "%s: %s:%d %s"
+ot_ibex_wrapper_exit(const char *id, const char *msg, int val) "%s: %s (%d)"
+ot_ibex_wrapper_fill_entropy(const char *id, uint32_t bits, bool fips) "%s: 0x%08x fips:%u"
+ot_ibex_wrapper_info(const char *id, const char *func, int line, const char *msg) "%s: %s:%d %s"
+ot_ibex_wrapper_io_read_out(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%08x, pc=0x%x"
+ot_ibex_wrapper_io_write(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%08x, pc=0x%x"
+ot_ibex_wrapper_map(const char *id, unsigned slot, uint32_t src, uint32_t dst, uint32_t size, const char *name, uint32_t offset) "%s: region %u from 0x%08x to 0x%08x on 0x%x bytes (%s), off 0x%x"
+ot_ibex_wrapper_request_entropy(const char *id, bool again) "%s: %u"
+ot_ibex_wrapper_reset(const char *id) "%s"
+ot_ibex_wrapper_unmap(const char *id, unsigned slot) "%s: region %u"
 
 # ot_kmac.c
 ot_kmac_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
@@ -265,21 +266,22 @@ ot_pinmux_io_write(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%02x, val=0
 
 # ot_pwrmgr.c
 
-ot_pwrmgr_rom_done(int irq, bool good, bool done) "rom #%u good=%u done=%u"
-ot_pwrmgr_wkup(const char *name, unsigned src, bool active) "%s(%u): %u"
-ot_pwrmgr_rst_req(const char *name, unsigned src, bool active) "%s(%u): %u"
-ot_pwrmgr_sw_rst_req(unsigned src, bool active) "%u: %u"
-ot_pwrmgr_reset_req(const char *name, unsigned val) "%s: %u"
-ot_pwrmgr_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
-ot_pwrmgr_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_pwrmgr_io_read_out(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_pwrmgr_io_write(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_pwrmgr_reset(const char *id) "%s"
+ot_pwrmgr_reset_req(const char *id, const char *name, unsigned val) "%s: %s: %u"
+ot_pwrmgr_rom_done(const char *id, int irq, bool good, bool done) "%s: rom #%u good=%u done=%u"
+ot_pwrmgr_rst_req(const char *id, const char *name, unsigned src, bool active) "%s: %s(%u): %u"
+ot_pwrmgr_sw_rst_req(const char *id, unsigned src, bool active) "%s: %u: %u"
+ot_pwrmgr_wkup(const char *id, const char *name, unsigned src, bool active) "%s: %s(%u): %u"
 
 # ot_rom_ctrl.c
 
-ot_rom_ctrl_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
-ot_rom_ctrl_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
-ot_rom_ctrl_mem_read_out(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%04x, val=0x%x, pc=0x%x"
-ot_rom_ctrl_mem_write(uint32_t addr, uint32_t val, uint32_t pc) "addr=0x%04x, val=0x%x, pc=0x%x"
-ot_rom_ctrl_mem_accepts(uint32_t addr, bool is_write, uint32_t pc) "addr=0x%04x, is_write=%u, pc=0x%x"
+ot_rom_ctrl_io_read_out(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_rom_ctrl_io_write(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_rom_ctrl_mem_read_out(const char *id, uint32_t addr, uint32_t val, uint32_t pc) "%s: addr=0x%04x, val=0x%x, pc=0x%x"
+ot_rom_ctrl_mem_write(const char *id, uint32_t addr, uint32_t val, uint32_t pc) "%s: addr=0x%04x, val=0x%x, pc=0x%x"
+ot_rom_ctrl_mem_accepts(const char *id, uint32_t addr, bool is_write, uint32_t pc) "%s: addr=0x%04x, is_write=%u, pc=0x%x"
 
 # ot_rstmgr.c
 
@@ -295,10 +297,10 @@ ot_sensor_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t p
 
 # ot_soc_proxy.c
 
-ot_soc_proxy_io_read_out(const char * mid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
-ot_soc_proxy_io_write(const char * mid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
-ot_soc_proxy_ingress_irq(const char * mid, unsigned n, bool level) "%s: #%u: %u"
-ot_soc_proxy_update_irq(const char * mid, unsigned n, int prev, int next) "%s: #%u %d -> %d"
+ot_soc_proxy_ingress_irq(const char * id, unsigned n, bool level) "%s: #%u: %u"
+ot_soc_proxy_io_read_out(const char * id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_soc_proxy_io_write(const char * id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_soc_proxy_update_irq(const char * id, unsigned n, int prev, int next) "%s: #%u %d -> %d"
 
 # ot_spi_device.c
 
@@ -350,8 +352,8 @@ ot_spi_host_debug1(const char *msg, uint32_t val) "%s 0x%x"
 
 # ot_sram_ctrl.c
 
-ot_sram_ctrl_io_read_out(const char *sid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
-ot_sram_ctrl_io_write(const char *sid, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_sram_ctrl_io_read_out(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
+ot_sram_ctrl_io_write(const char *id, uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "%s: addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
 # ot_timer.c
 

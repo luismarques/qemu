@@ -608,7 +608,7 @@ static uint32_t ot_spi_host_build_event_bits(OtSPIHostState *s)
 enum OtSPIHostIrq {
     IRQ_ERROR,
     IRQ_SPI_EVENT,
-    _IRQ_COUNT,
+    IRQ_COUNT,
 };
 
 static bool ot_spi_host_update_event(OtSPIHostState *s)
@@ -1259,7 +1259,7 @@ static void ot_spi_host_instance_init(Object *obj)
                           0x1000u);
     sysbus_init_mmio(SYS_BUS_DEVICE(obj), &s->mmio);
 
-    _Static_assert(_IRQ_COUNT == ARRAY_SIZE(s->irqs), "Incoherent IRQ count");
+    _Static_assert(IRQ_COUNT == ARRAY_SIZE(s->irqs), "Incoherent IRQ count");
 
     ibex_qdev_init_irqs(obj, &s->irqs[0u], SYSBUS_DEVICE_GPIO_IRQ,
                         ARRAY_SIZE(s->irqs));

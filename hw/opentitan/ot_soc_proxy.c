@@ -116,7 +116,7 @@ struct OtSoCProxyState {
     IbexIRQ alerts[PARAM_NUM_ALERTS];
     uint32_t regs[REGS_COUNT];
 
-    char *soc_proxy_id;
+    char *ot_id;
 };
 
 static void ot_soc_proxy_update_irqs(OtSoCProxyState *s)
@@ -126,7 +126,7 @@ static void ot_soc_proxy_update_irqs(OtSoCProxyState *s)
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
         int level = (int)(bool)(levels & (1u << ix));
         if (level != ibex_irq_get_level(&s->irqs[ix])) {
-            trace_ot_soc_proxy_update_irq(s->soc_proxy_id, ix,
+            trace_ot_soc_proxy_update_irq(s->ot_id, ix,
                                           ibex_irq_get_level(&s->irqs[ix]),
                                           level);
         }
@@ -140,7 +140,7 @@ static void ot_soc_proxy_ingress_irq(void *opaque, int n, int level)
 
     g_assert(n < INTR_COUNT);
 
-    trace_ot_soc_proxy_ingress_irq(s->soc_proxy_id, (unsigned)n, (bool)level);
+    trace_ot_soc_proxy_ingress_irq(s->ot_id, (unsigned)n, (bool)level);
 
     uint32_t bm = 1u << n;
     if (level) { /* RW1S */
@@ -177,8 +177,8 @@ static uint64_t ot_soc_proxy_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_soc_proxy_io_read_out(s->soc_proxy_id, (uint32_t)addr,
-                                   REG_NAME(reg), val32, pc);
+    trace_ot_soc_proxy_io_read_out(s->ot_id, (uint32_t)addr, REG_NAME(reg),
+                                   val32, pc);
 
     return (uint64_t)val32;
 };
@@ -193,8 +193,8 @@ static void ot_soc_proxy_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_soc_proxy_io_write(s->soc_proxy_id, (uint32_t)addr, REG_NAME(reg),
-                                val32, pc);
+    trace_ot_soc_proxy_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
+                                pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -225,7 +225,7 @@ static void ot_soc_proxy_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 }
 
 static Property ot_soc_proxy_properties[] = {
-    DEFINE_PROP_STRING("id", OtSoCProxyState, soc_proxy_id),
+    DEFINE_PROP_STRING("ot_id", OtSoCProxyState, ot_id),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -241,7 +241,7 @@ static void ot_soc_proxy_reset(DeviceState *dev)
 {
     OtSoCProxyState *s = OT_SOC_PROXY(dev);
 
-    g_assert(s->soc_proxy_id);
+    g_assert(s->ot_id);
 
     memset(s->regs, 0, sizeof(s->regs));
 

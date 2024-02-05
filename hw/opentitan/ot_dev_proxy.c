@@ -297,17 +297,17 @@ static void ot_dev_proxy_enumerate_devices(OtDevProxyState *s)
         if (object_dynamic_cast(item->obj, TYPE_OT_MBX)) {
             memcpy(&entry->desc[0u], item->prefix, 4u);
             const char *oid =
-                object_property_get_str(item->obj, "id", &error_fatal);
+                object_property_get_str(item->obj, "ot_id", &error_fatal);
             memcpy(&entry->desc[4u], oid, 4u);
         } else if (object_dynamic_cast(item->obj, TYPE_OT_SOC_PROXY)) {
             memcpy(&entry->desc[0u], item->prefix, 4u);
             const char *oid =
-                object_property_get_str(item->obj, "id", &error_fatal);
+                object_property_get_str(item->obj, "ot_id", &error_fatal);
             memcpy(&entry->desc[4u], oid, 4u);
         } else if (object_dynamic_cast(item->obj, TYPE_OT_SRAM_CTRL)) {
             memcpy(&entry->desc[0u], item->prefix, 2u);
             const char *oid =
-                object_property_get_str(item->obj, "id", &error_fatal);
+                object_property_get_str(item->obj, "ot_id", &error_fatal);
             memcpy(&entry->desc[2u], oid, 6u);
         } else if (object_dynamic_cast(item->obj, TYPE_MEMORY_REGION)) {
             g_assert(mrcount < 10u);

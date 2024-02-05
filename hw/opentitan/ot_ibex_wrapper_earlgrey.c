@@ -160,10 +160,10 @@ static const char *REG_NAMES[REGS_COUNT] = {
 
 static const char MISSING_LOG_STRING[] = "(?)";
 
-#define xtrace_ot_ibex_wrapper_info(_msg_) \
-    trace_ot_ibex_wrapper_info(__func__, __LINE__, _msg_)
-#define xtrace_ot_ibex_wrapper_error(_msg_) \
-    trace_ot_ibex_wrapper_error(__func__, __LINE__, _msg_)
+#define xtrace_ot_ibex_wrapper_info(_s_, _msg_) \
+    trace_ot_ibex_wrapper_info((_s_)->ot_id, __func__, __LINE__, _msg_)
+#define xtrace_ot_ibex_wrapper_error(_s_, _msg_) \
+    trace_ot_ibex_wrapper_error((_s_)->ot_id, __func__, __LINE__, _msg_)
 
 #define OtIbexWrapperEgState OtIbexWrapperEarlGreyState
 
@@ -231,6 +231,7 @@ struct OtIbexWrapperEgState {
     bool entropy_requested;
     bool edn_connected;
 
+    char *ot_id;
     OtEDNState *edn;
     uint8_t edn_ep;
     CharBackend chr;
@@ -246,7 +247,7 @@ ot_ibex_wrapper_eg_remapper_destroy(OtIbexWrapperEgState *s, unsigned slot)
     g_assert(slot < PARAM_NUM_REGIONS);
     MemoryRegion *mr = &s->remappers[slot];
     if (memory_region_is_mapped(mr)) {
-        trace_ot_ibex_wrapper_unmap(slot);
+        trace_ot_ibex_wrapper_unmap(s->ot_id, slot);
         memory_region_transaction_begin();
         memory_region_set_enabled(mr, false);
         /* QEMU memory model enables unparenting alias regions */
@@ -281,7 +282,7 @@ static void ot_ibex_wrapper_eg_remapper_create(
     size_t mrs_lsize = int128_getlo(mrs.size);
     mr_dst = (mrs.mr && mrs_lsize >= size) ? mrs.mr : sys_mem;
     hwaddr offset = dst - mr_dst->addr;
-    trace_ot_ibex_wrapper_map(slot, src, dst, size, mr_dst->name,
+    trace_ot_ibex_wrapper_map(s->ot_id, slot, src, dst, size, mr_dst->name,
                               (uint32_t)offset);
     memory_region_init_alias(mr, OBJECT(s), name, mr_dst, offset,
                              (uint64_t)size);
@@ -300,7 +301,7 @@ ot_ibex_wrapper_eg_fill_entropy(void *opaque, uint32_t bits, bool fips)
 {
     OtIbexWrapperEgState *s = opaque;
 
-    trace_ot_ibex_wrapper_fill_entropy(bits, fips);
+    trace_ot_ibex_wrapper_fill_entropy(s->ot_id, bits, fips);
 
     s->regs[R_RND_DATA] = bits;
     s->regs[R_RND_STATUS] = R_RND_STATUS_RND_DATA_VALID_MASK;
@@ -320,10 +321,10 @@ static void ot_ibex_wrapper_eg_request_entropy(OtIbexWrapperEgState *s)
             s->edn_connected = true;
         }
         s->entropy_requested = true;
-        trace_ot_ibex_wrapper_request_entropy(s->entropy_requested);
+        trace_ot_ibex_wrapper_request_entropy(s->ot_id, s->entropy_requested);
         if (ot_edn_request_entropy(s->edn, s->edn_ep)) {
             s->entropy_requested = false;
-            xtrace_ot_ibex_wrapper_error("failed to request entropy");
+            xtrace_ot_ibex_wrapper_error(s, "failed to request entropy");
         }
     }
 }
@@ -351,14 +352,14 @@ static void ot_ibex_wrapper_eg_update_remap(OtIbexWrapperEgState *s, bool doi,
         uint32_t src_match_d = s->regs[R_DBUS_ADDR_MATCHING_0 + slot];
         if (src_match_i != src_match_d) {
             /* I and D do not match, do nothing */
-            xtrace_ot_ibex_wrapper_info("src remapping do not match");
+            xtrace_ot_ibex_wrapper_info(s, "src remapping do not match");
             return;
         }
         uint32_t remap_addr_i = s->regs[R_IBUS_REMAP_ADDR_0 + slot];
         uint32_t remap_addr_d = s->regs[R_DBUS_REMAP_ADDR_0 + slot];
         if (remap_addr_i != remap_addr_d) {
             /* I and D do not match, do nothing */
-            xtrace_ot_ibex_wrapper_info("dst remapping do not match");
+            xtrace_ot_ibex_wrapper_info(s, "dst remapping do not match");
             return;
         }
         /* enable */
@@ -393,18 +394,18 @@ static bool ot_ibex_wrapper_eg_log_load_string(OtIbexWrapperEgState *s,
     mrs = memory_region_find(eng->as->root, addr, 4u);
     MemoryRegion *mr = mrs.mr;
     if (!mr) {
-        xtrace_ot_ibex_wrapper_error("cannot find mr section");
+        xtrace_ot_ibex_wrapper_error(s, "cannot find mr section");
         goto end;
     }
 
     if (!memory_region_is_ram(mr)) {
-        xtrace_ot_ibex_wrapper_error("invalid mr section");
+        xtrace_ot_ibex_wrapper_error(s, "invalid mr section");
         goto end;
     }
 
     uintptr_t src = (uintptr_t)memory_region_get_ram_ptr(mr);
     if (!src) {
-        xtrace_ot_ibex_wrapper_error("cannot get host mem");
+        xtrace_ot_ibex_wrapper_error(s, "cannot get host mem");
         goto end;
     }
     src += mrs.offset_within_region;
@@ -414,7 +415,7 @@ static bool ot_ibex_wrapper_eg_log_load_string(OtIbexWrapperEgState *s,
 
     const void *end = memchr((const void *)src, '\0', size);
     if (!end) {
-        xtrace_ot_ibex_wrapper_error("cannot compute strlen");
+        xtrace_ot_ibex_wrapper_error(s, "cannot compute strlen");
         goto end;
     }
     size_t slen = (uintptr_t)end - (uintptr_t)src;
@@ -445,18 +446,18 @@ ot_ibex_wrapper_eg_log_load_fields(OtIbexWrapperEgState *s, hwaddr addr)
     bool res = false;
 
     if (!mr) {
-        xtrace_ot_ibex_wrapper_error("cannot find mr section");
+        xtrace_ot_ibex_wrapper_error(s, "cannot find mr section");
         goto end;
     }
 
     if (!memory_region_is_ram(mr)) {
-        xtrace_ot_ibex_wrapper_error("invalid mr section");
+        xtrace_ot_ibex_wrapper_error(s, "invalid mr section");
         goto end;
     }
 
     uintptr_t src = (uintptr_t)memory_region_get_ram_ptr(mr);
     if (!src) {
-        xtrace_ot_ibex_wrapper_error("cannot get host mem");
+        xtrace_ot_ibex_wrapper_error(s, "cannot get host mem");
         goto end;
     }
     src += mrs.offset_within_region;
@@ -468,7 +469,7 @@ ot_ibex_wrapper_eg_log_load_fields(OtIbexWrapperEgState *s, hwaddr addr)
                                                 (uintptr_t)
                                                     eng->fields.file_name_ptr,
                                                 &eng->filename)) {
-            xtrace_ot_ibex_wrapper_error("cannot get filename");
+            xtrace_ot_ibex_wrapper_error(s, "cannot get filename");
             goto end;
         }
     }
@@ -478,7 +479,7 @@ ot_ibex_wrapper_eg_log_load_fields(OtIbexWrapperEgState *s, hwaddr addr)
                                                 (uintptr_t)
                                                     eng->fields.format_ptr,
                                                 &eng->format)) {
-            xtrace_ot_ibex_wrapper_error("cannot get format string");
+            xtrace_ot_ibex_wrapper_error(s, "cannot get format string");
             goto end;
         }
     }
@@ -508,7 +509,7 @@ ot_ibex_wrapper_eg_log_load_arg(OtIbexWrapperEgState *s, uint32_t value)
     OtIbexTestLogEngine *eng = s->log_engine;
 
     if (!eng->fmtptr) {
-        xtrace_ot_ibex_wrapper_error("invalid fmtptr");
+        xtrace_ot_ibex_wrapper_error(s, "invalid fmtptr");
         return false;
     }
 
@@ -517,7 +518,7 @@ ot_ibex_wrapper_eg_log_load_arg(OtIbexWrapperEgState *s, uint32_t value)
         cont = false;
         eng->fmtptr = strchr(eng->fmtptr, '%');
         if (!eng->fmtptr) {
-            xtrace_ot_ibex_wrapper_error("cannot find formatter");
+            xtrace_ot_ibex_wrapper_error(s, "cannot find formatter");
             return false;
         }
         eng->fmtptr++;
@@ -527,12 +528,12 @@ ot_ibex_wrapper_eg_log_load_arg(OtIbexWrapperEgState *s, uint32_t value)
             cont = true;
             continue;
         case '\0':
-            xtrace_ot_ibex_wrapper_error("cannot find formatter");
+            xtrace_ot_ibex_wrapper_error(s, "cannot find formatter");
             return false;
         case 's':
             if (!ot_ibex_wrapper_eg_log_load_string(
                     s, (hwaddr)value, (char **)&eng->args[eng->arg_count])) {
-                xtrace_ot_ibex_wrapper_error("cannot load string arg");
+                xtrace_ot_ibex_wrapper_error(s, "cannot load string arg");
                 /* use a default string, best effort strategy */
                 eng->args[eng->arg_count] = (uintptr_t)&MISSING_LOG_STRING[0];
             } else {
@@ -741,7 +742,7 @@ ot_ibex_wrapper_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_ibex_wrapper_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_ibex_wrapper_io_read_out(s->ot_id, addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -756,7 +757,7 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_ibex_wrapper_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_ibex_wrapper_io_write(s->ot_id, addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_ALERT_TEST:
@@ -840,7 +841,7 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
         ot_ibex_wrapper_eg_status_report(s, val32);
         switch (val32) {
         case TEST_STATUS_PASSED:
-            trace_ot_ibex_wrapper_exit("DV SIM success, exiting", 0);
+            trace_ot_ibex_wrapper_exit(s->ot_id, "DV SIM success, exiting", 0);
             exit(0);
             break;
         case TEST_STATUS_FAILED: {
@@ -852,7 +853,8 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
             } else {
                 ret = (int)(info & 0x7fu);
             }
-            trace_ot_ibex_wrapper_exit("DV SIM failure, exiting", ret);
+            trace_ot_ibex_wrapper_exit(s->ot_id, "DV SIM failure, exiting",
+                                       ret);
             exit(ret);
             break;
         }
@@ -871,6 +873,7 @@ static void ot_ibex_wrapper_eg_regs_write(void *opaque, hwaddr addr,
 };
 
 static Property ot_ibex_wrapper_eg_properties[] = {
+    DEFINE_PROP_STRING("ot_id", OtIbexWrapperEgState, ot_id),
     DEFINE_PROP_LINK("edn", OtIbexWrapperEgState, edn, TYPE_OT_EDN,
                      OtEDNState *),
     DEFINE_PROP_UINT8("edn-ep", OtIbexWrapperEgState, edn_ep, UINT8_MAX),
@@ -889,6 +892,9 @@ static const MemoryRegionOps ot_ibex_wrapper_eg_regs_ops = {
 static void ot_ibex_wrapper_eg_reset(DeviceState *dev)
 {
     OtIbexWrapperEgState *s = OT_IBEX_WRAPPER_EARLGREY(dev);
+
+    g_assert(s->ot_id);
+    trace_ot_ibex_wrapper_reset(s->ot_id);
 
     g_assert(s->edn);
     g_assert(s->edn_ep != UINT8_MAX);

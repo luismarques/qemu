@@ -193,15 +193,15 @@ typedef enum {
     ERR_BASE_LIMIT,
     ERR_RANGE_VALID,
     ERR_ASID,
-    _ERR_COUNT
+    ERR_COUNT
 } OtDMAError;
 
 typedef enum {
     AS_OT,
     AS_CTN,
     AS_SYS,
-    _AS_COUNT,
-    AS_INVALID = _AS_COUNT
+    AS_COUNT,
+    AS_INVALID = AS_COUNT
 } OtDMAAddrSpace;
 
 typedef enum {
@@ -243,7 +243,7 @@ struct OtDMAState {
     MemoryRegion mmio;
     IbexIRQ irqs[PARAM_NUM_IRQS];
     IbexIRQ alerts[PARAM_NUM_ALERTS];
-    AddressSpace *ases[_AS_COUNT];
+    AddressSpace *ases[AS_COUNT];
     QEMUTimer *timer;
 
     OtDMASM state;
@@ -251,10 +251,10 @@ struct OtDMAState {
     OtDMASHA sha;
     uint32_t *regs;
 
+    char *ot_id;
     char *ot_as_name; /* private AS unique name */
     char *ctn_as_name; /* externel port AS unique name */
     char *sys_as_name; /* external system AS unique name */
-    char *dma_id;
 #ifdef OT_DMA_HAS_ROLE
     uint8_t role;
 #endif
@@ -389,7 +389,7 @@ static const char *STATE_NAMES[] = {
     ot_dma_change_state_line(_f_, SM_##_sst_, __LINE__)
 
 #define ot_dma_set_xerror(_s_, _err_) \
-    trace_ot_dma_set_error((_s_)->dma_id, __func__, __LINE__, \
+    trace_ot_dma_set_error((_s_)->ot_id, __func__, __LINE__, \
                            DMA_ERROR(_err_)); \
     ot_dma_set_error(_s_, (_err_))
 
@@ -474,7 +474,7 @@ static bool ot_dma_is_configurable(const OtDMAState *s)
 
 static void ot_dma_set_error(OtDMAState *s, unsigned err)
 {
-    g_assert(err < _ERR_COUNT);
+    g_assert(err < ERR_COUNT);
 
     s->regs[R_STATUS] |= R_STATUS_ERROR_MASK;
     s->regs[R_ERROR_CODE] |= DMA_ERROR(err);
@@ -492,7 +492,7 @@ static void ot_dma_check_range(OtDMAState *s, bool d_or_s, bool cross_ot)
 
     if (lstart > lend) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: %s DMA invalid range\n",
-                      __func__, s->dma_id, d_or_s ? "Dest" : "Src");
+                      __func__, s->ot_id, d_or_s ? "Dest" : "Src");
         ot_dma_set_xerror(s, ERR_BASE_LIMIT);
         return;
     }
@@ -509,7 +509,7 @@ static void ot_dma_check_range(OtDMAState *s, bool d_or_s, bool cross_ot)
 
     if (tend < tstart) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: %s DMA end overflow\n",
-                      __func__, s->dma_id, d_or_s ? "Dest" : "Src");
+                      __func__, s->ot_id, d_or_s ? "Dest" : "Src");
         ot_dma_set_xerror(s, ERR_SIZE);
         return;
     }
@@ -518,7 +518,7 @@ static void ot_dma_check_range(OtDMAState *s, bool d_or_s, bool cross_ot)
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: %s DMA starts in prohibited region "
                       "0x%08x < 0x%08x\n",
-                      __func__, s->dma_id, d_or_s ? "Dest" : "Src", tstart,
+                      __func__, s->ot_id, d_or_s ? "Dest" : "Src", tstart,
                       lstart);
         ot_dma_set_xerror(s, d_or_s ? ERR_DEST_ADDR : ERR_SRC_ADDR);
         return;
@@ -528,7 +528,7 @@ static void ot_dma_check_range(OtDMAState *s, bool d_or_s, bool cross_ot)
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: %s DMA ends in prohibited region "
                       "0x%08x > 0x%08x\n",
-                      __func__, s->dma_id, d_or_s ? "Dest" : "Src", tend, lend);
+                      __func__, s->ot_id, d_or_s ? "Dest" : "Src", tend, lend);
         ot_dma_set_xerror(s, d_or_s ? ERR_DEST_ADDR : ERR_SRC_ADDR);
         return;
     }
@@ -547,7 +547,7 @@ static OtDMAAddrSpace ot_dma_get_asid(OtDMAState *s, bool d_or_s)
     case ASID_SYS:
         return AS_SYS;
     default:
-        return _AS_COUNT;
+        return AS_COUNT;
     }
 }
 
@@ -556,16 +556,16 @@ ot_dma_check_device(OtDMAState *s, bool d_or_s, OtDMAAddrSpace *asix,
                     bool *is_dev, hwaddr *offset)
 {
     OtDMAAddrSpace aix = ot_dma_get_asid(s, d_or_s);
-    if (aix >= _AS_COUNT) {
+    if (aix >= AS_COUNT) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Invalid address space\n",
-                      __func__, s->dma_id);
+                      __func__, s->ot_id);
         ot_dma_set_xerror(s, ERR_ASID);
         return NULL;
     }
 
     if (!s->ases[aix]) {
         error_setg(&error_fatal, "%s: %s: %s address space not configured",
-                   __func__, s->dma_id, AS_NAME(aix));
+                   __func__, s->ot_id, AS_NAME(aix));
         return NULL;
     }
 
@@ -582,21 +582,21 @@ ot_dma_check_device(OtDMAState *s, bool d_or_s, OtDMAAddrSpace *asix,
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Invalid %s address as:%s "
                       "addr: 0x%" HWADDR_PRIx " size: 0x%" HWADDR_PRIx "\n",
-                      __func__, s->dma_id, d_or_s ? "dest" : "src",
-                      AS_NAME(aix), start, size);
+                      __func__, s->ot_id, d_or_s ? "dest" : "src", AS_NAME(aix),
+                      start, size);
         ot_dma_set_xerror(s, d_or_s ? ERR_DEST_ADDR : ERR_SRC_ADDR);
         return NULL;
     }
 
     if (mrs.offset_within_region + mrs.size < size) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Invalid size\n", __func__,
-                      s->dma_id);
+                      s->ot_id);
         ot_dma_set_xerror(s, ERR_SIZE);
         memory_region_unref(mrs.mr);
         return NULL;
     }
 
-    trace_ot_dma_check_device(s->dma_id, d_or_s ? "Dest" : "Src", AS_NAME(aix),
+    trace_ot_dma_check_device(s->ot_id, d_or_s ? "Dest" : "Src", AS_NAME(aix),
                               start, size, mrs.mr->name, mrs.mr->ram);
     *asix = aix;
     *is_dev = !mrs.mr->ram;
@@ -621,33 +621,33 @@ static bool ot_dma_go(OtDMAState *s)
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Invalid transaction width for hashing\n",
-                      __func__, s->dma_id);
+                      __func__, s->ot_id);
         ot_dma_set_xerror(s, ERR_SIZE);
     }
 
     /* DEVICE mode not yet supported */
     if (FIELD_EX32(s->regs[R_CONTROL], CONTROL, HW_HANDSHAKE_EN)) {
         qemu_log_mask(LOG_UNIMP, "%s: %s: Handshake mode is not supported\n",
-                      __func__, s->dma_id);
+                      __func__, s->ot_id);
         ot_dma_set_xerror(s, ERR_BUS);
     }
 
     if (s->regs[R_TOTAL_DATA_SIZE] == 0) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Invalid total size\n", __func__,
-                      s->dma_id);
+                      s->ot_id);
         ot_dma_set_xerror(s, ERR_SIZE);
     }
 
     if (s->regs[R_CHUNK_DATA_SIZE] == 0) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Invalid chunk size\n", __func__,
-                      s->dma_id);
+                      s->ot_id);
         ot_dma_set_xerror(s, ERR_SIZE);
     }
 
     if (s->regs[R_TOTAL_DATA_SIZE] != s->regs[R_CHUNK_DATA_SIZE]) {
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Chunk size differs from total size\n", __func__,
-                      s->dma_id);
+                      s->ot_id);
         ot_dma_set_xerror(s, ERR_SIZE);
     }
 
@@ -674,7 +674,7 @@ static bool ot_dma_go(OtDMAState *s)
     default:
         desc = NULL;
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Invalid opcode %u\n", __func__,
-                      s->dma_id, sha_mode);
+                      s->ot_id, sha_mode);
         ot_dma_set_xerror(s, ERR_OPCODE);
     }
 
@@ -682,7 +682,7 @@ static bool ot_dma_go(OtDMAState *s)
         if (s->regs[R_TRANSFER_WIDTH] != TRANSACTION_WIDTH_WORD) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s: Invalid transaction width for hashing\n",
-                          __func__, s->dma_id);
+                          __func__, s->ot_id);
             ot_dma_set_xerror(s, ERR_SIZE);
         }
     }
@@ -724,7 +724,7 @@ static bool ot_dma_go(OtDMAState *s)
      */
     if ((sasix == AS_SYS) && (dasix == AS_SYS)) {
         qemu_log_mask(LOG_UNIMP, "%s: %s: SYS-to-SYS is not supported\n",
-                      __func__, s->dma_id);
+                      __func__, s->ot_id);
         ot_dma_set_xerror(s, ERR_ASID);
     }
 
@@ -735,7 +735,7 @@ static bool ot_dma_go(OtDMAState *s)
     if (sdev && ddev) {
         /* could be done w/ an intermediate buffer, but likely useless */
         qemu_log_mask(LOG_UNIMP, "%s: %s: DEV-to-DEV is not supported\n",
-                      __func__, s->dma_id);
+                      __func__, s->ot_id);
         ot_dma_set_xerror(s, ERR_BUS);
     }
 
@@ -767,7 +767,7 @@ static bool ot_dma_go(OtDMAState *s)
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Src 0x%" HWADDR_PRIx
                       " not aligned on TRANSFER_WIDTH\n",
-                      __func__, s->dma_id, soffset);
+                      __func__, s->ot_id, soffset);
         ot_dma_set_xerror(s, ERR_SRC_ADDR);
     }
 
@@ -775,14 +775,14 @@ static bool ot_dma_go(OtDMAState *s)
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Dest 0x%" HWADDR_PRIx
                       " not aligned on TRANSFER_WIDTH\n",
-                      __func__, s->dma_id, doffset);
+                      __func__, s->ot_id, doffset);
         ot_dma_set_xerror(s, ERR_DEST_ADDR);
     }
 
     if (sasix != AS_SYS) {
         if (s->regs[R_SRC_ADDR_HI] != 0) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Src address is too large\n",
-                          __func__, s->dma_id);
+                          __func__, s->ot_id);
             ot_dma_set_xerror(s, ERR_SRC_ADDR);
         }
     }
@@ -791,14 +791,14 @@ static bool ot_dma_go(OtDMAState *s)
         if (s->regs[R_DEST_ADDR_HI] != 0) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s: Dest address is too large\n", __func__,
-                          s->dma_id);
+                          s->ot_id);
             ot_dma_set_xerror(s, ERR_SRC_ADDR);
         }
     }
 
     if (!ot_dma_is_range_validated(s)) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s: Memory range not validated\n",
-                      __func__, s->dma_id);
+                      __func__, s->ot_id);
         ot_dma_set_xerror(s, ERR_RANGE_VALID);
     }
 
@@ -812,7 +812,7 @@ static bool ot_dma_go(OtDMAState *s)
             qemu_log_mask(LOG_UNIMP,
                           "%s: %s: Src device does not supported "
                           "requested width: %u, max %d\n",
-                          __func__, s->dma_id, twidth, dwidth);
+                          __func__, s->ot_id, twidth, dwidth);
             ot_dma_set_xerror(s, ERR_SRC_ADDR);
         }
     }
@@ -826,7 +826,7 @@ static bool ot_dma_go(OtDMAState *s)
             qemu_log_mask(LOG_UNIMP,
                           "%s: %s: Dest device does not supported "
                           "requested width: %u, max %d\n",
-                          __func__, s->dma_id, twidth, dwidth);
+                          __func__, s->ot_id, twidth, dwidth);
             ot_dma_set_xerror(s, ERR_DEST_ADDR);
         }
     }
@@ -871,7 +871,7 @@ static bool ot_dma_go(OtDMAState *s)
 
     g_assert(op->as);
 
-    trace_ot_dma_new_op(s->dma_id, op->write ? "write" : "read",
+    trace_ot_dma_new_op(s->ot_id, op->write ? "write" : "read",
                         AS_NAME(op->asix), op->mr->name, op->addr, op->size);
 
     s->regs[R_STATUS] &=
@@ -893,7 +893,7 @@ static void ot_dma_abort(OtDMAState *s)
         return;
     }
 
-    trace_ot_dma_abort(s->dma_id);
+    trace_ot_dma_abort(s->ot_id);
 
     s->regs[R_CONTROL] |= R_CONTROL_ABORT_MASK;
 
@@ -914,7 +914,7 @@ static void ot_dma_complete(OtDMAState *s)
         s->regs[R_STATUS] |= R_STATUS_ABORTED_MASK;
         s->regs[R_INTR_STATE] |= INTR_DMA_ERROR_MASK;
 
-        trace_ot_dma_complete(s->dma_id, -1);
+        trace_ot_dma_complete(s->ot_id, -1);
 
         CHANGE_STATE(s, IDLE);
     } else if (s->regs[R_CONTROL] & R_CONTROL_GO_MASK) {
@@ -922,7 +922,7 @@ static void ot_dma_complete(OtDMAState *s)
             s->regs[R_CONTROL] &= ~R_CONTROL_GO_MASK;
         }
 
-        trace_ot_dma_complete(s->dma_id, (int)op->res);
+        trace_ot_dma_complete(s->ot_id, (int)op->res);
 
         if (op->mr) {
             memory_region_unref(op->mr);
@@ -996,7 +996,7 @@ static void ot_dma_transfer(void *opaque)
 
         hwaddr size = MIN(op->size, DMA_TRANSFER_BLOCK_SIZE);
 
-        trace_ot_dma_transfer(s->dma_id, op->write ? "write" : "read",
+        trace_ot_dma_transfer(s->ot_id, op->write ? "write" : "read",
                               AS_NAME(op->asix), op->addr, size);
         op->res = address_space_rw(op->as, op->addr, op->attrs, op->buf, size,
                                    op->write);
@@ -1076,19 +1076,19 @@ static uint64_t ot_dma_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_ALERT_TEST:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: W/O register 0x%02" HWADDR_PRIx " (%s)\n",
-                      __func__, s->dma_id, addr, REG_NAME(reg));
+                      __func__, s->ot_id, addr, REG_NAME(reg));
         val32 = 0;
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: Bad offset 0x%" HWADDR_PRIx "\n", __func__,
-                      s->dma_id, addr);
+                      s->ot_id, addr);
         val32 = 0;
         break;
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_dma_io_read_out(s->dma_id, (uint32_t)addr, REG_NAME(reg), val32,
+    trace_ot_dma_io_read_out(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
                              pc);
 
     return (uint64_t)val32;
@@ -1104,7 +1104,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_dma_io_write(s->dma_id, (uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_dma_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_INTR_STATE:
@@ -1122,7 +1122,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         if (!ot_dma_is_configurable(s)) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s: %s (0x%03x) not configurable", __func__,
-                          s->dma_id, REG_NAME(reg), (uint32_t)addr);
+                          s->ot_id, REG_NAME(reg), (uint32_t)addr);
             return;
         }
         break;
@@ -1161,7 +1161,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         qemu_log_mask(LOG_UNIMP,
                       "%s: %s: Limit reg 0x%02" HWADDR_PRIx " (%s) is not "
                       "supported\n",
-                      __func__, s->dma_id, addr, REG_NAME(reg));
+                      __func__, s->ot_id, addr, REG_NAME(reg));
         s->regs[reg] = val32;
         break;
     case R_ENABLED_MEMORY_RANGE_BASE:
@@ -1171,7 +1171,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         } else {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s: 0x%02" HWADDR_PRIx " (%s) is locked\n",
-                          __func__, s->dma_id, addr, REG_NAME(reg));
+                          __func__, s->ot_id, addr, REG_NAME(reg));
             /* not sure what to do here, should we set an error? */
         }
         break;
@@ -1183,7 +1183,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         qemu_log_mask(LOG_UNIMP,
                       "%s: %s: Handshake reg 0x%02" HWADDR_PRIx " (%s) is not "
                       "supported\n",
-                      __func__, s->dma_id, addr, REG_NAME(reg));
+                      __func__, s->ot_id, addr, REG_NAME(reg));
         val32 &= R_HANDSHAKE_INTR_ENABLE_MASK;
         s->regs[reg] = val32;
         break;
@@ -1198,7 +1198,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         } else {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s: 0x%02" HWADDR_PRIx " (%s) is locked\n",
-                          __func__, s->dma_id, addr, REG_NAME(reg));
+                          __func__, s->ot_id, addr, REG_NAME(reg));
         }
         break;
     case R_RANGE_REGWEN:
@@ -1221,7 +1221,7 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
             } else {
                 qemu_log_mask(LOG_GUEST_ERROR,
                               "%s: %s: cannot start DMA from state %s\n",
-                              __func__, s->dma_id, STATE_NAME(s->state));
+                              __func__, s->ot_id, STATE_NAME(s->state));
             }
         }
     } break;
@@ -1252,23 +1252,23 @@ static void ot_dma_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     case R_SHA2_DIGEST_0 ... R_SHA2_DIGEST_15:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s: R/O register 0x%02" HWADDR_PRIx " (%s)\n",
-                      __func__, s->dma_id, addr, REG_NAME(reg));
+                      __func__, s->ot_id, addr, REG_NAME(reg));
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s Bad offset 0x%" HWADDR_PRIx "\n",
-                      __func__, s->dma_id, addr);
+                      __func__, s->ot_id, addr);
         break;
     }
 };
 
 static Property ot_dma_properties[] = {
+    DEFINE_PROP_STRING("ot_id", OtDMAState, ot_id),
     DEFINE_PROP_STRING("ot_as_name", OtDMAState, ot_as_name),
     DEFINE_PROP_STRING("ctn_as_name", OtDMAState, ctn_as_name),
     DEFINE_PROP_STRING("sys_as_name", OtDMAState, sys_as_name),
 #ifdef OT_DMA_HAS_ROLE
     DEFINE_PROP_UINT8("role", OtDMAState, role, UINT8_MAX),
 #endif
-    DEFINE_PROP_STRING("id", OtDMAState, dma_id),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -1283,6 +1283,8 @@ static const MemoryRegionOps ot_dma_regs_ops = {
 static void ot_dma_reset(DeviceState *dev)
 {
     OtDMAState *s = OT_DMA(dev);
+
+    g_assert(s->ot_id);
 
     timer_del(s->timer);
 

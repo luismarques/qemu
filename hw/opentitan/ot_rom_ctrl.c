@@ -120,14 +120,13 @@ struct OtRomCtrlState {
     uint32_t regs[REGS_COUNT];
 
     hwaddr digest_offset;
-
-    uint32_t size;
-    OtKMACState *kmac;
-    char *rom_id;
-    uint8_t kmac_app;
-
     bool first_reset;
     bool fake_digest;
+
+    char *ot_id;
+    uint32_t size;
+    OtKMACState *kmac;
+    uint8_t kmac_app;
 };
 
 static void ot_rom_ctrl_get_mem_bounds(OtRomCtrlState *s, hwaddr *minaddr,
@@ -148,13 +147,13 @@ static void ot_rom_ctrl_load_elf(OtRomCtrlState *s, const OtRomImg *ri)
                          NULL, 0, EM_RISCV, 1, 0, as, false, NULL) <= 0) {
         error_setg(&error_fatal,
                    "ot_rom_ctrl: %s: ROM image '%s', ELF loading failed",
-                   s->rom_id, ri->filename);
+                   s->ot_id, ri->filename);
         return;
     }
     if ((loaddr < minaddr) || (loaddr > maxaddr)) {
         /* cannot test upper load address as QEMU loader returns VMA, not LMA */
         error_setg(&error_fatal, "ot_rom_ctrl: %s: ELF cannot fit into ROM\n",
-                   s->rom_id);
+                   s->ot_id);
     }
 }
 
@@ -168,21 +167,21 @@ static void ot_rom_ctrl_load_binary(OtRomCtrlState *s, const OtRomImg *ri)
 
     if (binaddr < minaddr) {
         error_setg(&error_fatal, "ot_rom_ctrl: %s: address 0x%x: not in ROM:\n",
-                   s->rom_id, ri->address);
+                   s->ot_id, ri->address);
     }
 
     int fd = open(ri->filename, O_RDONLY | O_BINARY | O_CLOEXEC);
     if (fd == -1) {
         error_setg(&error_fatal,
                    "ot_rom_ctrl: %s: could not open ROM '%s': %s\n",
-                   ri->filename, s->rom_id, strerror(errno));
+                   ri->filename, s->ot_id, strerror(errno));
     }
 
     ssize_t binsize = (ssize_t)lseek(fd, 0, SEEK_END);
     if (binsize == -1) {
         close(fd);
         error_setg(&error_fatal,
-                   "ot_rom_ctrl: %s: file %s: get size error: %s\n", s->rom_id,
+                   "ot_rom_ctrl: %s: file %s: get size error: %s\n", s->ot_id,
                    ri->filename, strerror(errno));
     }
 
@@ -201,7 +200,7 @@ static void ot_rom_ctrl_load_binary(OtRomCtrlState *s, const OtRomImg *ri)
         error_setg(
             &error_fatal,
             "ot_rom_ctrl: %s: file %s: read error: rc=%zd (expected %zd)\n",
-            s->rom_id, ri->filename, rc, binsize);
+            s->ot_id, ri->filename, rc, binsize);
         return; /* static analyzer does not know error_fatal never returns */
     }
 
@@ -225,14 +224,14 @@ static void ot_rom_ctrl_load_rom(OtRomCtrlState *s)
     s->fake_digest = true;
 
     /* try to find our ROM image object */
-    obj = object_resolve_path_component(object_get_objects_root(), s->rom_id);
+    obj = object_resolve_path_component(object_get_objects_root(), s->ot_id);
     if (!obj) {
         return;
     }
     rom_img = (OtRomImg *)object_dynamic_cast(obj, TYPE_OT_ROM_IMG);
     if (!rom_img) {
         error_setg(&error_fatal, "ot_rom_ctrl: %s: Object is not a ROM Image",
-                   s->rom_id);
+                   s->ot_id);
         return;
     }
 
@@ -268,7 +267,7 @@ static void ot_rom_ctrl_compare_and_notify(OtRomCtrlState *s)
                 &error_fatal,
                 "ot_rom_ctrl: %s: DIGEST_%u mismatch (expected 0x%08x got "
                 "0x%08x)",
-                s->rom_id, ix, s->regs[R_EXP_DIGEST_0 + ix],
+                s->ot_id, ix, s->regs[R_EXP_DIGEST_0 + ix],
                 s->regs[R_DIGEST_0 + ix]);
         }
     }
@@ -320,7 +319,8 @@ static uint64_t ot_rom_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_rom_ctrl_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_rom_ctrl_io_read_out(s->ot_id, (uint32_t)addr, REG_NAME(reg),
+                                  val32, pc);
 
     return (uint64_t)val32;
 };
@@ -335,7 +335,8 @@ static void ot_rom_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_rom_ctrl_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_rom_ctrl_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
+                               pc);
 
     switch (reg) {
     case R_ALERT_TEST:
@@ -372,21 +373,44 @@ static void ot_rom_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     }
 };
 
-static Property ot_rom_ctrl_properties[] = {
-    DEFINE_PROP_STRING("rom_id", OtRomCtrlState, rom_id),
-    DEFINE_PROP_UINT32("size", OtRomCtrlState, size, 0u),
-    DEFINE_PROP_LINK("kmac", OtRomCtrlState, kmac, TYPE_OT_KMAC, OtKMACState *),
-    DEFINE_PROP_UINT8("kmac-app", OtRomCtrlState, kmac_app, UINT8_MAX),
-    DEFINE_PROP_END_OF_LIST(),
-};
+static void ot_rom_ctrl_mem_write(void *opaque, hwaddr addr, uint64_t value,
+                                  unsigned size)
+{
+    OtRomCtrlState *s = opaque;
+    uint32_t pc = ibex_get_current_pc();
 
-static const MemoryRegionOps ot_rom_ctrl_regs_ops = {
-    .read = &ot_rom_ctrl_regs_read,
-    .write = &ot_rom_ctrl_regs_write,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-    .impl.min_access_size = 4u,
-    .impl.max_access_size = 4u,
-};
+    trace_ot_rom_ctrl_mem_write(s->ot_id, (uint32_t)addr, (uint32_t)value, pc);
+
+    uint8_t *rom_ptr = (uint8_t *)memory_region_get_ram_ptr(&s->mem);
+
+    if ((addr + size) <= s->size) {
+        stn_le_p(&rom_ptr[addr], (int)size, value);
+    } else {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: %s: Bad offset 0x%" HWADDR_PRIx ", pc=0x%x\n",
+                      __func__, s->ot_id, addr, pc);
+    }
+}
+
+static bool ot_rom_ctrl_mem_accepts(void *opaque, hwaddr addr, unsigned size,
+                                    bool is_write, MemTxAttrs attrs)
+{
+    OtRomCtrlState *s = opaque;
+    (void)attrs;
+    uint32_t pc = ibex_get_current_pc();
+
+    trace_ot_rom_ctrl_mem_accepts(s->ot_id, (uint32_t)addr, is_write, pc);
+
+    if (!is_write) {
+        /*
+         * only allow reads during first reset (after complete check, MR gets
+         * turned to ROMD mode where mem_ops->valid.accepts is no longer called.
+         */
+        return s->first_reset;
+    }
+
+    return ((addr + size) <= s->size && s->first_reset);
+}
 
 static void ot_rom_ctrl_send_kmac_req(OtRomCtrlState *s)
 {
@@ -436,6 +460,29 @@ ot_rom_ctrl_handle_kmac_response(void *opaque, const OtKMACAppRsp *rsp)
     }
 }
 
+static Property ot_rom_ctrl_properties[] = {
+    DEFINE_PROP_STRING("ot_id", OtRomCtrlState, ot_id),
+    DEFINE_PROP_UINT32("size", OtRomCtrlState, size, 0u),
+    DEFINE_PROP_LINK("kmac", OtRomCtrlState, kmac, TYPE_OT_KMAC, OtKMACState *),
+    DEFINE_PROP_UINT8("kmac-app", OtRomCtrlState, kmac_app, UINT8_MAX),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static const MemoryRegionOps ot_rom_ctrl_mem_ops = {
+    .write = &ot_rom_ctrl_mem_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl.min_access_size = 1u,
+    .impl.max_access_size = 4u,
+    .valid.accepts = &ot_rom_ctrl_mem_accepts,
+};
+
+static const MemoryRegionOps ot_rom_ctrl_regs_ops = {
+    .read = &ot_rom_ctrl_regs_read,
+    .write = &ot_rom_ctrl_regs_write,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl.min_access_size = 4u,
+    .impl.max_access_size = 4u,
+};
 static void ot_rom_ctrl_reset_hold(Object *obj)
 {
     OtRomCtrlClass *c = OT_ROM_CTRL_GET_CLASS(obj);
@@ -491,58 +538,11 @@ static void ot_rom_ctrl_reset_exit(Object *obj)
     }
 }
 
-static void ot_rom_ctrl_mem_write(void *opaque, hwaddr addr, uint64_t value,
-                                  unsigned size)
-{
-    OtRomCtrlState *s = opaque;
-    uint32_t pc = ibex_get_current_pc();
-
-    trace_ot_rom_ctrl_mem_write((uint32_t)addr, (uint32_t)value, pc);
-
-    uint8_t *rom_ptr = (uint8_t *)memory_region_get_ram_ptr(&s->mem);
-
-    if ((addr + size) <= s->size) {
-        stn_le_p(&rom_ptr[addr], (int)size, value);
-    } else {
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: %s: Bad offset 0x%" HWADDR_PRIx ", pc=0x%x\n",
-                      __func__, s->rom_id, addr, pc);
-    }
-}
-
-static bool ot_rom_ctrl_mem_accepts(void *opaque, hwaddr addr, unsigned size,
-                                    bool is_write, MemTxAttrs attrs)
-{
-    OtRomCtrlState *s = opaque;
-    (void)attrs;
-    uint32_t pc = ibex_get_current_pc();
-
-    trace_ot_rom_ctrl_mem_accepts((uint32_t)addr, is_write, pc);
-
-    if (!is_write) {
-        /*
-         * only allow reads during first reset (after complete check, MR gets
-         * turned to ROMD mode where mem_ops->valid.accepts is no longer called.
-         */
-        return s->first_reset;
-    }
-
-    return ((addr + size) <= s->size && s->first_reset);
-}
-
-static const MemoryRegionOps ot_rom_ctrl_mem_ops = {
-    .write = &ot_rom_ctrl_mem_write,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-    .impl.min_access_size = 1u,
-    .impl.max_access_size = 4u,
-    .valid.accepts = &ot_rom_ctrl_mem_accepts,
-};
-
 static void ot_rom_ctrl_realize(DeviceState *dev, Error **errp)
 {
     OtRomCtrlState *s = OT_ROM_CTRL(dev);
 
-    g_assert(s->rom_id);
+    g_assert(s->ot_id);
     g_assert(s->size);
     g_assert(s->kmac);
     g_assert(s->kmac_app != UINT8_MAX);

@@ -109,10 +109,10 @@ struct OtSramCtrlState {
     bool otp_ifetch;
     bool cfg_ifetch;
 
+    char *ot_id;
     OtOTPState *otp_ctrl; /* optional */
     uint32_t size;
     bool ifetch; /* only used when no otp_ctrl is defined */
-    char *sram_id;
 };
 
 static uint64_t ot_sram_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
@@ -135,18 +135,18 @@ static uint64_t ot_sram_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_ALERT_TEST:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s W/O register 0x%02" HWADDR_PRIx " (%s)\n",
-                      __func__, s->sram_id, addr, REG_NAME(reg));
+                      __func__, s->ot_id, addr, REG_NAME(reg));
         val32 = 0;
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s Bad offset 0x%" HWADDR_PRIx "\n",
-                      __func__, s->sram_id, addr);
+                      __func__, s->ot_id, addr);
         val32 = 0;
         break;
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_sram_ctrl_io_read_out(s->sram_id, (uint32_t)addr, REG_NAME(reg),
+    trace_ot_sram_ctrl_io_read_out(s->ot_id, (uint32_t)addr, REG_NAME(reg),
                                    val32, pc);
 
     return (uint64_t)val32;
@@ -162,8 +162,8 @@ static void ot_sram_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_sram_ctrl_io_write(s->sram_id, (uint32_t)addr, REG_NAME(reg),
-                                val32, pc);
+    trace_ot_sram_ctrl_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
+                                pc);
 
     switch (reg) {
     case R_ALERT_TEST:
@@ -186,7 +186,7 @@ static void ot_sram_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         } else {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s R_EXEC protected w/ REGWEN\n", __func__,
-                          s->sram_id);
+                          s->ot_id);
         }
         break;
     case R_CTRL_REGWEN:
@@ -200,7 +200,7 @@ static void ot_sram_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         } else {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: %s R_CTRL protected w/ REGWEN\n", __func__,
-                          s->sram_id);
+                          s->ot_id);
         }
         break;
     case R_SCR_KEY_ROTATED:
@@ -209,22 +209,22 @@ static void ot_sram_ctrl_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     case R_STATUS:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: %s R/O register 0x%02" HWADDR_PRIx " (%s)\n",
-                      __func__, s->sram_id, addr, REG_NAME(reg));
+                      __func__, s->ot_id, addr, REG_NAME(reg));
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s Bad offset 0x%" HWADDR_PRIx "\n",
-                      __func__, s->sram_id, addr);
+                      __func__, s->ot_id, addr);
         break;
     }
 };
 
 
 static Property ot_sram_ctrl_properties[] = {
+    DEFINE_PROP_STRING("ot_id", OtSramCtrlState, ot_id),
     DEFINE_PROP_LINK("otp_ctrl", OtSramCtrlState, otp_ctrl, TYPE_OT_OTP,
                      OtOTPState *),
     DEFINE_PROP_UINT32("size", OtSramCtrlState, size, 0u),
     DEFINE_PROP_BOOL("ifetch", OtSramCtrlState, ifetch, false),
-    DEFINE_PROP_STRING("id", OtSramCtrlState, sram_id),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -239,6 +239,8 @@ static const MemoryRegionOps ot_sram_ctrl_regs_ops = {
 static void ot_sram_ctrl_reset(DeviceState *dev)
 {
     OtSramCtrlState *s = OT_SRAM_CTRL(dev);
+
+    g_assert(s->ot_id);
 
     memset(s->regs, 0, REGS_SIZE);
 

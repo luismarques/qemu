@@ -611,10 +611,10 @@ typedef enum {
     OTP_PART_SECRET2,
     OTP_PART_SECRET3,
     OTP_PART_LIFE_CYCLE,
-    _OTP_PART_COUNT,
-    OTP_ENTRY_DAI = _OTP_PART_COUNT, /* Fake partitions for error (...) */
+    OTP_PART_COUNT,
+    OTP_ENTRY_DAI = OTP_PART_COUNT, /* Fake partitions for error (...) */
     OTP_ENTRY_KDI, /* Key derivation issue, not really OTP */
-    _OTP_ENTRY_COUNT,
+    OTP_ENTRY_COUNT,
 } OtOTPPartitionType;
 
 /* Error code (compliant with ERR_CODE registers) */
@@ -712,10 +712,10 @@ typedef struct {
 #include "ot_otp_darjeeling_parts.c"
 
 static_assert(OTP_PART_COUNT == NUM_PART, "Invalid partition definitions");
-static_assert(OTP_PART_COUNT == _OTP_PART_COUNT,
+static_assert(OTP_PART_COUNT == OTP_PART_COUNT,
               "Invalid partition definitions");
 static_assert(NUM_PART_UNBUF + NUM_PART_BUF == NUM_PART, "Invalid partitions");
-static_assert(NUM_ERROR_ENTRIES == _OTP_ENTRY_COUNT, "Invalid entries");
+static_assert(NUM_ERROR_ENTRIES == OTP_ENTRY_COUNT, "Invalid entries");
 static_assert(NUM_PART <= 64, "Maximum part count reached");
 
 #define OTP_DIGEST_ADDR_MASK (sizeof(uint64_t) - 1u)

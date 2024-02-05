@@ -171,18 +171,18 @@ struct OtPwrMgrState {
 
     MemoryRegion mmio;
     QEMUTimer *cdc_sync;
+    QEMUBH *reset_bh;
     IbexIRQ irq; /* wake from low power */
     IbexIRQ alert;
 
-    uint8_t num_rom;
     OtPwrMgrRomStatus *roms;
-
-    QEMUBH *reset_bh;
-
     OtRstMgrState *rstmgr;
 
     uint32_t *regs;
     OtPwrMgrResetReq reset_req;
+
+    char *ot_id;
+    uint8_t num_rom;
 };
 
 static const char *WAKEUP_NAMES[OT_PWRMGR_WAKEUP_COUNT] = {
@@ -234,7 +234,8 @@ static void ot_pwrmgr_rom_done(void *opaque, int irq, int level)
 
     s->roms[irq].done = level;
 
-    trace_ot_pwrmgr_rom_done(irq, s->roms[irq].good, s->roms[irq].done);
+    trace_ot_pwrmgr_rom_done(s->ot_id, irq, s->roms[irq].good,
+                             s->roms[irq].done);
 
     /* compute combined ROM check status */
     bool good = true;
@@ -265,13 +266,14 @@ static void ot_pwrmgr_rom_done(void *opaque, int irq, int level)
 
 static void ot_pwrmgr_wkup(void *opaque, int irq, int level)
 {
-    /* not implemented yet */
-    (void)opaque;
+    OtPwrMgrState *s = opaque;
     unsigned src = (unsigned)irq;
 
     assert(src < OT_PWRMGR_WAKEUP_COUNT);
 
-    trace_ot_pwrmgr_wkup(WAKEUP_NAME(src), src, (bool)level);
+    /* not implemented yet */
+
+    trace_ot_pwrmgr_wkup(s->ot_id, WAKEUP_NAME(src), src, (bool)level);
 }
 
 static void ot_pwrmgr_rst_req(void *opaque, int irq, int level)
@@ -280,7 +282,7 @@ static void ot_pwrmgr_rst_req(void *opaque, int irq, int level)
 
     unsigned src = (unsigned)irq;
 
-    trace_ot_pwrmgr_rst_req(RST_REQ_NAME(src), src, (bool)level);
+    trace_ot_pwrmgr_rst_req(s->ot_id, RST_REQ_NAME(src), src, (bool)level);
 
     switch (irq) {
     case OT_PWRMGR_RST_REQ_SYSRST:
@@ -311,7 +313,7 @@ static void ot_pwrmgr_rst_req(void *opaque, int irq, int level)
          * simply forward the request to the RSTMGR
          */
         qemu_bh_schedule(s->reset_bh);
-        trace_ot_pwrmgr_reset_req("scheduling reset", src);
+        trace_ot_pwrmgr_reset_req(s->ot_id, "scheduling reset", src);
     } else {
         s->regs[R_RESET_STATUS] &= ~rstmask;
     }
@@ -324,7 +326,7 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
     unsigned src = (unsigned)irq;
     assert(src < NUM_SW_RST_REQ);
 
-    trace_ot_pwrmgr_sw_rst_req(src, (bool)level);
+    trace_ot_pwrmgr_sw_rst_req(s->ot_id, src, (bool)level);
 
     uint32_t rstbit = 1u << (NUM_SW_RST_REQ + src);
 
@@ -350,7 +352,7 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
         s->reset_req.req = OT_RSTMGR_RESET_SW;
         s->reset_req.domain = true;
         qemu_bh_schedule(s->reset_bh);
-        trace_ot_pwrmgr_reset_req("scheduling SW reset", 0);
+        trace_ot_pwrmgr_reset_req(s->ot_id, "scheduling SW reset", 0);
     } else {
         s->regs[R_RESET_STATUS] &= ~rstbit;
     }
@@ -404,7 +406,8 @@ static uint64_t ot_pwrmgr_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_pwrmgr_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_pwrmgr_io_read_out(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
+                                pc);
 
     return (uint64_t)val32;
 };
@@ -419,7 +422,8 @@ static void ot_pwrmgr_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_pwrmgr_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_pwrmgr_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
+                             pc);
     switch (reg) {
     case R_INTR_STATE:
         val32 &= WAKEUP_MASK;
@@ -500,6 +504,7 @@ static void ot_pwrmgr_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 };
 
 static Property ot_pwrmgr_properties[] = {
+    DEFINE_PROP_STRING("ot_id", OtPwrMgrState, ot_id),
     DEFINE_PROP_UINT8("num-rom", OtPwrMgrState, num_rom, 0),
     DEFINE_PROP_LINK("rstmgr", OtPwrMgrState, rstmgr, TYPE_OT_RSTMGR,
                      OtRstMgrState *),
@@ -517,6 +522,10 @@ static const MemoryRegionOps ot_pwrmgr_regs_ops = {
 static void ot_pwrmgr_reset(DeviceState *dev)
 {
     OtPwrMgrState *s = OT_PWRMGR(dev);
+
+    g_assert(s->ot_id);
+
+    trace_ot_pwrmgr_reset(s->ot_id);
 
     assert(s->rstmgr);
 

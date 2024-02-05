@@ -385,7 +385,7 @@ typedef enum {
     OTP_PART_SECRET1,
     OTP_PART_SECRET2,
     OTP_PART_LIFE_CYCLE,
-    _OTP_PART_LIFE_COUNT,
+    OTP_PART_LIFE_COUNT,
 } OtOTPPartitionType;
 
 typedef enum {

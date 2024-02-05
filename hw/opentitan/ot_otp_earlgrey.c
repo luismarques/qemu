@@ -1105,11 +1105,11 @@ static uint64_t ot_otp_eg_swcfg_read(void *opaque, hwaddr addr, unsigned size)
             ot_otp_eg_set_error(s, partition, OTP_NO_ERROR);
         } else {
             val32 = 0u;
-            trace_ot_otp_access_error_on(partition, (uint32_t)addr);
+            trace_ot_otp_access_error_on(partition, addr, "not readable");
             ot_otp_eg_set_error(s, partition, OTP_ACCESS_ERROR);
         }
     } else {
-        trace_ot_otp_access_error_on(partition, (uint32_t)addr);
+        trace_ot_otp_access_error_on(partition, addr, "invalid");
         val32 = 0;
     }
 
@@ -1320,26 +1320,6 @@ static const MemoryRegionOps ot_otp_eg_csrs_ops = {
     .impl.max_access_size = 4,
 };
 
-static void ot_otp_eg_reset(DeviceState *dev)
-{
-    OtOTPEgState *s = OT_OTP_EARLGREY(dev);
-
-    timer_del(s->dai_delay);
-
-    memset(&s->regs, 0, sizeof(s->regs));
-
-    s->regs[R_DIRECT_ACCESS_REGWEN] = 0x1u;
-    s->regs[R_CHECK_TRIGGER_REGWEN] = 0x1u;
-    s->regs[R_CHECK_REGWEN] = 0x1u;
-    s->regs[R_VENDOR_TEST_READ_LOCK] = 0x1u;
-    s->regs[R_CREATOR_SW_CFG_READ_LOCK] = 0x1u;
-    s->regs[R_OWNER_SW_CFG_READ_LOCK] = 0x1u;
-    s->dai_busy = false;
-
-    ot_otp_eg_update_irqs(s);
-    ibex_irq_set(&s->alert, 0);
-}
-
 static void ot_otp_eg_load(OtOTPEgState *s, Error **errp)
 {
     /*
@@ -1432,6 +1412,28 @@ static void ot_otp_eg_load(OtOTPEgState *s, Error **errp)
 
     ot_otp_eg_decode_lc_partition(s);
     ot_otp_eg_load_hw_cfg(s);
+}
+
+static void ot_otp_eg_reset(DeviceState *dev)
+{
+    OtOTPEgState *s = OT_OTP_EARLGREY(dev);
+
+    trace_ot_otp_reset();
+
+    timer_del(s->dai_delay);
+
+    memset(&s->regs, 0, sizeof(s->regs));
+
+    s->regs[R_DIRECT_ACCESS_REGWEN] = 0x1u;
+    s->regs[R_CHECK_TRIGGER_REGWEN] = 0x1u;
+    s->regs[R_CHECK_REGWEN] = 0x1u;
+    s->regs[R_VENDOR_TEST_READ_LOCK] = 0x1u;
+    s->regs[R_CREATOR_SW_CFG_READ_LOCK] = 0x1u;
+    s->regs[R_OWNER_SW_CFG_READ_LOCK] = 0x1u;
+    s->dai_busy = false;
+
+    ot_otp_eg_update_irqs(s);
+    ibex_irq_set(&s->alert, 0);
 }
 
 static void ot_otp_eg_realize(DeviceState *dev, Error **errp)

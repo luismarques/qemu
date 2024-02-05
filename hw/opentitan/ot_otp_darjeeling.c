@@ -2436,12 +2436,12 @@ static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
     int partition = ot_otp_dj_swcfg_get_part(addr);
 
     if (partition < 0) {
-        trace_ot_otp_access_error_on(partition, addr);
+        trace_ot_otp_access_error_on(partition, addr, "invalid");
         val32 = 0;
     }
 
     if (ot_otp_dj_is_buffered(partition)) {
-        trace_ot_otp_access_error_on(partition, addr);
+        trace_ot_otp_access_error_on(partition, addr, "buffered");
         ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
 
         /* real HW seems to stall the Tile Link bus in this case */
@@ -2449,7 +2449,7 @@ static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
     }
 
     if (!ot_otp_dj_is_readable(s, partition)) {
-        trace_ot_otp_access_error_on(partition, addr);
+        trace_ot_otp_access_error_on(partition, addr, "not readable");
         ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
 
         return MEMTX_DECODE_ERROR;
@@ -2969,6 +2969,8 @@ static const MemoryRegionOps ot_otp_dj_csrs_ops = {
 static void ot_otp_dj_reset(DeviceState *dev)
 {
     OtOTPDjState *s = OT_OTP_DARJEELING(dev);
+
+    trace_ot_otp_reset();
 
     timer_del(s->dai.delay);
     timer_del(s->lci.prog_delay);

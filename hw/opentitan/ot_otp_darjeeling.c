@@ -732,6 +732,8 @@ typedef struct {
     } buffer; /* only meaningful for buffered partitions */
     bool locked;
     bool failed;
+    bool read_lock;
+    bool write_lock;
 } OtOTPPartController;
 
 typedef struct {
@@ -1230,6 +1232,11 @@ static bool ot_otp_dj_is_readable(OtOTPDjState *s, int partition)
         return false;
     }
 
+    if (!s->partctrls[partition].read_lock) {
+        /* not unlocked */
+        return false;
+    }
+
     if (!OtOTPPartDescs[partition].rd_lockable) {
         /* read lock is not supported for the this partition */
         return true;
@@ -1608,6 +1615,14 @@ static void ot_otp_dj_dai_write(OtOTPDjState *s)
         return;
     }
 
+    if (pctrl->write_lock) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Partition %s (%u) is write locked\n", __func__,
+                      PART_NAME(partition), partition);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
     bool is_digest = ot_otp_dj_is_part_digest_offset(partition, address);
     bool is_wide = ot_otp_dj_is_wide_granule(partition);
 
@@ -1715,6 +1730,14 @@ static void ot_otp_dj_dai_digest(OtOTPDjState *s)
     if (pctrl->locked) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Partition %s (%u) is locked\n",
                       __func__, PART_NAME(partition), partition);
+        ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
+        return;
+    }
+
+    if (pctrl->write_lock) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: Partition %s (%u) is write locked\n", __func__,
+                      PART_NAME(partition), partition);
         ot_otp_dj_dai_set_error(s, OTP_ACCESS_ERROR);
         return;
     }
@@ -2448,7 +2471,10 @@ static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
         return MEMTX_ACCESS_ERROR;
     }
 
-    if (!ot_otp_dj_is_readable(s, partition)) {
+    bool is_digest = ot_otp_dj_is_part_digest_offset(partition, addr);
+    bool is_readable = ot_otp_dj_is_readable(s, partition);
+
+    if (!is_digest && !is_readable) {
         trace_ot_otp_access_error_on(partition, addr, "not readable");
         ot_otp_dj_set_error(s, (unsigned)partition, OTP_ACCESS_ERROR);
 
@@ -3012,8 +3038,11 @@ static void ot_otp_dj_reset(DeviceState *dev)
         unsigned part_size = OT_OTP_PART_DATA_BYTE_SIZE(ix);
         memset(s->partctrls[ix].buffer.data, 0, part_size);
         s->partctrls[ix].buffer.digest = 0;
+        if (OtOTPPartDescs[ix].is_keymgr) {
+            s->partctrls[ix].read_lock = true;
+            s->partctrls[ix].write_lock = true;
+        }
     }
-
     DAI_CHANGE_STATE(s, OTP_DAI_RESET);
     LCI_CHANGE_STATE(s, OTP_LCI_RESET);
 

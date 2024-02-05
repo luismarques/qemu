@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Helpers for LowRISC Ibex Demo System & OpenTitan EarlGrey
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -421,6 +421,13 @@ void ibex_map_devices_ext_mask(DeviceState *dev, MemoryRegion **mrs,
                                uint32_t region_mask);
 void ibex_configure_devices(DeviceState **devices, BusState *bus,
                             const IbexDeviceDef *defs, unsigned count);
+void ibex_identify_devices(DeviceState **devices, const char *prop_name,
+                           const char *identifier, bool id_prepend,
+                           unsigned count);
+void ibex_configure_devices_with_id(DeviceState **devices, BusState *bus,
+                                    const char *id_prop, const char *id_value,
+                                    bool id_prepend, const IbexDeviceDef *defs,
+                                    unsigned count);
 void ibex_export_gpios(DeviceState **devices, DeviceState *parent,
                        const IbexDeviceDef *defs, unsigned count);
 void ibex_connect_soc_devices(DeviceState **soc_devices, DeviceState **devices,

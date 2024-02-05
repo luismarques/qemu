@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Helpers for LowRISC Ibex Demo System & OpenTitan EarlGrey
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -485,13 +485,64 @@ void ibex_connect_soc_devices(DeviceState **soc_devices, DeviceState **devices,
     }
 }
 
-void ibex_configure_devices(DeviceState **devices, BusState *bus,
-                            const IbexDeviceDef *defs, unsigned count)
+void ibex_identify_devices(DeviceState **devices, const char *id_prop,
+                           const char *id_value, bool id_prepend,
+                           unsigned count)
+{
+    for (unsigned ix = 0; ix < count; ix++) {
+        DeviceState *dev = devices[ix];
+        if (!dev) {
+            continue;
+        }
+        Object *obj = OBJECT(dev);
+        /* check if the device defines an identifcation string property */
+        char *value = object_property_get_str(obj, id_prop, NULL);
+        if (!value) {
+            continue;
+        }
+
+        bool is_set = (bool)strcmp(value, "");
+        if (is_set && !id_prepend) {
+            /* do not override already defined property */
+            g_free(value);
+            continue;
+        }
+
+        bool res;
+        if (is_set && id_prepend) {
+            char *pvalue = g_strconcat(id_value, value, NULL);
+            res = object_property_set_str(obj, id_prop, pvalue, NULL);
+            g_free(pvalue);
+        } else {
+            res = object_property_set_str(obj, id_prop, id_value, NULL);
+        }
+        g_free(value);
+        if (!res) {
+            error_report("%s: cannot apply identifier to %s\n", __func__,
+                         object_get_typename(obj));
+        }
+    }
+}
+
+void ibex_configure_devices_with_id(DeviceState **devices, BusState *bus,
+                                    const char *id_prop, const char *id_value,
+                                    bool id_prepend, const IbexDeviceDef *defs,
+                                    unsigned count)
 {
     ibex_link_devices(devices, defs, count);
     ibex_define_device_props(devices, defs, count);
+    if (id_prop && id_value) {
+        ibex_identify_devices(devices, id_prop, id_value, id_prepend, count);
+    }
     ibex_realize_devices(devices, bus, defs, count);
     ibex_connect_devices(devices, defs, count);
+}
+
+void ibex_configure_devices(DeviceState **devices, BusState *bus,
+                            const IbexDeviceDef *defs, unsigned count)
+{
+    ibex_configure_devices_with_id(devices, bus, NULL, NULL, false, defs,
+                                   count);
 }
 
 typedef struct {

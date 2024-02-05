@@ -43,6 +43,7 @@
 #include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_otp_darjeeling.h"
 #include "hw/opentitan/ot_present.h"
+#include "hw/opentitan/ot_pwrmgr.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -798,9 +799,11 @@ struct OtOTPDjState {
     struct {
         MemoryRegion csrs;
     } prim;
+    QEMUBH *pwc_otp_bh;
     QEMUBH *lc_broadcast_bh;
     IbexIRQ irqs[NUM_IRQS];
     IbexIRQ alerts[NUM_ALERTS];
+    IbexIRQ pwc_otp_rsp;
 
     uint32_t regs[REGS_COUNT];
 
@@ -2982,6 +2985,38 @@ static void ot_otp_dj_lci_write_word(void *opaque)
     LCI_CHANGE_STATE(s, OTP_LCI_WRITE_WAIT);
 }
 
+static void ot_otp_dj_pwr_otp_req(void *opaque, int n, int level)
+{
+    OtOTPDjState *s = opaque;
+
+    g_assert(n == 0);
+
+    if (level) {
+        trace_ot_otp_pwr_otp_req("signaled");
+        qemu_bh_schedule(s->pwc_otp_bh);
+    }
+}
+
+static void ot_otp_dj_pwr_otp_bh(void *opaque)
+{
+    OtOTPDjState *s = opaque;
+
+    trace_ot_otp_pwr_otp_req("initialize");
+
+    ot_otp_dj_initialize_partitions(s);
+    ot_otp_dj_decode_lc_partition(s);
+    ot_otp_dj_load_hw_cfg(s);
+    ot_otp_dj_load_tokens(s);
+
+    ot_otp_dj_dai_init(s);
+    ot_otp_dj_lci_init(s);
+
+    trace_ot_otp_pwr_otp_req("done");
+
+    ibex_irq_set(&s->pwc_otp_rsp, 1);
+    ibex_irq_set(&s->pwc_otp_rsp, 0);
+}
+
 static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
 {
     /*
@@ -3157,6 +3192,7 @@ static void ot_otp_dj_reset(DeviceState *dev)
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
         ibex_irq_set(&s->alerts[ix], 0);
     }
+    ibex_irq_set(&s->pwc_otp_rsp, 0);
 
     for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
         /* TODO: initialize with actual default partition data once known */
@@ -3177,18 +3213,6 @@ static void ot_otp_dj_reset(DeviceState *dev)
     }
     DAI_CHANGE_STATE(s, OTP_DAI_RESET);
     LCI_CHANGE_STATE(s, OTP_LCI_RESET);
-
-    trace_ot_otp_initialize();
-
-    // TODO: update initialization from PwrMgr triggers
-
-    ot_otp_dj_initialize_partitions(s);
-    ot_otp_dj_decode_lc_partition(s);
-    ot_otp_dj_load_hw_cfg(s);
-    ot_otp_dj_load_tokens(s);
-
-    ot_otp_dj_dai_init(s);
-    ot_otp_dj_lci_init(s);
 }
 
 static void ot_otp_dj_realize(DeviceState *dev, Error **errp)
@@ -3227,6 +3251,13 @@ static void ot_otp_dj_init(Object *obj)
     memory_region_init_io(&s->prim.csrs, obj, &ot_otp_dj_csrs_ops, s,
                           TYPE_OT_OTP "-prim", CSRS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->prim.csrs);
+
+    ibex_qdev_init_irq(obj, &s->pwc_otp_rsp, OPENTITAN_PWRMGR_OTP_RSP);
+
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_otp_dj_pwr_otp_req,
+                            OPENTITAN_PWRMGR_OTP_REQ, 1);
+
+    s->pwc_otp_bh = qemu_bh_new(&ot_otp_dj_pwr_otp_bh, s);
 
     s->lc_broadcast_bh = qemu_bh_new(&ot_otp_dj_lc_broadcast_bh, s);
 

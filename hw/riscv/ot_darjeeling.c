@@ -87,14 +87,6 @@ static void ot_darjeeling_soc_uart_configure(
 /* Constants */
 /* ------------------------------------------------------------------------ */
 
-/* Darjeeling Peripheral clock is 62.5 MHz */
-#define OT_DARJEELING_PERIPHERAL_CLK_HZ 62500000u
-
-/* Darjeeling SPI host clock is 250 MHz */
-#define OT_DARJEELING__SPIHOST_CLK_HZ 250000000u
-
-/* Darjeeling AON clock is 62.5 MHz */
-#define OT_DARJEELING_AON_CLK_HZ 62500000u
 
 /* CTN address space */
 #define OT_DARJEELING_CTN_REGION_OFFSET 0x40000000u
@@ -154,6 +146,59 @@ enum OtDarjeelingSocDevice {
     OT_DARJEELING_SOC_DEV_TIMER,
     OT_DARJEELING_SOC_DEV_UART0,
 };
+
+/* Darjeeling Peripheral clock is 62.5 MHz */
+#define OT_DARJEELING_PERIPHERAL_CLK_HZ 62500000u
+
+/* Darjeeling SPI host clock is 250 MHz */
+#define OT_DARJEELING__SPIHOST_CLK_HZ 250000000u
+
+/* Darjeeling AON clock is 62.5 MHz */
+#define OT_DARJEELING_AON_CLK_HZ 62500000u
+
+static const uint8_t ot_darjeeling_pmp_cfgs[] = {
+    /* clang-format off */
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(1, IBEX_PMP_MODE_NAPOT, 1, 0, 1), /* rgn 2  [ROM: LRX] */
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(1, IBEX_PMP_MODE_TOR, 0, 1, 1), /* rgn 11 [MMIO: LRW] */
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(1, IBEX_PMP_MODE_NAPOT, 1, 1, 1), /* rgn 13 [DV_ROM: LRWX] */
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
+    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0)
+    /* clang-format on */
+};
+
+static const uint32_t ot_darjeeling_pmp_addrs[] = {
+    /* clang-format off */
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x000083fc), /* rgn 2 [ROM: base=0x0000_8000 sz (2KiB)] */
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x21100000), /* rgn 10 [MMIO: lo=0x2110_0000] */
+    IBEX_PMP_ADDR(0x30601000), /* rgn 11 [MMIO: hi=0x3060_1000] */
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x000407fc), /* rgn 13 [DV_ROM: base=0x0004_0000 sz (4KiB)] */
+    IBEX_PMP_ADDR(0x00000000),
+    IBEX_PMP_ADDR(0x00000000)
+    /* clang-format on */
+};
+
+#define OT_DARJEELING_MSECCFG IBEX_MSECCFG(1, 1, 0)
 
 enum OtDarjeelingMemoryRegion {
     OT_DARJEELING_DEFAULT_MEMORY_REGION,
@@ -263,7 +308,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_DEVLINK("tl_dev", MBX_JTAG)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_UINT_PROP("dmi_addr", 0x200u),
+            IBEX_DEV_UINT_PROP("dmi_addr", 0x400u),
             IBEX_DEV_UINT_PROP("dmi_size", OT_MBX_SYS_REGS_COUNT),
             IBEX_DEV_UINT_PROP("tl_addr", 0x1000u),
             IBEX_DEV_STRING_PROP("tl_as_name", "ot-dbg")
@@ -337,13 +382,13 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .name = "ot-keymgr_dpe",
         .cfg = &ibex_unimp_configure,
         .memmap = MEMMAPENTRIES(
-            { 0x21140000u, 0x1000u }
+            { 0x21140000u, 0x100u }
         ),
     },
     [OT_DARJEELING_SOC_DEV_CSRNG] = {
         .type = TYPE_OT_CSRNG,
         .memmap = MEMMAPENTRIES(
-            { 0x21150000u, 0x1000u }
+            { 0x21150000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 123),
@@ -360,7 +405,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_EDN,
         .instance = 0,
         .memmap = MEMMAPENTRIES(
-            { 0x21170000u, 0x1000u }
+            { 0x21170000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 127),
@@ -377,7 +422,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_EDN,
         .instance = 1,
         .memmap = MEMMAPENTRIES(
-            { 0x21180000u, 0x1000u }
+            { 0x21180000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 129),
@@ -394,14 +439,14 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_SRAM_CTRL,
         .instance = 0,
         .memmap = MEMMAPENTRIES(
-            { 0x211c0000u, 01000u },
-            { 0x10000000u, 0x40000u }
+            { 0x211c0000u, 0x20u },
+            { 0x10000000, 0x10000u }
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL)
         ),
         .prop = IBEXDEVICEPROPDEFS(
-            IBEX_DEV_UINT_PROP("size", 0x40000u),
+            IBEX_DEV_UINT_PROP("size", 0x10000u),
             IBEX_DEV_STRING_PROP("ot_id", "ram")
         ),
     },
@@ -409,7 +454,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_SRAM_CTRL,
         .instance = 1,
         .memmap = MEMMAPENTRIES(
-            { 0x211d0000u, 01000u },
+            { 0x211d0000u, 0x20u },
             { 0x11000000u, 0x1000u }
         ),
         .link = IBEXDEVICELINKDEFS(
@@ -424,13 +469,13 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_ROM_CTRL,
         .instance = 0,
         .memmap = MEMMAPENTRIES(
-            { 0x211e0000u, 0x1000u },
+            { 0x211e0000u, 0x80u },
             { 0x00008000u, 0x8000u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_GOOD, 0, PWRMGR, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_GOOD, 0, PWRMGR,
                                      OPENTITAN_PWRMGR_ROM_GOOD, 0),
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_DONE, 0, PWRMGR, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_DONE, 0, PWRMGR,
                                      OPENTITAN_PWRMGR_ROM_DONE, 0)
         ),
         .link = IBEXDEVICELINKDEFS(
@@ -446,13 +491,13 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_ROM_CTRL,
         .instance = 1,
         .memmap = MEMMAPENTRIES(
-            { 0x211e1000u, 0x1000u },
+            { 0x211e1000u, 0x80u },
             { 0x00020000u, 0x10000u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_GOOD, 0, PWRMGR, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_GOOD, 0, PWRMGR,
                                      OPENTITAN_PWRMGR_ROM_GOOD, 1),
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_DONE, 0, PWRMGR, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_ROM_CTRL_DONE, 0, PWRMGR,
                                      OPENTITAN_PWRMGR_ROM_DONE, 1)
         ),
         .link = IBEXDEVICELINKDEFS(
@@ -467,7 +512,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_IBEX_WRAPPER] = {
         .type = TYPE_OT_IBEX_WRAPPER_DARJEELING,
         .memmap = MEMMAPENTRIES(
-            { 0x211f0000u, 0x1000u }
+            { 0x211f0000u, 0x800u }
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
@@ -507,12 +552,12 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     },
     [OT_DARJEELING_SOC_DEV_MBX_JTAG] = {
         OT_DARJEELING_SOC_DEV_MBX_DUAL(7, 0x22000800u, 155,
-                                       DEBUG_MEMORY(0x1000)),
+		                               DEBUG_MEMORY(0x1000)),
     },
     [OT_DARJEELING_SOC_DEV_DMA] = {
         .type = TYPE_OT_DMA,
         .memmap = MEMMAPENTRIES(
-            { 0x22010000u, 0x1000u }
+            { 0x22010000u, 0x200u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 131),
@@ -529,7 +574,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_SOC_PROXY] = {
         .type = TYPE_OT_SOC_PROXY,
         .memmap = MEMMAPENTRIES(
-            { 0x22030000u, 0x1000u }
+            { 0x22030000u, 0x10u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 83),
@@ -602,7 +647,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_GPIO,
         .name = "ot-gpio",
         .memmap = MEMMAPENTRIES(
-            { 0x30000000u, 0x1000u }
+            { 0x30000000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 9),
@@ -611,7 +656,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(3, PLIC, 12),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(4, PLIC, 13),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(5, PLIC, 14),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(6, PLIC, 25),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(6, PLIC, 15),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(7, PLIC, 16),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(8, PLIC, 17),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(9, PLIC, 18),
@@ -621,7 +666,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(13, PLIC, 22),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(14, PLIC, 23),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(15, PLIC, 24),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(16, PLIC, 35),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(16, PLIC, 25),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(17, PLIC, 26),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(18, PLIC, 27),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(19, PLIC, 28),
@@ -631,7 +676,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(23, PLIC, 32),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(24, PLIC, 33),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(25, PLIC, 34),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(26, PLIC, 45),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(26, PLIC, 35),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(27, PLIC, 36),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(28, PLIC, 37),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(29, PLIC, 38),
@@ -644,7 +689,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .cfg = &ot_darjeeling_soc_uart_configure,
         .instance = 0,
         .memmap = MEMMAPENTRIES(
-            { 0x30010000u, 0x1000u }
+            { 0x30010000u, 0x40u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 1),
@@ -666,8 +711,8 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             { 0x30020000u, 0x40u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 80),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 81)
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 81),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 82)
         )
     },
     [OT_DARJEELING_SOC_DEV_I2C0] = {
@@ -676,13 +721,13 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .cfg = &ibex_unimp_configure,
         .instance = 0,
         .memmap = MEMMAPENTRIES(
-            { 0x30080000u, 0x1000u }
+            { 0x30080000u, 0x80u }
         ),
     },
     [OT_DARJEELING_SOC_DEV_TIMER] = {
         .type = TYPE_OT_TIMER,
         .memmap = MEMMAPENTRIES(
-            { 0x30100000u, 0x1000u }
+            { 0x30100000u, 0x200u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO(0, HART, IRQ_M_TIMER),
@@ -697,7 +742,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .cfg = &ot_darjeeling_soc_otp_ctrl_configure,
         .memmap = MEMMAPENTRIES(
             { 0x30130000u, 0x8000u },
-            { 0x30138000u, 0x1000u }
+            { 0x30138000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 69),
@@ -713,7 +758,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_LC_CTRL] = {
         .type = TYPE_OT_LC_CTRL,
         .memmap = MEMMAPENTRIES(
-            { 0x30140000u, 0x1000u }
+            { 0x30140000u, 0x100u }
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL),
@@ -730,13 +775,13 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_ALERT_HANDLER] = {
         .type = TYPE_OT_ALERT_DARJEELING,
         .memmap = MEMMAPENTRIES(
-            { 0x30150000u, 0x1000u }
+            { 0x30150000u, 0x800u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 71),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 72),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 73),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 74)
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 72),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(2, PLIC, 73),
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(3, PLIC, 74)
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
@@ -749,7 +794,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_SPI_HOST,
         .instance = 0,
         .memmap = MEMMAPENTRIES(
-            { 0x30300000u, 0x1000u }
+            { 0x30300000u, 0x40u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 76),
@@ -782,7 +827,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_PWRMGR] = {
         .type = TYPE_OT_PWRMGR,
         .memmap = MEMMAPENTRIES(
-            { 0x30400000u, 0x1000u }
+            { 0x30400000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 78)
@@ -797,17 +842,17 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_RSTMGR] = {
         .type = TYPE_OT_RSTMGR,
         .memmap = MEMMAPENTRIES(
-            { 0x30410000u, 0x1000u }
+            { 0x30410000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_RSTMGR_SW_RST, 0, PWRMGR, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_RSTMGR_SW_RST, 0, PWRMGR,
                                      OPENTITAN_PWRMGR_SW_RST_REQ, 0)
         ),
     },
     [OT_DARJEELING_SOC_DEV_CLKMGR] = {
         .type = TYPE_OT_CLKMGR,
         .memmap = MEMMAPENTRIES(
-            { 0x30420000u, 0x1000u }
+            { 0x30420000u, 0x80u }
         ),
     },
     [OT_DARJEELING_SOC_DEV_PINMUX] = {
@@ -819,15 +864,15 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_AON_TIMER] = {
         .type = TYPE_OT_AON_TIMER,
         .memmap = MEMMAPENTRIES(
-            { 0x30470000u, 0x1000u }
+            { 0x30470000u, 0x40u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 79),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 80),
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_AON_TIMER_WKUP, 0, PWRMGR, \
-                                     OPENTITAN_PWRMGR_WKUP_REQ, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_AON_TIMER_WKUP, 0, PWRMGR,
+                                     OPENTITAN_PWRMGR_WKUP_REQ,
                                      OT_PWRMGR_WAKEUP_AON_TIMER),
-            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_AON_TIMER_BITE, 0, PWRMGR, \
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_AON_TIMER_BITE, 0, PWRMGR,
                                      OPENTITAN_PWRMGR_RST_REQ,
                                      OT_PWRMGR_RST_REQ_AON_TIMER)
         ),
@@ -838,14 +883,14 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     [OT_DARJEELING_SOC_DEV_AST] = {
         .type = TYPE_OT_AST_DARJEELING,
         .memmap = MEMMAPENTRIES(
-            { 0x30480000u, 0x1000u }
+            { 0x30480000u, 0x400u }
         ),
     },
     [OT_DARJEELING_SOC_DEV_SRAM_RET] = {
         .type = TYPE_OT_SRAM_CTRL,
         .instance = 2,
         .memmap = MEMMAPENTRIES(
-            { 0x30500000u, 0x1000u },
+            { 0x30500000u, 0x20u },
             { 0x30600000u, 0x1000u }
         ),
         .link = IBEXDEVICELINKDEFS(
@@ -858,50 +903,6 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
     },
     /* clang-format on */
 };
-
-static const uint8_t ot_darjeeling_pmp_cfgs[] = {
-    /* clang-format off */
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(1, IBEX_PMP_MODE_NAPOT, 1, 0, 1), /* rgn 2  [ROM: LRX]      */
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(1, IBEX_PMP_MODE_TOR, 0, 1, 1), /* rgn 11 [MMIO: LRW] */
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(1, IBEX_PMP_MODE_NAPOT, 1, 1, 1), /* rgn 13 [DV_ROM: LRWX]  */
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0),
-    IBEX_PMP_CFG(0, IBEX_PMP_MODE_OFF, 0, 0, 0)
-    /* clang-format on */
-};
-
-static const uint32_t ot_darjeeling_pmp_addrs[] = {
-    /* clang-format off */
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x000083fc), /* rgn 2 [ROM: base=0x0000_8000 sz (2KiB)] */
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x21100000), /* rgn 10 [MMIO: lo=0x2110_0000] */
-    IBEX_PMP_ADDR(0x30601000), /* rgn 11 [MMIO: hi=0x3060_1000] */
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x000407fc), /* rgn 13 [DV_ROM: base=0x0004_0000 sz (4KiB)] */
-    IBEX_PMP_ADDR(0x00000000),
-    IBEX_PMP_ADDR(0x00000000)
-    /* clang-format on */
-};
-
-#define OT_DARJEELING_MSECCFG IBEX_MSECCFG(1, 1, 0)
 
 enum OtDarjeelingBoardDevice {
     OT_DARJEELING_BOARD_DEV_SOC,

@@ -39,6 +39,7 @@
 #include "hw/opentitan/ot_kmac.h"
 #include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_otp.h"
+#include "hw/opentitan/ot_pwrmgr.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -276,8 +277,10 @@ struct OtLcCtrlState {
 
     MemoryRegion mmio;
     MemoryRegion dmi_mmio;
+    QEMUBH *pwc_lc_bh;
     IbexIRQ alerts[NUM_ALERTS];
     IbexIRQ broadcasts[OT_LC_BROADCAST_COUNT];
+    IbexIRQ pwc_lc_rsp;
 
     uint32_t *regs; /* slots in xregs are not used in regs */
     uint32_t xregs[EXCLUSIVE_SLOTS_COUNT][EXCLUSIVE_REGS_COUNT];
@@ -314,7 +317,6 @@ static_assert(sizeof(OtOTPTokenValue) == LC_TOKEN_WIDTH,
 
 static const OtKMACAppCfg ot_lc_ctrl_kmac_config =
     OT_KMAC_CONFIG(CSHAKE, 128u, "", "LC_CTRL");
-
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-const-variable"
@@ -1213,6 +1215,34 @@ static void ot_lc_ctrl_initialize(OtLcCtrlState *s)
                                 s->state);
 }
 
+static void ot_lc_ctrl_pwr_lc_req(void *opaque, int n, int level)
+{
+    OtLcCtrlState *s = opaque;
+
+    g_assert(n == 0);
+
+    if (level) {
+        trace_ot_lc_ctrl_pwr_lc_req("signaled");
+        qemu_bh_schedule(s->pwc_lc_bh);
+    }
+}
+
+static void ot_lc_ctrl_pwr_lc_bh(void *opaque)
+{
+    OtLcCtrlState *s = opaque;
+
+    trace_ot_lc_ctrl_pwr_lc_req("initialize");
+
+    ot_lc_ctrl_initialize(s);
+
+    ot_lc_ctrl_update_broadcast(s);
+
+    trace_ot_lc_ctrl_pwr_lc_req("done");
+
+    ibex_irq_set(&s->pwc_lc_rsp, 1);
+    ibex_irq_set(&s->pwc_lc_rsp, 0);
+}
+
 /* NOLINTBEGIN */
 static_assert(R_FIRST_EXCLUSIVE_REG == R_TRANSITION_TOKEN_0,
               "Incoherent exclusive reg definition");
@@ -1602,12 +1632,16 @@ static void ot_lc_ctrl_reset(DeviceState *dev)
         ibex_irq_set(&s->broadcasts[ix], 0);
     }
 
+    ibex_irq_set(&s->pwc_lc_rsp, 0);
+
     s->lc_state = LC_STATE_INVALID;
     s->lc_tcount = LC_TRANSITION_COUNT_MAX + 1u;
     s->km_div = LC_DIV_INVALID;
 
-    ot_lc_ctrl_initialize(s);
-    ot_lc_ctrl_update_broadcast(s);
+    /*
+     * do not broadcast the current status, wait for initialization to happen,
+     * triggered by the Power Manager
+     */
 }
 
 static void ot_lc_ctrl_init(Object *obj)
@@ -1623,6 +1657,7 @@ static void ot_lc_ctrl_init(Object *obj)
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->dmi_mmio);
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
+
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
         ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
     }
@@ -1630,6 +1665,13 @@ static void ot_lc_ctrl_init(Object *obj)
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->broadcasts); ix++) {
         ibex_qdev_init_irq(obj, &s->broadcasts[ix], OT_LC_BROADCAST);
     }
+
+    ibex_qdev_init_irq(obj, &s->pwc_lc_rsp, OPENTITAN_PWRMGR_LC_RSP);
+
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_lc_ctrl_pwr_lc_req,
+                            OPENTITAN_PWRMGR_LC_REQ, 1);
+
+    s->pwc_lc_bh = qemu_bh_new(&ot_lc_ctrl_pwr_lc_bh, s);
 }
 
 static void ot_lc_ctrl_class_init(ObjectClass *klass, void *data)

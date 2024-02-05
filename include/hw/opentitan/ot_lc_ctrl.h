@@ -33,6 +33,9 @@
 #define TYPE_OT_LC_CTRL "ot-lc_ctrl"
 OBJECT_DECLARE_SIMPLE_TYPE(OtLcCtrlState, OT_LC_CTRL)
 
+/* Init request from power manager */
+#define OT_LC_PWR TYPE_OT_LC_CTRL "-pwr"
+
 #define OT_LC_BROADCAST TYPE_OT_LC_CTRL "-broadcast"
 
 /* Life cycle broadcast signals */

@@ -55,7 +55,7 @@ class HexInt(int):
 
 class classproperty(property):
     """Getter property decorator for a class"""
-    #pylint: disable=invalid-name
+    # pylint: disable=invalid-name
     def __get__(self, obj: Any, objtype=None) -> Any:
         return super().__get__(objtype)
 
@@ -434,6 +434,9 @@ class OtpMap:
         absorb_count = len(absorb_parts)
         blk_per_part = rem_blocks // absorb_count
         extra_blocks = rem_blocks % absorb_count
+        self._log.info("%d bytes (%d blocks) to absorb into %d partition%s",
+                       rem_size, rem_blocks, absorb_count,
+                       's' if absorb_count > 1 else '')
         for part in absorb_parts:
             psize = part.size
             part.size += self.BLOCK_SIZE * blk_per_part
@@ -570,6 +573,9 @@ class OTPRegisterDef:
                 reg_offsets.append((name, offset))
                 reg_sizes.append((f'{name}_SIZE', size))
                 offset += size
+        scriptname = basename(argv[0])
+        print(f'/* Generated from {hjname} with {scriptname} */')
+        print('', file=cfp)
         for reg, off in reg_offsets:
             print(f'REG32({reg}, {off}u)', file=cfp)
         print(file=cfp)
@@ -656,11 +662,13 @@ class OtpImage:
     @classproperty
     def vmem_kinds(cls) -> List[str]:
         """Reports the supported content kinds of VMEM files."""
+        # pylint: disable=no-self-argument
         return ['auto'] + list(cls.KINDS.values())
 
     @classproperty
     def logger(self):
         """Return logger instance."""
+        # pylint: disable=no-self-argument
         return getLogger('otptool')
 
     def load_raw(self, rfp: BinaryIO) -> None:
@@ -744,7 +752,7 @@ class OtpImage:
             self._ecc_granule = granule_sizes.pop()
         if row_count and row_count != line_count:
             self._log.error('Should have parsed %d lines, found %d',
-                              row_count, line_count)
+                            row_count, line_count)
         if not vkind:
             if vmem_kind:
                 vkind = vmem_kind
@@ -757,7 +765,7 @@ class OtpImage:
                 # use user provided type, even if it is not the one detected
                 vkind = vmem_kind
         if not vkind:
-            raise ValueError(f'Unable to detect VMEM find, please specify')
+            raise ValueError('Unable to detect VMEM find, please specify')
         self._magic = f'v{vkind[:3].upper()}'.encode()
 
     def load_lifecycle(self, lcext: OtpLifecycleExtension) -> None:
@@ -913,6 +921,7 @@ def main():
         files.add_argument('-r', '--raw',
                            help='QEMU OTP raw image file')
         params = argparser.add_argument_group(title='Parameters')
+        # pylint: disable=unsubscriptable-object
         params.add_argument('-k', '--kind',
                             choices=OtpImage.vmem_kinds,
                             help=f'kind of content in VMEM input file, '

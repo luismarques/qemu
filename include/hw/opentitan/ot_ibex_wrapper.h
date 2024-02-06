@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Ibex Wrapper device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -43,5 +43,13 @@ struct OtIbexWrapperState {
 struct OtIbexWrapperStateClass {
     SysBusDeviceClass parent_class;
 };
+
+#define OT_IBEX_WRAPPER_CPU_EN TYPE_OT_IBEX_WRAPPER "-cpu-en"
+
+typedef enum {
+    OT_IBEX_LC_CTRL_CPU_EN,
+    OT_IBEX_PWRMGR_CPU_EN,
+    OT_IBEX_CPU_EN_COUNT
+} OtIbexWrapperCpuEnable;
 
 #endif /* HW_OPENTITAN_OT_IBEX_WRAPPER_H */

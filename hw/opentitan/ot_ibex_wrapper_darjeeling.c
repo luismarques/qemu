@@ -636,6 +636,8 @@ static const char *REG_NAMES[REGS_COUNT] = {
     REG_NAME_ENTRY(DV_SIM_WIN7),
 };
 
+#define OT_IBEX_CPU_EN_MASK (((1u << OT_IBEX_CPU_EN_COUNT)) - 1u)
+
 static const char MISSING_LOG_STRING[] = "(?)";
 
 #define CASE_RANGE(_reg_, _cnt_) (_reg_)...((_reg_) + (_cnt_) - (1u))
@@ -709,6 +711,7 @@ struct OtIbexWrapperDarjeelingState {
 
     uint32_t *regs;
     OtIbexTestLogEngine *log_engine;
+    uint8_t cpu_en_bm;
     bool entropy_requested;
     bool edn_connected;
 
@@ -716,6 +719,7 @@ struct OtIbexWrapperDarjeelingState {
     char *ot_id;
     OtEDNState *edn;
     uint8_t edn_ep;
+    bool lc_ignore;
     CharBackend chr;
 };
 
@@ -1246,6 +1250,48 @@ ot_ibex_wrapper_dj_log_handle(OtIbexWrapperDjState *s, uint32_t value)
     }
 }
 
+static void ot_ibex_wrapper_dj_cpu_enable_recv(void *opaque, int n, int level)
+{
+    OtIbexWrapperDjState *s = opaque;
+
+    g_assert((unsigned)n < OT_IBEX_CPU_EN_COUNT);
+
+    if (level) {
+        s->cpu_en_bm |= 1u << (unsigned)n;
+    } else {
+        s->cpu_en_bm &= ~(1u << (unsigned)n);
+    }
+
+    /*
+     * "Fetch is only enabled when local fetch enable, lifecycle CPU enable and
+     *  power manager CPU enable are all enabled."
+     */
+    bool enable = ((s->cpu_en_bm & OT_IBEX_CPU_EN_MASK) == OT_IBEX_CPU_EN_MASK);
+    trace_ot_ibex_wrapper_cpu_enable(s->ot_id ?: "", n ? "PWR" : "LC",
+                                     (bool)level, s->cpu_en_bm, enable);
+
+    CPUState *cpu = ot_common_get_local_cpu(DEVICE(s));
+    if (!cpu) {
+        error_setg(&error_fatal, "Could not find the vCPU to start!");
+        g_assert_not_reached();
+    }
+
+    bool in_reset = cpu->held_in_reset;
+
+    if (enable) {
+        cpu->halted = 0;
+        if (in_reset) {
+            resettable_release_reset(OBJECT(cpu), RESET_TYPE_COLD);
+        }
+        cpu_resume(cpu);
+    } else {
+        if (!cpu->halted) {
+            cpu->halted = 1;
+            cpu_loop_exit(cpu);
+        }
+    }
+}
+
 static uint64_t
 ot_ibex_wrapper_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
@@ -1422,6 +1468,7 @@ static Property ot_ibex_wrapper_dj_properties[] = {
     DEFINE_PROP_LINK("edn", OtIbexWrapperDjState, edn, TYPE_OT_EDN,
                      OtEDNState *),
     DEFINE_PROP_UINT8("edn-ep", OtIbexWrapperDjState, edn_ep, UINT8_MAX),
+    DEFINE_PROP_BOOL("lc-ignore", OtIbexWrapperDjState, lc_ignore, false),
     DEFINE_PROP_CHR("logdev", OtIbexWrapperDjState, chr),
     DEFINE_PROP_END_OF_LIST(),
 };
@@ -1457,6 +1504,7 @@ static void ot_ibex_wrapper_dj_reset(DeviceState *dev)
     }
     s->regs[R_FPGA_INFO] = 0x554d4551u; /* 'QEMU' in LE */
     s->entropy_requested = false;
+    s->cpu_en_bm = s->lc_ignore ? (1u << OT_IBEX_LC_CTRL_CPU_EN) : 0;
 
     memset(s->log_engine, 0, sizeof(*s->log_engine));
     s->log_engine->as = ot_common_get_local_address_space(dev);
@@ -1477,9 +1525,13 @@ static void ot_ibex_wrapper_dj_init(Object *obj)
     memory_region_init_io(&s->mmio, obj, &ot_ibex_wrapper_dj_regs_ops, s,
                           TYPE_OT_IBEX_WRAPPER_DARJEELING, REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
+
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
         ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
     }
+
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_ibex_wrapper_dj_cpu_enable_recv,
+                            OT_IBEX_WRAPPER_CPU_EN, OT_IBEX_CPU_EN_COUNT);
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
     s->log_engine = g_new0(OtIbexTestLogEngine, 1u);

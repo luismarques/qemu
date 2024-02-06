@@ -418,11 +418,38 @@ class OtpMap:
                 part_size = round_up(items_size, self.BLOCK_SIZE)
             # update the partition with is actual size
             part['size'] = part_size
+            # special ugly case as configuration file defines is_keymgr per item
+            # but RTL defines it per partition for some reason
+            kmm = self._check_keymgr_materials(name, part['items'])
+            if kmm:
+                part[kmm[0]] = kmm[1]
             prefix = name.title().replace('_', '')
             partname = f'{prefix}Part'
             newpart = type(partname, (OtpPartition,),
                            dict(name=name, __doc__=desc))
             self._partitions.append(newpart(part))
+
+    def _check_keymgr_materials(self, partname: str, items: Dict[str, Dict]) \
+            -> Optional[Tuple[str, bool]]:
+        """Check partition for key manager material fields."""
+        kms: Dict[str, bool] = {}
+        kmprefix = 'iskeymgr'
+        for props in items.values():
+            for prop, value in props.items():
+                if prop.startswith(kmprefix):
+                    kind = prop[len(kmprefix):]
+                    if kind not in kms:
+                        kms[kind] = set()
+                    kms[kind].add(value)
+        kind_count = len(kms)
+        if not kind_count:
+            return None
+        if kind_count > 1:
+            raise ValueError(f'Incoherent key manager material definition in '
+                             f'{partname} partition')
+        kind = set(kms).pop()
+        enable = any(kms[kind])
+        return f'{kmprefix}{kind}', enable
 
     def _compute_locations(self) -> None:
         """Update partitions with their location within the OTP map."""
@@ -472,7 +499,9 @@ class OTPPartitionDesc:
         write_lock='wlock',
         read_lock='rlock',
         integrity='',
-        is_keymgr='',
+        iskeymgr='',
+        iskeymgr_creator='',
+        iskeymgr_owner='',
         wide=''
     )
 
@@ -486,17 +515,21 @@ class OTPPartitionDesc:
         attrs = {n: getattr(self, f'_convert_to_{k}') if k else lambda x: x
                  for n, k in self.ATTRS.items() if k is not None}
         scriptname = basename(argv[0])
-        print(f'/* Generated from {hjname} with {scriptname} */')
-        print('', file=cfp)
+        print(f'/* Generated from {hjname} with {scriptname} */', file=cfp)
+        print(file=cfp)
+        print('/* clang-format off */', file=cfp)
+        print('/* NOLINTBEGIN */', file=cfp)
         print('static const OtOTPPartDesc OtOTPPartDescs[] = {', file=cfp)
         for part in self._otpmap.enumerate_partitions():
-            print(f'    [OTP_PART_{part.name}] = {{')
-            print(f'        .size = {part.size}u,')
-            print(f'        .offset = {part.offset}u,')
+            print(f'    [OTP_PART_{part.name}] = {{', file=cfp)
+            print(f'        .size = {part.size}u,', file=cfp)
+            print(f'        .offset = {part.offset}u,', file=cfp)
             if part.digest_offset is not None:
-                print(f'        .digest_offset = {part.digest_offset}u,')
+                print(f'        .digest_offset = {part.digest_offset}u,',
+                      file=cfp)
             else:
-                print(f'        .digest_offset = UINT16_MAX,')  # noqa: F541
+                print(f'        .digest_offset = UINT16_MAX,',   # noqa: F541
+                      file=cfp)
             for attr in attrs:
                 value = getattr(part, attr, None)
                 if value is None:
@@ -513,11 +546,14 @@ class OTPPartitionDesc:
                         attr_val = conv
                     if isinstance(attr_val, bool):
                         attr_val = str(attr_val).lower()
-                    print(f'        .{attr_name} = {attr_val},')
-            print(f'    }},')  # noqa: F541
+                    print(f'        .{attr_name} = {attr_val},', file=cfp)
+            print(f'    }},', file=cfp)  # noqa: F541
         print('};', file=cfp)
         print('', file=cfp)
         print('#define OTP_PART_COUNT ARRAY_SIZE(OtOTPPartDescs)', file=cfp)
+        print(file=cfp)
+        print('/* NOLINTEND */', file=cfp)
+        print('/* clang-format on */', file=cfp)
         # pylint: enable=f-string-without-interpolation
 
     @classmethod
@@ -575,7 +611,8 @@ class OTPRegisterDef:
                 offset += size
         scriptname = basename(argv[0])
         print(f'/* Generated from {hjname} with {scriptname} */')
-        print('', file=cfp)
+        print(file=cfp)
+        print('/* clang-format off */', file=cfp)
         for reg, off in reg_offsets:
             print(f'REG32({reg}, {off}u)', file=cfp)
         print(file=cfp)
@@ -598,6 +635,7 @@ class OTPRegisterDef:
         for pname in part_names[:pcount]:
             print(f'    OTP_NAME_ENTRY({pname}),', file=cfp)
         print('};', file=cfp)
+        print('/* clang-format on */', file=cfp)
         print(file=cfp)
 
 

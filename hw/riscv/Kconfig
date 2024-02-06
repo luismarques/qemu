@@ -46,6 +46,7 @@ config OT_DARJEELING
     select OT_UART
     select RISCV_DMI
     select SIFIVE_PLIC
+    select SPLIT_IRQ
 
 config OT_EARLGREY
     bool

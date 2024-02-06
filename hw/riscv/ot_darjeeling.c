@@ -31,6 +31,7 @@
 #include "exec/address-spaces.h"
 #include "exec/jtagstub.h"
 #include "hw/boards.h"
+#include "hw/core/split-irq.h"
 #include "hw/intc/sifive_plic.h"
 #include "hw/misc/unimp.h"
 #include "hw/opentitan/ot_address_space.h"
@@ -39,6 +40,7 @@
 #include "hw/opentitan/ot_aon_timer.h"
 #include "hw/opentitan/ot_ast_darjeeling.h"
 #include "hw/opentitan/ot_clkmgr.h"
+#include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_csrng.h"
 #include "hw/opentitan/ot_dev_proxy.h"
 #include "hw/opentitan/ot_dm_tl.h"
@@ -145,6 +147,9 @@ enum OtDarjeelingSocDevice {
     OT_DARJEELING_SOC_DEV_SRAM_RET,
     OT_DARJEELING_SOC_DEV_TIMER,
     OT_DARJEELING_SOC_DEV_UART0,
+    /* IRQ splitters, i.e. 1-to-N signal dispatchers */
+    OT_DARJEELING_SOC_SPLITTER_LC_HW_DEBUG,
+    OT_DARJEELING_SOC_SPLITTER_LC_ESCALATE,
 };
 
 /* Darjeeling Peripheral clock is 62.5 MHz */
@@ -215,6 +220,7 @@ enum OtDarjeelingMemoryRegion {
 #define OT_DARJEELING_SOC_DEVLINK(_pname_, _target_) \
     IBEX_DEVLINK(_pname_, OT_DARJEELING_SOC_DEV_##_target_)
 
+/* Device named signal to device named signal */
 #define OT_DARJEELING_SOC_SIGNAL(_sname_, _snum_, _tgt_, _tname_, _tnum_) \
     { \
         .out = { \
@@ -227,6 +233,39 @@ enum OtDarjeelingMemoryRegion {
             .num = (_tnum_), \
         } \
     }
+
+/* Device named signal to splitter input */
+#define OT_DARJEELING_SOC_D2S(_sname_, _snum_, _tgt_) \
+    { \
+        .out = { \
+            .name = (_sname_), \
+            .num = (_snum_), \
+        }, \
+        .in = { \
+            .index = (OT_DARJEELING_SOC_SPLITTER_ ## _tgt_), \
+        } \
+    }
+
+/* Splitter output to device named signal */
+#define OT_DARJEELING_SOC_S2D(_snum_, _tgt_, _tname_, _tnum_) \
+    { \
+        .out = { \
+            .num = (_snum_), \
+        }, \
+        .in = { \
+            .name = (_tname_), \
+            .index = (OT_DARJEELING_SOC_DEV_ ## _tgt_), \
+            .num = (_tnum_), \
+        } \
+    }
+
+/* Request link */
+#define OT_DARJEELING_SOC_REQ(_req_, _tgt_) \
+    OT_DARJEELING_SOC_SIGNAL(_req_##_REQ, 0, _tgt_, _req_##_REQ, 0)
+
+/* Response link */
+#define OT_DARJEELING_SOC_RSP(_rsp_, _tgt_) \
+    OT_DARJEELING_SOC_SIGNAL(_rsp_##_RSP, 0, _tgt_, _rsp_##_RSP, 0)
 
 #define OT_DARJEELING_SOC_DEV_MBX(_ix_, _addr_, _irq_) \
     .type = TYPE_OT_MBX, .instance = (_ix_), \
@@ -746,7 +785,8 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 69),
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 70)
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 70),
+            OT_DARJEELING_SOC_RSP(OPENTITAN_PWRMGR_OTP, PWRMGR)
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("edn", EDN0)
@@ -759,6 +799,29 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         .type = TYPE_OT_LC_CTRL,
         .memmap = MEMMAPENTRIES(
             { 0x30140000u, 0x100u }
+        ),
+        .gpio = IBEXGPIOCONNDEFS(
+            OT_DARJEELING_SOC_D2S(OT_LC_BROADCAST, OT_LC_HW_DEBUG_EN,
+                                  LC_HW_DEBUG),
+            OT_DARJEELING_SOC_D2S(OT_LC_BROADCAST, OT_LC_ESCALATE_EN,
+                                  LC_ESCALATE),
+            OT_DARJEELING_SOC_SIGNAL(OT_LC_BROADCAST, OT_LC_CPU_EN,
+                                    IBEX_WRAPPER, OT_IBEX_WRAPPER_CPU_EN,
+                                    OT_IBEX_LC_CTRL_CPU_EN),
+            OT_DARJEELING_SOC_SIGNAL(OT_LC_BROADCAST, OT_LC_CHECK_BYP_EN,
+                                     OTP_CTRL, OT_LC_BROADCAST,
+                                     OT_OTP_LC_CHECK_BYP_EN),
+            OT_DARJEELING_SOC_SIGNAL(OT_LC_BROADCAST,
+                                     OT_LC_CREATOR_SEED_SW_RW_EN,
+                                     OTP_CTRL, OT_LC_BROADCAST,
+                                     OT_OTP_LC_CREATOR_SEED_SW_RW_EN),
+            OT_DARJEELING_SOC_SIGNAL(OT_LC_BROADCAST, OT_LC_OWNER_SEED_SW_RW_EN,
+                                     OTP_CTRL, OT_LC_BROADCAST,
+                                     OT_OTP_LC_OWNER_SEED_SW_RW_EN),
+            OT_DARJEELING_SOC_SIGNAL(OT_LC_BROADCAST, OT_LC_SEED_HW_RD_EN,
+                                     OTP_CTRL, OT_LC_BROADCAST,
+                                     OT_OTP_LC_SEED_HW_RD_EN),
+            OT_DARJEELING_SOC_RSP(OPENTITAN_PWRMGR_LC, PWRMGR)
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("otp_ctrl", OTP_CTRL),
@@ -830,7 +893,12 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             { 0x30400000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 78)
+            OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 78),
+            OT_DARJEELING_SOC_REQ(OPENTITAN_PWRMGR_OTP, OTP_CTRL),
+            OT_DARJEELING_SOC_REQ(OPENTITAN_PWRMGR_LC, LC_CTRL),
+            OT_DARJEELING_SOC_SIGNAL(OPENTITAN_PWRMGR_CPU_EN, 0, IBEX_WRAPPER,
+                                     OT_IBEX_WRAPPER_CPU_EN,
+                                     OT_IBEX_PWRMGR_CPU_EN)
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_DARJEELING_SOC_DEVLINK("rstmgr", RSTMGR)
@@ -901,6 +969,25 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             IBEX_DEV_STRING_PROP("ot_id", "ret")
         ),
     },
+    /* IRQ splitters */
+    [OT_DARJEELING_SOC_SPLITTER_LC_HW_DEBUG] = {
+        .type = TYPE_SPLIT_IRQ,
+        .instance = 0,
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("num-lines", 1u) // to be changed
+        )
+    },
+    [OT_DARJEELING_SOC_SPLITTER_LC_ESCALATE] = {
+        .type = TYPE_SPLIT_IRQ,
+        .instance = 1,
+        .gpio = IBEXGPIOCONNDEFS(
+            OT_DARJEELING_SOC_S2D(0, OTP_CTRL, OT_LC_BROADCAST,
+                                  OT_OTP_LC_ESCALATE_EN)
+        ),
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("num-lines", 1u) // to be changed
+        )
+    }
     /* clang-format on */
 };
 

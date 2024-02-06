@@ -457,6 +457,8 @@ static void ot_rstmgr_reset(DeviceState *dev)
 {
     OtRstMgrState *s = OT_RSTMGR(dev);
 
+    trace_ot_rstmgr_reset();
+
     s->regs[R_RESET_REQ] = OT_MULTIBITBOOL4_FALSE;
     if (s->por) {
         memset(s->regs, 0, REGS_SIZE);

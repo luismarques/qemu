@@ -533,7 +533,16 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             { 0x40400000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_EARLGREY_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 152)
+            OT_EARLGREY_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 152),
+            /* loopback signal since Earlgrey OTP signal are not supported yet*/
+            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_PWRMGR_OTP_REQ, 0, PWRMGR,
+                                   OPENTITAN_PWRMGR_OTP_RSP, 0),
+            /* loopback signal since Earlgrey OTP signal are not supported yet*/
+            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_PWRMGR_LC_REQ, 0, PWRMGR,
+                                   OPENTITAN_PWRMGR_LC_RSP, 0),
+            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_PWRMGR_CPU_EN, 0, IBEX_WRAPPER,
+                                     OT_IBEX_WRAPPER_CPU_EN,
+                                     OT_IBEX_PWRMGR_CPU_EN)
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_UINT_PROP("num-rom", 1u)

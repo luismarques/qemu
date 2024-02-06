@@ -26,6 +26,7 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "qapi/qmp/qlist.h"
 #include "cpu.h"
 #include "exec/address-spaces.h"
 #include "exec/jtagstub.h"
@@ -241,7 +242,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             IBEX_DEV_BOOL_PROP("zbb", true),
             IBEX_DEV_BOOL_PROP("zbc", true),
             IBEX_DEV_BOOL_PROP("zbs", true),
-            IBEX_DEV_BOOL_PROP("x-epmp", true),
+            IBEX_DEV_BOOL_PROP("smepmp", true),
             IBEX_DEV_BOOL_PROP("x-zbr", true),
             IBEX_DEV_UINT_PROP("resetvec", 0x8080u),
             IBEX_DEV_UINT_PROP("mtvec", 0x8001u),
@@ -938,6 +939,7 @@ static void ot_darjeeling_soc_hart_configure(
 {
     OtDarjeelingMachineState *ms =
         RISCV_OT_DARJEELING_MACHINE(qdev_get_machine());
+    QList *pmp_cfg, *pmp_addr;
     (void)def;
     (void)parent;
 
@@ -946,22 +948,18 @@ static void ot_darjeeling_soc_hart_configure(
         return;
     }
 
-    qdev_prop_set_uint32(dev, PROP_ARRAY_LEN_PREFIX "pmp_cfg",
-                         ARRAY_SIZE(ot_darjeeling_pmp_cfgs));
+    pmp_cfg = qlist_new();
     for (unsigned ix = 0; ix < ARRAY_SIZE(ot_darjeeling_pmp_cfgs); ix++) {
-        char *propname = g_strdup_printf("pmp_cfg[%u]", ix);
-        qdev_prop_set_uint8(dev, propname, ot_darjeeling_pmp_cfgs[ix]);
-        g_free(propname);
+        qlist_append_int(pmp_cfg, ot_darjeeling_pmp_cfgs[ix]);
     }
+    qdev_prop_set_array(dev, "pmp_cfg", pmp_cfg);
 
-    qdev_prop_set_uint32(dev, PROP_ARRAY_LEN_PREFIX "pmp_addr",
-                         ARRAY_SIZE(ot_darjeeling_pmp_addrs));
+    pmp_addr = qlist_new();
     for (unsigned ix = 0; ix < ARRAY_SIZE(ot_darjeeling_pmp_addrs); ix++) {
-        char *propname = g_strdup_printf("pmp_addr[%u]", ix);
-        qdev_prop_set_uint64(dev, propname,
-                             (uint64_t)ot_darjeeling_pmp_addrs[ix]);
-        g_free(propname);
+        qlist_append_int(pmp_addr, ot_darjeeling_pmp_addrs[ix]);
     }
+    qdev_prop_set_array(dev, "pmp_addr", pmp_addr);
+
     qdev_prop_set_uint64(dev, "mseccfg", (uint64_t)OT_DARJEELING_MSECCFG);
 }
 

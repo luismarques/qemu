@@ -75,7 +75,7 @@ static bool pmp_is_writable(CPURISCVState *env, uint32_t pmp_index)
      * If the ePMP feature is enabled, the RLB bit allows writing to any PMP,
      * regardless of PMP_LOCK bit
      */
-    if (riscv_cpu_cfg(env)->epmp && MSECCFG_RLB_ISSET(env)) {
+    if (riscv_cpu_cfg(env)->ext_smepmp && MSECCFG_RLB_ISSET(env)) {
         return true;
     }
 
@@ -141,7 +141,6 @@ static inline uint8_t pmp_read_cfg(CPURISCVState *env, uint32_t pmp_index)
     return 0;
 }
 
-
 /*
  * Accessor to set the cfg reg for a specific PMP/HART
  * Bounds checks and relevant lock bit.
@@ -160,7 +159,7 @@ static bool pmp_write_cfg(CPURISCVState *env, uint32_t pmp_index, uint8_t val)
                           " - current:0x%02x new:0x%02x\n",
                           pmp_index, env->pmp_state.pmp[pmp_index].cfg_reg,
                           val);
-        } else if (riscv_cpu_cfg(env)->epmp &&
+        } else if (riscv_cpu_cfg(env)->ext_smepmp &&
                    !pmp_is_valid_epmp_cfg(env, val)) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "ignoring pmpcfg[%u] write - invalid"
@@ -178,6 +177,15 @@ static bool pmp_write_cfg(CPURISCVState *env, uint32_t pmp_index, uint8_t val)
     }
 
     return false;
+}
+
+void pmp_unlock_entries(CPURISCVState *env)
+{
+    uint32_t pmp_num = pmp_get_num_rules(env);
+    int i;
+    for (i = 0; i < pmp_num; i++) {
+        env->pmp_state.pmp[i].cfg_reg &= ~(PMP_LOCK | PMP_AMATCH);
+    }
 }
 
 static void pmp_decode_napot(target_ulong a, target_ulong *sa,
@@ -627,7 +635,7 @@ void mseccfg_csr_write(CPURISCVState *env, target_ulong val)
         }
     }
 
-    if (riscv_cpu_cfg(env)->epmp) {
+    if (riscv_cpu_cfg(env)->ext_smepmp) {
         /* Sticky bits */
         val |= (env->mseccfg & (MSECCFG_MMWP | MSECCFG_MML));
         if ((val ^ env->mseccfg) & (MSECCFG_MMWP | MSECCFG_MML)) {

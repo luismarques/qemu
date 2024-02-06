@@ -465,8 +465,8 @@ sub top_of_kernel_tree {
 
 	my @tree_check = (
 		"COPYING", "MAINTAINERS", "Makefile",
-		"README_QEMU.rst", "docs", "VERSION",
-		"linux-user", "softmmu"
+		"README.rst", "docs", "VERSION",
+		"linux-user", "system"
 	);
 
 	foreach my $check (@tree_check) {
@@ -1621,7 +1621,7 @@ sub process {
 				my $hex =
 					qr/%[-+ *.0-9]*([hljztL]|ll|hh)?(x|X|"\s*PRI[xX][^"]*"?)/;
 
-				# don't consider groups splitted by [.:/ ], like 2A.20:12ab
+				# don't consider groups split by [.:/ ], like 2A.20:12ab
 				my $tmpline = $rawline;
 				$tmpline =~ s/($hex[.:\/ ])+$hex//g;
 

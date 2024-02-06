@@ -151,7 +151,7 @@ static void lowrisc_ibex_soc_realize(DeviceState *dev_soc, Error **errp)
     object_property_set_bool(cpu, "zbb", true, &error_fatal);
     object_property_set_bool(cpu, "zbc", true, &error_fatal);
     object_property_set_bool(cpu, "zbs", true, &error_fatal);
-    object_property_set_bool(cpu, "x-epmp", true, &error_fatal);
+    object_property_set_bool(cpu, "smepmp", true, &error_fatal);
     qdev_realize(DEVICE(&s->cpu), NULL, &error_fatal);
 
     /* Boot ROM */
@@ -225,7 +225,7 @@ static void lowrisc_ibex_soc_realize(DeviceState *dev_soc, Error **errp)
                                            IRQ_M_TIMER));
 
     /* SPI-Hosts */
-    for (int i = 0; i < OPENTITAN_NUM_SPI_HOSTS; ++i) {
+    for (i = 0; i < OPENTITAN_NUM_SPI_HOSTS; ++i) {
         dev = DEVICE(&(s->spi_host[i]));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->spi_host[i]), errp)) {
             return;

@@ -483,10 +483,13 @@ static const MemoryRegionOps ot_rom_ctrl_regs_ops = {
     .impl.min_access_size = 4u,
     .impl.max_access_size = 4u,
 };
+
 static void ot_rom_ctrl_reset_hold(Object *obj)
 {
     OtRomCtrlClass *c = OT_ROM_CTRL_GET_CLASS(obj);
     OtRomCtrlState *s = OT_ROM_CTRL(obj);
+
+    trace_ot_rom_ctrl_reset(s->ot_id, "hold");
 
     if (c->parent_phases.hold) {
         c->parent_phases.hold(obj);
@@ -536,6 +539,8 @@ static void ot_rom_ctrl_reset_exit(Object *obj)
         /* only compare existing digests and send notification to pwrmgr */
         ot_rom_ctrl_compare_and_notify(s);
     }
+
+    trace_ot_rom_ctrl_reset(s->ot_id, "exit");
 }
 
 static void ot_rom_ctrl_realize(DeviceState *dev, Error **errp)

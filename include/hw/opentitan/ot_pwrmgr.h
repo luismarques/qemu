@@ -52,20 +52,19 @@ typedef enum {
 } OtPwrMgrRst;
 
 /* output lines */
-#define OPENTITAN_PWRMGR_LC_REQ  TYPE_OT_PWRMGR "-lc-req"
-#define OPENTITAN_PWRMGR_OTP_REQ TYPE_OT_PWRMGR "-otp-req"
-#define OPENTITAN_PWRMGR_CPU_EN  TYPE_OT_PWRMGR "-cpu-en"
+#define OT_PWRMGR_LC_REQ  TYPE_OT_PWRMGR "-lc-req"
+#define OT_PWRMGR_OTP_REQ TYPE_OT_PWRMGR "-otp-req"
+#define OT_PWRMGR_CPU_EN  TYPE_OT_PWRMGR "-cpu-en"
 
 /* input lines */
-#define OPENTITAN_PWRMGR_LC_RSP  TYPE_OT_PWRMGR "-lc-rsp"
-#define OPENTITAN_PWRMGR_OTP_RSP TYPE_OT_PWRMGR "-otp-rsp"
+#define OT_PWRMGR_LC_RSP  TYPE_OT_PWRMGR "-lc-rsp"
+#define OT_PWRMGR_OTP_RSP TYPE_OT_PWRMGR "-otp-rsp"
 
-#define OPENTITAN_PWRMGR_WKUP   TYPE_OT_PWRMGR "-wkup"
-#define OPENTITAN_PWRMGR_RST    TYPE_OT_PWRMGR "-rst"
-#define OPENTITAN_PWRMGR_SW_RST TYPE_OT_PWRMGR "-sw-rst"
+#define OT_PWRMGR_WKUP   TYPE_OT_PWRMGR "-wkup"
+#define OT_PWRMGR_RST    TYPE_OT_PWRMGR "-rst"
+#define OT_PWRMGR_SW_RST TYPE_OT_PWRMGR "-sw-rst"
 
-#define OPENTITAN_PWRMGR_ROM_GOOD TYPE_OT_PWRMGR "-rom-good"
-#define OPENTITAN_PWRMGR_ROM_DONE TYPE_OT_PWRMGR "-rom-done"
-
+#define OT_PWRMGR_ROM_GOOD TYPE_OT_PWRMGR "-rom-good"
+#define OT_PWRMGR_ROM_DONE TYPE_OT_PWRMGR "-rom-done"
 
 #endif /* HW_OPENTITAN_OT_PWRMGR_H */

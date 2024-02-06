@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Board Compatible with OpenTitan EarlGrey FPGA platform
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>

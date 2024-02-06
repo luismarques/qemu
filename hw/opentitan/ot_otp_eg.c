@@ -36,7 +36,7 @@
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
-#include "hw/opentitan/ot_otp_earlgrey.h"
+#include "hw/opentitan/ot_otp_eg.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -425,8 +425,6 @@ typedef struct {
     unsigned ecc_granule; /* size of a granule in bytes */
 } OtOTPStorage;
 
-#define OtOTPEgState OtOTPEarlGreyState
-
 struct OtOTPEgState {
     OtOTPState parent_obj;
 
@@ -461,21 +459,18 @@ struct OtOTPEgState {
     OtEDNState *edn;
     uint8_t edn_ep;
 };
+/* clang-format on */
 
 #define OTP_DIGEST_ADDR_MASK (sizeof(uint64_t) - 1u)
 
-#define OT_OTP_EARLGREY_PARTS
-
-/* NOLINTNEXTLINE */
-#include "ot_otp_earlgrey_parts.c"
-
 /* initialized to zero, i.e. no valid token declared for now */
-static const OtOTPTokens OT_OTP_EARLGREY_TOKENS;
+static const OtOTPTokens OT_OTP_EG_TOKENS;
 
-/* clang-format on */
-
+#define OT_OTP_EG_PARTS
 /* NOLINTNEXTLINE */
-#include "ot_otp_earlgrey_lcvalues.c"
+#include "ot_otp_eg_parts.c"
+/* NOLINTNEXTLINE */
+#include "ot_otp_eg_lcvalues.c"
 
 #define LC_TRANSITION_COUNT_MAX 24u
 #define LC_ENCODE_STATE(_x_) \
@@ -703,7 +698,7 @@ static void ot_otp_eg_direct_digest(OtOTPEgState *s)
 
 static uint64_t ot_otp_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtOTPEgState *s = OT_OTP_EARLGREY(opaque);
+    OtOTPEgState *s = OT_OTP_EG(opaque);
     (void)size;
     uint32_t val32;
 
@@ -827,7 +822,7 @@ static uint64_t ot_otp_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
 static void ot_otp_eg_regs_write(void *opaque, hwaddr addr, uint64_t value,
                                  unsigned size)
 {
-    OtOTPEgState *s = OT_OTP_EARLGREY(opaque);
+    OtOTPEgState *s = OT_OTP_EG(opaque);
     (void)size;
     uint32_t val32 = (uint32_t)value;
 
@@ -1007,7 +1002,7 @@ static const char *ot_otp_eg_swcfg_reg_name(unsigned swreg)
 
 static uint64_t ot_otp_eg_swcfg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtOTPEgState *s = OT_OTP_EARLGREY(opaque);
+    OtOTPEgState *s = OT_OTP_EG(opaque);
     uint32_t val32;
 
     g_assert(addr + size <= SW_CFG_WINDOW_SIZE);
@@ -1168,7 +1163,7 @@ static void ot_otp_eg_ctrl_get_lc_info(
     const OtOTPState *s, uint32_t *lc_state, unsigned *tcount,
     uint8_t *lc_valid, uint8_t *secret_valid, const OtOTPTokens **tokens)
 {
-    OtOTPEgState *ds = OT_OTP_EARLGREY(s);
+    OtOTPEgState *ds = OT_OTP_EG(s);
 
     if (lc_state) {
         *lc_state = ds->lc.state;
@@ -1187,13 +1182,13 @@ static void ot_otp_eg_ctrl_get_lc_info(
                 OT_MULTIBITBOOL_LC4_FALSE;
     }
     if (tokens) {
-        *tokens = &OT_OTP_EARLGREY_TOKENS;
+        *tokens = &OT_OTP_EG_TOKENS;
     }
 }
 
 static const OtOTPHWCfg *ot_otp_eg_ctrl_get_hw_cfg(const OtOTPState *s)
 {
-    OtOTPEgState *ds = OT_OTP_EARLGREY(s);
+    OtOTPEgState *ds = OT_OTP_EG(s);
 
     return ds->hw_cfg;
 }
@@ -1201,7 +1196,7 @@ static const OtOTPHWCfg *ot_otp_eg_ctrl_get_hw_cfg(const OtOTPState *s)
 static const OtOTPEntropyCfg *
 ot_otp_eg_ctrl_get_entropy_cfg(const OtOTPState *s)
 {
-    OtOTPEgState *ds = OT_OTP_EARLGREY(s);
+    OtOTPEgState *ds = OT_OTP_EG(s);
 
     return ds->entropy_cfg;
 }
@@ -1333,7 +1328,7 @@ static void ot_otp_eg_load(OtOTPEgState *s, Error **errp)
 
 static void ot_otp_eg_reset(DeviceState *dev)
 {
-    OtOTPEgState *s = OT_OTP_EARLGREY(dev);
+    OtOTPEgState *s = OT_OTP_EG(dev);
 
     trace_ot_otp_reset();
 
@@ -1355,7 +1350,7 @@ static void ot_otp_eg_reset(DeviceState *dev)
 
 static void ot_otp_eg_realize(DeviceState *dev, Error **errp)
 {
-    OtOTPEgState *s = OT_OTP_EARLGREY(dev);
+    OtOTPEgState *s = OT_OTP_EG(dev);
     (void)errp;
 
     ot_otp_eg_load(s, &error_fatal);
@@ -1363,7 +1358,7 @@ static void ot_otp_eg_realize(DeviceState *dev, Error **errp)
 
 static void ot_otp_eg_init(Object *obj)
 {
-    OtOTPEgState *s = OT_OTP_EARLGREY(obj);
+    OtOTPEgState *s = OT_OTP_EG(obj);
 
     memory_region_init(&s->mmio.ctrl, obj, TYPE_OT_OTP "-ctrl", 0x2000u);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio.ctrl);
@@ -1385,7 +1380,7 @@ static void ot_otp_eg_init(Object *obj)
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 
     s->hw_cfg = g_new0(OtOTPHWCfg, 1u);
     s->entropy_cfg = g_new0(OtOTPEntropyCfg, 1u);
@@ -1410,7 +1405,7 @@ static void ot_otp_eg_class_init(ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ot_otp_eg_info = {
-    .name = TYPE_OT_OTP_EARLGREY,
+    .name = TYPE_OT_OTP_EG,
     .parent = TYPE_OT_OTP,
     .instance_size = sizeof(OtOTPEgState),
     .instance_init = &ot_otp_eg_init,

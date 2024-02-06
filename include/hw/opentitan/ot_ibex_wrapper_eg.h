@@ -1,10 +1,11 @@
 /*
- * QEMU OpenTitan EarlGrey Analog Sensor Top device
+ * QEMU OpenTitan EarlGrey Ibex Wrapper device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
+ *  Loïc Lefort <loic@rivosinc.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,16 +26,14 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_AST_EARLGREY_H
-#define HW_OPENTITAN_OT_AST_EARLGREY_H
+#ifndef HW_OPENTITAN_OT_IBEX_WRAPPER_EG_H
+#define HW_OPENTITAN_OT_IBEX_WRAPPER_EG_H
 
 #include "qom/object.h"
+#include "hw/opentitan/ot_ibex_wrapper.h"
 
-#define TYPE_OT_AST_EARLGREY "ot-ast-earlgrey"
-OBJECT_DECLARE_SIMPLE_TYPE(OtASTEarlGreyState, OT_AST_EARLGREY)
+#define TYPE_OT_IBEX_WRAPPER_EG "ot-ibex_wrapper-eg"
+OBJECT_DECLARE_TYPE(OtIbexWrapperEgState, OtIbexWrapperStateClass,
+                    OT_IBEX_WRAPPER_EG)
 
-#define OT_AST_EARLGREY_RANDOM_4BIT_RATE 50000u /* 50 kHz */
-
-void ot_ast_eg_getrandom(void *buf, size_t len);
-
-#endif /* HW_OPENTITAN_OT_AST_EARLGREY_H */
+#endif /* HW_OPENTITAN_OT_IBEX_WRAPPER_EG_H */

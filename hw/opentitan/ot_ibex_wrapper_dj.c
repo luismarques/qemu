@@ -35,7 +35,7 @@
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
-#include "hw/opentitan/ot_ibex_wrapper_darjeeling.h"
+#include "hw/opentitan/ot_ibex_wrapper_dj.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -647,8 +647,6 @@ static const char MISSING_LOG_STRING[] = "(?)";
 #define xtrace_ot_ibex_wrapper_error(_s_, _msg_) \
     trace_ot_ibex_wrapper_error((_s_)->ot_id, __func__, __LINE__, _msg_)
 
-#define OtIbexWrapperDjState OtIbexWrapperDarjeelingState
-
 /*
  * These enumerated values are not HW values, however the two last values are
  * documented by DV SW as:"This is a terminal state. Any code appearing after
@@ -701,7 +699,7 @@ typedef struct {
     char *format;
 } OtIbexTestLogEngine;
 
-struct OtIbexWrapperDarjeelingState {
+struct OtIbexWrapperDjState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
@@ -798,8 +796,7 @@ static void ot_ibex_wrapper_dj_remapper_create(
 
     MemoryRegion *mr_dst;
 
-    char *name =
-        g_strdup_printf(TYPE_OT_IBEX_WRAPPER_DARJEELING "-remap[%u]", slot);
+    char *name = g_strdup_printf(TYPE_OT_IBEX_WRAPPER_DJ "-remap[%u]", slot);
 
     memory_region_transaction_begin();
     /*
@@ -1483,7 +1480,7 @@ static const MemoryRegionOps ot_ibex_wrapper_dj_regs_ops = {
 
 static void ot_ibex_wrapper_dj_reset(DeviceState *dev)
 {
-    OtIbexWrapperDjState *s = OT_IBEX_WRAPPER_DARJEELING(dev);
+    OtIbexWrapperDjState *s = OT_IBEX_WRAPPER_DJ(dev);
 
     g_assert(s->ot_id);
 
@@ -1512,7 +1509,7 @@ static void ot_ibex_wrapper_dj_reset(DeviceState *dev)
 
 static void ot_ibex_wrapper_dj_realize(DeviceState *dev, Error **errp)
 {
-    OtIbexWrapperDjState *s = OT_IBEX_WRAPPER_DARJEELING(dev);
+    OtIbexWrapperDjState *s = OT_IBEX_WRAPPER_DJ(dev);
     (void)errp;
 
     s->sys_mem = ot_common_get_local_address_space(dev)->root;
@@ -1520,14 +1517,14 @@ static void ot_ibex_wrapper_dj_realize(DeviceState *dev, Error **errp)
 
 static void ot_ibex_wrapper_dj_init(Object *obj)
 {
-    OtIbexWrapperDjState *s = OT_IBEX_WRAPPER_DARJEELING(obj);
+    OtIbexWrapperDjState *s = OT_IBEX_WRAPPER_DJ(obj);
 
     memory_region_init_io(&s->mmio, obj, &ot_ibex_wrapper_dj_regs_ops, s,
-                          TYPE_OT_IBEX_WRAPPER_DARJEELING, REGS_SIZE);
+                          TYPE_OT_IBEX_WRAPPER_DJ, REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
     qdev_init_gpio_in_named(DEVICE(obj), &ot_ibex_wrapper_dj_cpu_enable_recv,
@@ -1549,7 +1546,7 @@ static void ot_ibex_wrapper_dj_class_init(ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ot_ibex_wrapper_dj_info = {
-    .name = TYPE_OT_IBEX_WRAPPER_DARJEELING,
+    .name = TYPE_OT_IBEX_WRAPPER_DJ,
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(OtIbexWrapperDjState),
     .instance_init = &ot_ibex_wrapper_dj_init,

@@ -494,10 +494,10 @@ static void ot_aon_timer_init(Object *obj)
 
     ibex_sysbus_init_irq(obj, &s->irq_wkup);
     ibex_sysbus_init_irq(obj, &s->irq_bark);
-    ibex_qdev_init_irq(obj, &s->nmi_bark, OPENTITAN_AON_TIMER_BARK);
-    ibex_qdev_init_irq(obj, &s->pwrmgr_wkup, OPENTITAN_AON_TIMER_WKUP);
-    ibex_qdev_init_irq(obj, &s->pwrmgr_bite, OPENTITAN_AON_TIMER_BITE);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->nmi_bark, OT_AON_TIMER_BARK);
+    ibex_qdev_init_irq(obj, &s->pwrmgr_wkup, OT_AON_TIMER_WKUP);
+    ibex_qdev_init_irq(obj, &s->pwrmgr_bite, OT_AON_TIMER_BITE);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 
     memory_region_init_io(&s->mmio, obj, &ot_aon_timer_ops, s,
                           TYPE_OT_AON_TIMER, REGS_SIZE);

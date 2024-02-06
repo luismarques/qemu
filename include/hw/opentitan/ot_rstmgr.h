@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Reset Manager device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -33,7 +33,7 @@
 #define TYPE_OT_RSTMGR "ot-rstmgr"
 OBJECT_DECLARE_SIMPLE_TYPE(OtRstMgrState, OT_RSTMGR)
 
-#define OPENTITAN_RSTMGR_SW_RST TYPE_OT_RSTMGR "-sw-rst"
+#define OT_RSTMGR_SW_RST TYPE_OT_RSTMGR "-sw-rst"
 
 typedef enum {
     OT_RSTMGR_RESET_POR,

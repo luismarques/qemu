@@ -36,7 +36,7 @@
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
-#include "hw/opentitan/ot_ibex_wrapper_earlgrey.h"
+#include "hw/opentitan/ot_ibex_wrapper_eg.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -167,8 +167,6 @@ static const char MISSING_LOG_STRING[] = "(?)";
 #define xtrace_ot_ibex_wrapper_error(_s_, _msg_) \
     trace_ot_ibex_wrapper_error((_s_)->ot_id, __func__, __LINE__, _msg_)
 
-#define OtIbexWrapperEgState OtIbexWrapperEarlGreyState
-
 /*
  * These enumerated values are not HW values, however the two last values are
  * documented by DV SW as:"This is a terminal state. Any code appearing after
@@ -272,8 +270,7 @@ static void ot_ibex_wrapper_eg_remapper_create(
     MemoryRegion *sys_mem = get_system_memory();
     MemoryRegion *mr_dst;
 
-    char *name =
-        g_strdup_printf(TYPE_OT_IBEX_WRAPPER_EARLGREY "-remap[%u]", slot);
+    char *name = g_strdup_printf(TYPE_OT_IBEX_WRAPPER_EG "-remap[%u]", slot);
 
     memory_region_transaction_begin();
     /*
@@ -936,7 +933,7 @@ static const MemoryRegionOps ot_ibex_wrapper_eg_regs_ops = {
 
 static void ot_ibex_wrapper_eg_reset(DeviceState *dev)
 {
-    OtIbexWrapperEgState *s = OT_IBEX_WRAPPER_EARLGREY(dev);
+    OtIbexWrapperEgState *s = OT_IBEX_WRAPPER_EG(dev);
 
     g_assert(s->ot_id);
     trace_ot_ibex_wrapper_reset(s->ot_id);
@@ -967,13 +964,13 @@ static void ot_ibex_wrapper_eg_reset(DeviceState *dev)
 
 static void ot_ibex_wrapper_eg_init(Object *obj)
 {
-    OtIbexWrapperEgState *s = OT_IBEX_WRAPPER_EARLGREY(obj);
+    OtIbexWrapperEgState *s = OT_IBEX_WRAPPER_EG(obj);
 
     memory_region_init_io(&s->mmio, obj, &ot_ibex_wrapper_eg_regs_ops, s,
-                          TYPE_OT_IBEX_WRAPPER_EARLGREY, REGS_SIZE);
+                          TYPE_OT_IBEX_WRAPPER_EG, REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
     qdev_init_gpio_in_named(DEVICE(obj), &ot_ibex_wrapper_eg_cpu_enable_recv,
@@ -994,7 +991,7 @@ static void ot_ibex_wrapper_eg_class_init(ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ot_ibex_wrapper_eg_info = {
-    .name = TYPE_OT_IBEX_WRAPPER_EARLGREY,
+    .name = TYPE_OT_IBEX_WRAPPER_EG,
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(OtIbexWrapperEgState),
     .instance_init = &ot_ibex_wrapper_eg_init,

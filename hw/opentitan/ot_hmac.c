@@ -603,8 +603,8 @@ static void ot_hmac_init(Object *obj)
     ibex_sysbus_init_irq(obj, &s->irq_done);
     ibex_sysbus_init_irq(obj, &s->irq_fifo_empty);
     ibex_sysbus_init_irq(obj, &s->irq_hmac_err);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
-    ibex_qdev_init_irq(obj, &s->clkmgr, OPENTITAN_CLOCK_ACTIVE);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->clkmgr, OT_CLOCK_ACTIVE);
 
     memory_region_init(&s->mmio, OBJECT(s), TYPE_OT_HMAC, OT_HMAC_WHOLE_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);

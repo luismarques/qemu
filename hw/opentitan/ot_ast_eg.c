@@ -34,7 +34,7 @@
 #include "qemu/main-loop.h"
 #include "qemu/typedefs.h"
 #include "qapi/error.h"
-#include "hw/opentitan/ot_ast_earlgrey.h"
+#include "hw/opentitan/ot_ast_eg.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/registerfields.h"
@@ -130,7 +130,7 @@ static const char REGB_NAMES[REGSB_COUNT][6U] = {
 };
 #undef REG_NAME_ENTRY
 
-struct OtASTEarlGreyState {
+struct OtASTEgState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
@@ -154,7 +154,7 @@ void ot_ast_eg_getrandom(void *buf, size_t len)
 
 static uint64_t ot_ast_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtASTEarlGreyState *s = opaque;
+    OtASTEgState *s = opaque;
     (void)size;
     uint32_t val32;
 
@@ -217,7 +217,7 @@ static uint64_t ot_ast_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_ast_eg_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_ast_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -225,14 +225,14 @@ static uint64_t ot_ast_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
 static void ot_ast_eg_regs_write(void *opaque, hwaddr addr, uint64_t val64,
                                  unsigned size)
 {
-    OtASTEarlGreyState *s = opaque;
+    OtASTEgState *s = opaque;
     (void)size;
     uint32_t val32 = (uint32_t)val64;
 
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_ast_eg_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_ast_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_REGA0:
@@ -304,7 +304,7 @@ static const MemoryRegionOps ot_ast_eg_regs_ops = {
 
 static void ot_ast_eg_reset(DeviceState *dev)
 {
-    OtASTEarlGreyState *s = OT_AST_EARLGREY(dev);
+    OtASTEgState *s = OT_AST_EG(dev);
 
     memset(s->regsa, 0, REGSA_SIZE);
     memset(s->regsb, 0, REGSB_SIZE);
@@ -351,10 +351,10 @@ static void ot_ast_eg_reset(DeviceState *dev)
 
 static void ot_ast_eg_init(Object *obj)
 {
-    OtASTEarlGreyState *s = OT_AST_EARLGREY(obj);
+    OtASTEgState *s = OT_AST_EG(obj);
 
-    memory_region_init_io(&s->mmio, obj, &ot_ast_eg_regs_ops, s,
-                          TYPE_OT_AST_EARLGREY, REGS_SIZE);
+    memory_region_init_io(&s->mmio, obj, &ot_ast_eg_regs_ops, s, TYPE_OT_AST_EG,
+                          REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     s->regsa = g_new0(uint32_t, REGSA_COUNT);
@@ -372,9 +372,9 @@ static void ot_ast_eg_class_init(ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ot_ast_eg_info = {
-    .name = TYPE_OT_AST_EARLGREY,
+    .name = TYPE_OT_AST_EG,
     .parent = TYPE_SYS_BUS_DEVICE,
-    .instance_size = sizeof(OtASTEarlGreyState),
+    .instance_size = sizeof(OtASTEgState),
     .instance_init = &ot_ast_eg_init,
     .class_init = &ot_ast_eg_class_init,
 };

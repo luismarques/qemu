@@ -264,7 +264,7 @@ static void ot_soc_proxy_init(Object *obj)
     }
 
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
     qdev_init_gpio_in_named_with_opaque(DEVICE(s), &ot_soc_proxy_ingress_irq, s,

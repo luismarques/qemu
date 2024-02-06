@@ -666,8 +666,8 @@ static void ot_otbn_init(Object *obj)
     memory_region_add_subregion(&s->mmio, OT_OTBN_DMEM_BASE, &s->dmem);
 
     ibex_sysbus_init_irq(obj, &s->irq_done);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
-    ibex_qdev_init_irq(obj, &s->clkmgr, OPENTITAN_CLOCK_ACTIVE);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->clkmgr, OT_CLOCK_ACTIVE);
 
     for (unsigned rix = 0; rix < (unsigned)OT_OTBN_RND_COUNT; rix++) {
         OtOTBNRandom *r = &s->rnds[rix];

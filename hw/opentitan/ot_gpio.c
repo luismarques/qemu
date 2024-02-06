@@ -509,7 +509,7 @@ static void ot_gpio_init(Object *obj)
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 }
 
 static void ot_gpio_class_init(ObjectClass *klass, void *data)

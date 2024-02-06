@@ -492,8 +492,8 @@ static void ot_rstmgr_init(Object *obj)
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
 
-    ibex_qdev_init_irq(obj, &s->sw_reset, OPENTITAN_RSTMGR_SW_RST);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->sw_reset, OT_RSTMGR_SW_RST);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 }
 
 static void ot_rstmgr_class_init(ObjectClass *klass, void *data)

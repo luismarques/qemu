@@ -35,7 +35,7 @@
 #include "qemu/timer.h"
 #include "qemu/typedefs.h"
 #include "qapi/error.h"
-#include "hw/opentitan/ot_ast_darjeeling.h"
+#include "hw/opentitan/ot_ast_dj.h"
 #include "hw/opentitan/ot_random_src.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
@@ -136,19 +136,19 @@ typedef struct {
     QEMUTimer *timer;
     uint64_t *buffer;
     bool avail;
-} OtASTDarjeelingRandom;
+} OtASTDjRandom;
 
-struct OtASTDarjeelingState {
+struct OtASTDjState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
-    OtASTDarjeelingRandom random;
+    OtASTDjRandom random;
 
     uint32_t *regsa;
     uint32_t *regsb;
 };
 
-#define OT_AST_DARJEELING_RANDOM_FILL_RATE_NS 1000000ull /* arbitrary: 1 ms */
+#define OT_AST_DJ_RANDOM_FILL_RATE_NS 1000000ull /* arbitrary: 1 ms */
 
 /* -------------------------------------------------------------------------- */
 /* Private implementation */
@@ -165,8 +165,8 @@ static int ot_ast_dj_get_random(OtRandomSrcIf *dev, int genid,
                                 uint64_t random[OT_RANDOM_SRC_DWORD_COUNT],
                                 bool *fips)
 {
-    OtASTDarjeelingState *s = OT_AST_DARJEELING(dev);
-    OtASTDarjeelingRandom *rnd = &s->random;
+    OtASTDjState *s = OT_AST_DJ(dev);
+    OtASTDjRandom *rnd = &s->random;
 
     if (genid != -1) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: AST gennum mismatch req:%d\n",
@@ -175,7 +175,7 @@ static int ot_ast_dj_get_random(OtRandomSrcIf *dev, int genid,
     }
 
     if (!rnd->avail) {
-        trace_ot_ast_dj_no_entropy(0);
+        trace_ot_ast_no_entropy(0);
         return 1;
     }
 
@@ -186,16 +186,15 @@ static int ot_ast_dj_get_random(OtRandomSrcIf *dev, int genid,
     *fips = true;
 
     uint64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    timer_mod(rnd->timer,
-              (int64_t)(now + OT_AST_DARJEELING_RANDOM_FILL_RATE_NS));
+    timer_mod(rnd->timer, (int64_t)(now + OT_AST_DJ_RANDOM_FILL_RATE_NS));
 
     return 0;
 }
 
 static void ot_ast_dj_random_scheduler(void *opaque)
 {
-    OtASTDarjeelingState *s = opaque;
-    OtASTDarjeelingRandom *rnd = &s->random;
+    OtASTDjState *s = opaque;
+    OtASTDjRandom *rnd = &s->random;
 
     qemu_guest_getrandom_nofail(rnd->buffer,
                                 OT_RANDOM_SRC_DWORD_COUNT * sizeof(uint64_t));
@@ -205,7 +204,7 @@ static void ot_ast_dj_random_scheduler(void *opaque)
 
 static uint64_t ot_ast_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtASTDarjeelingState *s = opaque;
+    OtASTDjState *s = opaque;
     (void)size;
     uint32_t val32;
 
@@ -268,7 +267,7 @@ static uint64_t ot_ast_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
     }
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_ast_dj_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_ast_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     return (uint64_t)val32;
 };
@@ -276,14 +275,14 @@ static uint64_t ot_ast_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
 static void ot_ast_dj_regs_write(void *opaque, hwaddr addr, uint64_t val64,
                                  unsigned size)
 {
-    OtASTDarjeelingState *s = opaque;
+    OtASTDjState *s = opaque;
     (void)size;
     uint32_t val32 = (uint32_t)val64;
 
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_ast_dj_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_ast_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
 
     switch (reg) {
     case R_REGA0:
@@ -355,8 +354,8 @@ static const MemoryRegionOps ot_ast_dj_regs_ops = {
 
 static void ot_ast_dj_reset(DeviceState *dev)
 {
-    OtASTDarjeelingState *s = OT_AST_DARJEELING(dev);
-    OtASTDarjeelingRandom *rnd = &s->random;
+    OtASTDjState *s = OT_AST_DJ(dev);
+    OtASTDjRandom *rnd = &s->random;
 
     timer_del(rnd->timer);
     memset(rnd->buffer, 0, OT_RANDOM_SRC_DWORD_COUNT * sizeof(uint64_t));
@@ -405,22 +404,21 @@ static void ot_ast_dj_reset(DeviceState *dev)
     s->regsa[R_REGAL] = 0x26u;
 
     uint64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    timer_mod(rnd->timer,
-              (int64_t)(now + OT_AST_DARJEELING_RANDOM_FILL_RATE_NS));
+    timer_mod(rnd->timer, (int64_t)(now + OT_AST_DJ_RANDOM_FILL_RATE_NS));
 }
 
 static void ot_ast_dj_init(Object *obj)
 {
-    OtASTDarjeelingState *s = OT_AST_DARJEELING(obj);
+    OtASTDjState *s = OT_AST_DJ(obj);
 
-    memory_region_init_io(&s->mmio, obj, &ot_ast_dj_regs_ops, s,
-                          TYPE_OT_AST_DARJEELING, REGS_SIZE);
+    memory_region_init_io(&s->mmio, obj, &ot_ast_dj_regs_ops, s, TYPE_OT_AST_DJ,
+                          REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     s->regsa = g_new0(uint32_t, REGSA_COUNT);
     s->regsb = g_new0(uint32_t, REGSB_COUNT);
 
-    OtASTDarjeelingRandom *rnd = &s->random;
+    OtASTDjRandom *rnd = &s->random;
 
     rnd->timer =
         timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_ast_dj_random_scheduler, s);
@@ -442,9 +440,9 @@ static void ot_ast_dj_class_init(ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ot_ast_dj_info = {
-    .name = TYPE_OT_AST_DARJEELING,
+    .name = TYPE_OT_AST_DJ,
     .parent = TYPE_SYS_BUS_DEVICE,
-    .instance_size = sizeof(OtASTDarjeelingState),
+    .instance_size = sizeof(OtASTDjState),
     .instance_init = &ot_ast_dj_init,
     .class_init = &ot_ast_dj_class_init,
     .interfaces =

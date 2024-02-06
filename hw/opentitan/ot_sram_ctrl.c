@@ -282,7 +282,7 @@ static void ot_sram_ctrl_init(Object *obj)
                           TYPE_OT_SRAM_CTRL "-regs", REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 }
 
 static void ot_sram_ctrl_class_init(ObjectClass *klass, void *data)

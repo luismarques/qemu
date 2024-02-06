@@ -766,7 +766,7 @@ static void ot_mbx_init(Object *obj)
         ibex_sysbus_init_irq(obj, &s->host.irqs[ix]);
     }
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->host.alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->host.alerts[ix], OT_DEVICE_ALERT);
     }
 
     memory_region_init_io(&s->sys.mmio, obj, &ot_mbx_sys_regs_ops, s,

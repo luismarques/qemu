@@ -1305,7 +1305,7 @@ static void ot_edn_init(Object *obj)
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
     qdev_init_gpio_in_named_with_opaque(DEVICE(s), &ot_edn_csrng_ack_irq, s,
                                         TYPE_OT_EDN "-req_sts", 1);

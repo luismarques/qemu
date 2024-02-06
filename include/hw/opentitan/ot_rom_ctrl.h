@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan ROM controller
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
@@ -33,7 +33,7 @@
 #define TYPE_OT_ROM_CTRL "ot-rom-ctrl"
 OBJECT_DECLARE_TYPE(OtRomCtrlState, OtRomCtrlClass, OT_ROM_CTRL)
 
-#define OPENTITAN_ROM_CTRL_GOOD TYPE_OT_ROM_CTRL "-good"
-#define OPENTITAN_ROM_CTRL_DONE TYPE_OT_ROM_CTRL "-done"
+#define OT_ROM_CTRL_GOOD TYPE_OT_ROM_CTRL "-good"
+#define OT_ROM_CTRL_DONE TYPE_OT_ROM_CTRL "-done"
 
 #endif /* HW_OPENTITAN_OT_ROM_CTRL */

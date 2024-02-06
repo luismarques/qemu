@@ -844,10 +844,10 @@ static void ot_pwrmgr_realize(DeviceState *dev, Error **errp)
     if (s->num_rom) {
         s->roms = g_new0(OtPwrMgrRomStatus, s->num_rom);
 
-        qdev_init_gpio_in_named(dev, &ot_pwrmgr_rom_good,
-                                OPENTITAN_PWRMGR_ROM_GOOD, s->num_rom);
-        qdev_init_gpio_in_named(dev, &ot_pwrmgr_rom_done,
-                                OPENTITAN_PWRMGR_ROM_DONE, s->num_rom);
+        qdev_init_gpio_in_named(dev, &ot_pwrmgr_rom_good, OT_PWRMGR_ROM_GOOD,
+                                s->num_rom);
+        qdev_init_gpio_in_named(dev, &ot_pwrmgr_rom_done, OT_PWRMGR_ROM_DONE,
+                                s->num_rom);
     } else {
         s->roms = NULL;
     }
@@ -863,23 +863,23 @@ static void ot_pwrmgr_init(Object *obj)
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
     ibex_sysbus_init_irq(obj, &s->irq);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
-    ibex_qdev_init_irq(obj, &s->pwr_lc_req, OPENTITAN_PWRMGR_LC_REQ);
-    ibex_qdev_init_irq(obj, &s->pwr_otp_req, OPENTITAN_PWRMGR_OTP_REQ);
-    ibex_qdev_init_irq(obj, &s->cpu_enable, OPENTITAN_PWRMGR_CPU_EN);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->pwr_lc_req, OT_PWRMGR_LC_REQ);
+    ibex_qdev_init_irq(obj, &s->pwr_otp_req, OT_PWRMGR_OTP_REQ);
+    ibex_qdev_init_irq(obj, &s->cpu_enable, OT_PWRMGR_CPU_EN);
 
     s->cdc_sync = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_pwrmgr_cdc_sync, s);
 
-    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_wkup, OPENTITAN_PWRMGR_WKUP,
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_wkup, OT_PWRMGR_WKUP,
                             OT_PWRMGR_WAKEUP_COUNT);
-    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_rst_req,
-                            OPENTITAN_PWRMGR_RST, OT_PWRMGR_RST_COUNT);
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_rst_req, OT_PWRMGR_RST,
+                            OT_PWRMGR_RST_COUNT);
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_sw_rst_req,
-                            OPENTITAN_PWRMGR_SW_RST, NUM_SW_RST_REQ);
+                            OT_PWRMGR_SW_RST, NUM_SW_RST_REQ);
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_pwr_lc_rsp,
-                            OPENTITAN_PWRMGR_LC_RSP, 1);
+                            OT_PWRMGR_LC_RSP, 1);
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_pwr_otp_rsp,
-                            OPENTITAN_PWRMGR_OTP_RSP, 1);
+                            OT_PWRMGR_OTP_RSP, 1);
 
     s->fsm_tick_bh = qemu_bh_new(&ot_pwrmgr_fsm_tick, s);
 }

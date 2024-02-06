@@ -34,9 +34,9 @@
 #include "hw/intc/sifive_plic.h"
 #include "hw/misc/unimp.h"
 #include "hw/opentitan/ot_aes.h"
-#include "hw/opentitan/ot_alert_earlgrey.h"
+#include "hw/opentitan/ot_alert_eg.h"
 #include "hw/opentitan/ot_aon_timer.h"
-#include "hw/opentitan/ot_ast_earlgrey.h"
+#include "hw/opentitan/ot_ast_eg.h"
 #include "hw/opentitan/ot_clkmgr.h"
 #include "hw/opentitan/ot_csrng.h"
 #include "hw/opentitan/ot_edn.h"
@@ -44,11 +44,11 @@
 #include "hw/opentitan/ot_flash.h"
 #include "hw/opentitan/ot_gpio.h"
 #include "hw/opentitan/ot_hmac.h"
-#include "hw/opentitan/ot_ibex_wrapper_earlgrey.h"
+#include "hw/opentitan/ot_ibex_wrapper_eg.h"
 #include "hw/opentitan/ot_kmac.h"
 #include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_otbn.h"
-#include "hw/opentitan/ot_otp_earlgrey.h"
+#include "hw/opentitan/ot_otp_eg.h"
 #include "hw/opentitan/ot_pinmux.h"
 #include "hw/opentitan/ot_pwrmgr.h"
 #include "hw/opentitan/ot_rom_ctrl.h"
@@ -204,8 +204,7 @@ static const uint32_t ot_earlgrey_pmp_addrs[] = {
     }
 
 #define OT_EARLGREY_SOC_CLKMGR_HINT(_num_) \
-    OT_EARLGREY_SOC_SIGNAL(OPENTITAN_CLOCK_ACTIVE, 0, CLKMGR, \
-                           OPENTITAN_CLKMGR_HINT, _num_)
+    OT_EARLGREY_SOC_SIGNAL(OT_CLOCK_ACTIVE, 0, CLKMGR, OT_CLKMGR_HINT, _num_)
 
 /*
  * MMIO/interrupt mapping as per:
@@ -436,7 +435,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         ),
     },
     [OT_EARLGREY_SOC_DEV_OTP_CTRL] = {
-        .type = TYPE_OT_OTP_EARLGREY,
+        .type = TYPE_OT_OTP_EG,
         .cfg = &ot_earlgrey_soc_otp_ctrl_configure,
         .memmap = MEMMAPENTRIES(
             { 0x40130000u, 0x2000u },
@@ -474,7 +473,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         )
     },
     [OT_EARLGREY_SOC_DEV_ALERT_HANDLER] = {
-        .type = TYPE_OT_ALERT_EARLGREY,
+        .type = TYPE_OT_ALERT_EG,
         .memmap = MEMMAPENTRIES(
             { 0x40150000u, 0x800u }
         ),
@@ -535,12 +534,12 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         .gpio = IBEXGPIOCONNDEFS(
             OT_EARLGREY_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 152),
             /* loopback signal since Earlgrey OTP signal are not supported yet*/
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_PWRMGR_OTP_REQ, 0, PWRMGR,
-                                   OPENTITAN_PWRMGR_OTP_RSP, 0),
+            OT_EARLGREY_SOC_SIGNAL(OT_PWRMGR_OTP_REQ, 0, PWRMGR,
+                                   OT_PWRMGR_OTP_RSP, 0),
             /* loopback signal since Earlgrey OTP signal are not supported yet*/
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_PWRMGR_LC_REQ, 0, PWRMGR,
-                                   OPENTITAN_PWRMGR_LC_RSP, 0),
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_PWRMGR_CPU_EN, 0, IBEX_WRAPPER,
+            OT_EARLGREY_SOC_SIGNAL(OT_PWRMGR_LC_REQ, 0, PWRMGR,
+                                   OT_PWRMGR_LC_RSP, 0),
+            OT_EARLGREY_SOC_SIGNAL(OT_PWRMGR_CPU_EN, 0, IBEX_WRAPPER,
                                      OT_IBEX_WRAPPER_CPU_EN,
                                      OT_IBEX_PWRMGR_CPU_EN)
         ),
@@ -557,8 +556,8 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             { 0x40410000u, 0x80u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_RSTMGR_SW_RST, 0, PWRMGR, \
-                                   OPENTITAN_PWRMGR_SW_RST, 0)
+            OT_EARLGREY_SOC_SIGNAL(OT_RSTMGR_SW_RST, 0, PWRMGR, \
+                                   OT_PWRMGR_SW_RST, 0)
         ),
     },
     [OT_EARLGREY_SOC_DEV_CLKMGR] = {
@@ -605,11 +604,11 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         .gpio = IBEXGPIOCONNDEFS(
             OT_EARLGREY_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 155),
             OT_EARLGREY_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 156),
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_AON_TIMER_WKUP, 0, PWRMGR, \
-                                   OPENTITAN_PWRMGR_WKUP, \
+            OT_EARLGREY_SOC_SIGNAL(OT_AON_TIMER_WKUP, 0, PWRMGR, \
+                                   OT_PWRMGR_WKUP, \
                                    OT_PWRMGR_WAKEUP_AON_TIMER),
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_AON_TIMER_BITE, 0, PWRMGR, \
-                                   OPENTITAN_PWRMGR_RST,
+            OT_EARLGREY_SOC_SIGNAL(OT_AON_TIMER_BITE, 0, PWRMGR, \
+                                   OT_PWRMGR_RST,
                                    OT_PWRMGR_RST_AON_TIMER)
         ),
         .prop = IBEXDEVICEPROPDEFS(
@@ -617,7 +616,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         ),
     },
     [OT_EARLGREY_SOC_DEV_AST] = {
-        .type = TYPE_OT_AST_EARLGREY,
+        .type = TYPE_OT_AST_EG,
         .memmap = MEMMAPENTRIES(
             { 0x40480000u, 0x400u }
         ),
@@ -820,10 +819,10 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
             { 0x00008000u, 0x8000u }
         ),
         .gpio = IBEXGPIOCONNDEFS(
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_ROM_CTRL_GOOD, 0, PWRMGR, \
-                                   OPENTITAN_PWRMGR_ROM_GOOD, 0),
-            OT_EARLGREY_SOC_SIGNAL(OPENTITAN_ROM_CTRL_DONE, 0, PWRMGR, \
-                                   OPENTITAN_PWRMGR_ROM_DONE, 0)
+            OT_EARLGREY_SOC_SIGNAL(OT_ROM_CTRL_GOOD, 0, PWRMGR, \
+                                   OT_PWRMGR_ROM_GOOD, 0),
+            OT_EARLGREY_SOC_SIGNAL(OT_ROM_CTRL_DONE, 0, PWRMGR, \
+                                   OT_PWRMGR_ROM_DONE, 0)
         ),
         .link = IBEXDEVICELINKDEFS(
             OT_EARLGREY_SOC_DEVLINK("kmac", KMAC)
@@ -835,7 +834,7 @@ static const IbexDeviceDef ot_earlgrey_soc_devices[] = {
         ),
     },
     [OT_EARLGREY_SOC_DEV_IBEX_WRAPPER] = {
-        .type = TYPE_OT_IBEX_WRAPPER_EARLGREY,
+        .type = TYPE_OT_IBEX_WRAPPER_EG,
         .memmap = MEMMAPENTRIES(
             { 0x411f0000u, 0x100u }
         ),

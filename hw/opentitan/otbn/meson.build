@@ -27,5 +27,5 @@ otbn_lib = static_library('otbn',
 
 otbn_dep = declare_dependency(link_with: otbn_lib)
 
-system_ss.add(when: 'CONFIG_OPENTITAN_BIGNUMBER',
+system_ss.add(when: 'CONFIG_OT_BIGNUMBER',
               if_true: otbn_dep)

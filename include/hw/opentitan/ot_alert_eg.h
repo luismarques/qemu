@@ -1,7 +1,7 @@
 /*
- * QEMU OpenTitan EarlGrey One Time Programmable (OTP) memory controller
+ * QEMU OpenTitan EarlGrey Alert handler device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -26,12 +26,13 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_OTP_EARLGREY_H
-#define HW_OPENTITAN_OT_OTP_EARLGREY_H
+#ifndef HW_OPENTITAN_OT_ALERT_EG_H
+#define HW_OPENTITAN_OT_ALERT_EG_H
 
-#include "hw/opentitan/ot_otp.h"
+#include "qom/object.h"
+#include "hw/opentitan/ot_alert.h"
 
-#define TYPE_OT_OTP_EARLGREY "ot-otp-earlgrey"
-OBJECT_DECLARE_TYPE(OtOTPEarlGreyState, OtOTPStateClass, OT_OTP_EARLGREY)
+#define TYPE_OT_ALERT_EG "ot-alert-eg"
+OBJECT_DECLARE_TYPE(OtAlertEgState, OtAlertStateClass, OT_ALERT_EG)
 
-#endif /* HW_OPENTITAN_OT_OTP_EARLGREY_H */
+#endif /* HW_OPENTITAN_OT_ALERT_EG_H */

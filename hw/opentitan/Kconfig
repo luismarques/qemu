@@ -10,22 +10,22 @@ config OT_AES
 config OT_ALERT
     bool
 
-config OT_ALERT_DARJEELING
+config OT_ALERT_DJ
     select OT_ALERT
     bool
 
-config OT_ALERT_EARLGREY
+config OT_ALERT_EG
     select OT_ALERT
     bool
 
 config OT_AON_TIMER
     bool
 
-config OT_AST_DARJEELING
+config OT_AST_DJ
     select OT_RANDOM_SRC
     bool
 
-config OT_AST_EARLGREY
+config OT_AST_EG
     bool
 
 config OT_CLKMGR
@@ -67,11 +67,11 @@ config OT_HMAC
 config OT_IBEX_WRAPPER
     bool
 
-config OT_IBEX_WRAPPER_DARJEELING
+config OT_IBEX_WRAPPER_DJ
     select OT_IBEX_WRAPPER
     bool
 
-config OT_IBEX_WRAPPER_EARLGREY
+config OT_IBEX_WRAPPER_EG
     select OT_IBEX_WRAPPER
     bool
 
@@ -87,17 +87,17 @@ config OT_MBX
 
 config OT_OTBN
     bool
-    select OPENTITAN_BIGNUMBER
+    select OT_BIGNUMBER
 
 config OT_OTP
     bool
 
-config OT_OTP_DARJEELING
+config OT_OTP_DJ
     select OT_OTP
     select OT_PRESENT
     bool
 
-config OT_OTP_EARLGREY
+config OT_OTP_EG
     select OT_OTP
     bool
 

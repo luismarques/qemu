@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Clock manager device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -42,7 +42,7 @@ typedef enum {
     OT_CLKMGR_HINT_COUNT
 } OtClkMgrHintSource;
 
-#define OPENTITAN_CLKMGR_HINT  TYPE_OT_CLKMGR "-hint"
-#define OPENTITAN_CLOCK_ACTIVE "ot-clock-active"
+#define OT_CLKMGR_HINT  TYPE_OT_CLKMGR "-hint"
+#define OT_CLOCK_ACTIVE "ot-clock-active"
 
 #endif /* HW_OPENTITAN_OT_CLKMGR_H */

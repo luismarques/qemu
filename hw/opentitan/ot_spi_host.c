@@ -2,7 +2,7 @@
  * QEMU OpenTitan SPI Host controller
  *
  * Copyright (C) 2022 Western Digital
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Wilfred Mallawa <wilfred.mallawa@wdc.com>
@@ -1263,7 +1263,7 @@ static void ot_spi_host_instance_init(Object *obj)
 
     ibex_qdev_init_irqs(obj, &s->irqs[0u], SYSBUS_DEVICE_GPIO_IRQ,
                         ARRAY_SIZE(s->irqs));
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 
     s->regs = g_new0(uint32_t, REGS_COUNT);
     s->config_opts = g_new0(uint32_t, (size_t)s->num_cs);

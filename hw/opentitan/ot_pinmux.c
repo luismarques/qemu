@@ -469,7 +469,7 @@ static void ot_pinmux_init(Object *obj)
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     s->regs = g_new0(OtPinmuxStateRegs, 1u);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 }
 
 static void ot_pinmux_class_init(ObjectClass *klass, void *data)

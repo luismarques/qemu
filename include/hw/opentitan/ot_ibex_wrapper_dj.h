@@ -1,11 +1,10 @@
 /*
- * QEMU OpenTitan EarlGrey Ibex Wrapper device
+ * QEMU OpenTitan Darjeeling Ibex Wrapper device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
- *  Loïc Lefort <loic@rivosinc.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,14 +25,14 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_IBEX_WRAPPER_EARLGREY_H
-#define HW_OPENTITAN_OT_IBEX_WRAPPER_EARLGREY_H
+#ifndef HW_OPENTITAN_OT_IBEX_WRAPPER_DJ_H
+#define HW_OPENTITAN_OT_IBEX_WRAPPER_DJ_H
 
 #include "qom/object.h"
 #include "hw/opentitan/ot_ibex_wrapper.h"
 
-#define TYPE_OT_IBEX_WRAPPER_EARLGREY "ot-ibex_wrapper-earlgrey"
-OBJECT_DECLARE_TYPE(OtIbexWrapperEarlGreyState, OtIbexWrapperStateClass,
-                    OT_IBEX_WRAPPER_EARLGREY)
+#define TYPE_OT_IBEX_WRAPPER_DJ "ot-ibex_wrapper-dj"
+OBJECT_DECLARE_TYPE(OtIbexWrapperDjState, OtIbexWrapperStateClass,
+                    OT_IBEX_WRAPPER_DJ)
 
-#endif /* HW_OPENTITAN_OT_IBEX_WRAPPER_EARLGREY_H */
+#endif /* HW_OPENTITAN_OT_IBEX_WRAPPER_DJ_H */

@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Darjeeling Analog Sensor Top device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -25,12 +25,12 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_AST_DARJEELING_H
-#define HW_OPENTITAN_OT_AST_DARJEELING_H
+#ifndef HW_OPENTITAN_OT_AST_DJ_H
+#define HW_OPENTITAN_OT_AST_DJ_H
 
 #include "qom/object.h"
 
-#define TYPE_OT_AST_DARJEELING "ot-ast-darjeeling"
-OBJECT_DECLARE_SIMPLE_TYPE(OtASTDarjeelingState, OT_AST_DARJEELING)
+#define TYPE_OT_AST_DJ "ot-ast-dj"
+OBJECT_DECLARE_SIMPLE_TYPE(OtASTDjState, OT_AST_DJ)
 
-#endif /* HW_OPENTITAN_OT_AST_DARJEELING_H */
+#endif /* HW_OPENTITAN_OT_AST_DJ_H */

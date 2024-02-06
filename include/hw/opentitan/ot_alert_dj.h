@@ -1,11 +1,10 @@
 /*
- * QEMU OpenTitan Darjeeling One Time Programmable (OTP) memory controller
+ * QEMU OpenTitan Darjeeling Alert handler device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
- *  Loïc Lefort <loic@rivosinc.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,12 +25,13 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_OTP_DARJEELING_H
-#define HW_OPENTITAN_OT_OTP_DARJEELING_H
+#ifndef HW_OPENTITAN_OT_ALERT_DJ_H
+#define HW_OPENTITAN_OT_ALERT_DJ_H
 
-#include "hw/opentitan/ot_otp.h"
+#include "qom/object.h"
+#include "hw/opentitan/ot_alert.h"
 
-#define TYPE_OT_OTP_DARJEELING "ot-otp-darjeeling"
-OBJECT_DECLARE_TYPE(OtOTPDarjeelingState, OtOTPStateClass, OT_OTP_DARJEELING)
+#define TYPE_OT_ALERT_DJ "ot-alert-djg"
+OBJECT_DECLARE_TYPE(OtAlertDjState, OtAlertStateClass, OT_ALERT_DJ)
 
-#endif /* HW_OPENTITAN_OT_OTP_DARJEELING_H */
+#endif /* HW_OPENTITAN_OT_ALERT_DJ_H */

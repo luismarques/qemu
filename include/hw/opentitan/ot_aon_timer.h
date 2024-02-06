@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan AON Timer device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
@@ -33,8 +33,8 @@
 #define TYPE_OT_AON_TIMER "ot-aon_timer"
 OBJECT_DECLARE_SIMPLE_TYPE(OtAonTimerState, OT_AON_TIMER)
 
-#define OPENTITAN_AON_TIMER_WKUP TYPE_OT_AON_TIMER "-wkup"
-#define OPENTITAN_AON_TIMER_BARK TYPE_OT_AON_TIMER "-bark"
-#define OPENTITAN_AON_TIMER_BITE TYPE_OT_AON_TIMER "-bite"
+#define OT_AON_TIMER_WKUP TYPE_OT_AON_TIMER "-wkup"
+#define OT_AON_TIMER_BARK TYPE_OT_AON_TIMER "-bark"
+#define OT_AON_TIMER_BITE TYPE_OT_AON_TIMER "-bite"
 
 #endif /* HW_OPENTITAN_OT_AON_TIMER_H */

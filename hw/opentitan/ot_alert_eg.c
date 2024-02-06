@@ -1,10 +1,11 @@
 /*
- * QEMU OpenTitan Darjeeling Alert handler device
+ * QEMU OpenTitan EarlGrey Alert handler device
  *
  * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
+ *  Loïc Lefort <loic@rivosinc.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +36,7 @@
 #include "qemu/timer.h"
 #include "qemu/typedefs.h"
 #include "qapi/error.h"
-#include "hw/opentitan/ot_alert_darjeeling.h"
+#include "hw/opentitan/ot_alert_eg.h"
 #include "hw/opentitan/ot_edn.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
@@ -45,8 +46,8 @@
 #include "hw/sysbus.h"
 #include "trace.h"
 
-#define PARAM_N_ALERTS    100u
-#define PARAM_N_LPG       19u
+#define PARAM_N_ALERTS    65u
+#define PARAM_N_LPG       24u
 #define PARAM_N_LPG_WIDTH 5u
 #define PARAM_ESC_CNT_DW  32u
 #define PARAM_ACCU_CNT_DW 16u
@@ -74,23 +75,23 @@ REG32(PING_TIMER_EN_SHADOWED, 0x14u)
     FIELD(PING_TIMER_EN_SHADOWED, EN, 0u, 1u)
 REG32(ALERT_REGWEN, 0x18u)
     SHARED_FIELD(ALERT_REGWEN_EN, 0u, 1u)
-REG32(ALERT_EN_SHADOWED, 0x1a8u)
+REG32(ALERT_EN_SHADOWED, 0x11cu)
     SHARED_FIELD(ALERT_EN_SHADOWED_EN, 0u, 1u)
-REG32(ALERT_CLASS_SHADOWED, 0x338u)
+REG32(ALERT_CLASS_SHADOWED, 0x220u)
     SHARED_FIELD(ALERT_CLASS_SHADOWED_EN, 0u, 2u)
-REG32(ALERT_CAUSE, 0x4c8u)
+REG32(ALERT_CAUSE, 0x324u)
     SHARED_FIELD(ALERT_CAUSE_EN, 0u, 1u)
-REG32(LOC_ALERT_REGWEN, 0x658u)
+REG32(LOC_ALERT_REGWEN, 0x428u)
     SHARED_FIELD(LOC_ALERT_REGWEN_EN, 0u, 1u)
-REG32(LOC_ALERT_EN_SHADOWED, 0x674u)
+REG32(LOC_ALERT_EN_SHADOWED, 0x444u)
     SHARED_FIELD(LOC_ALERT_EN_SHADOWED_EN, 0u, 1u)
-REG32(LOC_ALERT_CLASS_SHADOWED, 0x690u)
+REG32(LOC_ALERT_CLASS_SHADOWED, 0x460u)
     SHARED_FIELD(LOC_ALERT_CLASS_SHADOWED_EN, 0u, 2u)
-REG32(LOC_ALERT_CAUSE, 0x6acu)
+REG32(LOC_ALERT_CAUSE, 0x47cu)
     SHARED_FIELD(LOC_ALERT_CAUSE_EN, 0u, 1u)
-REG32(CLASS_REGWEN, 0x6c8u)
+REG32(CLASS_REGWEN, 0x498u)
     FIELD(CLASS_REGWEN, EN, 0u, 1u)
-REG32(CLASS_CTRL_SHADOWED, 0x6ccu)
+REG32(CLASS_CTRL_SHADOWED, 0x49cu)
     SHARED_FIELD(CLASS_CTRL_SHADOWED_EN, 0u, 1u)
     SHARED_FIELD(CLASS_CTRL_SHADOWED_LOCK, 1u, 1u)
     SHARED_FIELD(CLASS_CTRL_SHADOWED_EN_E0, 2u, 1u)
@@ -101,23 +102,23 @@ REG32(CLASS_CTRL_SHADOWED, 0x6ccu)
     SHARED_FIELD(CLASS_CTRL_SHADOWED_MAP_E1, 8u, 2u)
     SHARED_FIELD(CLASS_CTRL_SHADOWED_MAP_E2, 10u, 2u)
     SHARED_FIELD(CLASS_CTRL_SHADOWED_MAP_E3, 12u, 2u)
-REG32(CLASS_CLR_REGWEN, 0x6d0u)
+REG32(CLASS_CLR_REGWEN, 0x4a0u)
     SHARED_FIELD(CLASS_CLR_REGWEN_EN, 0u, 1u)
-REG32(CLASS_CLR_SHADOWED, 0x6d4u)
+REG32(CLASS_CLR_SHADOWED, 0x4a4u)
     SHARED_FIELD(CLASS_CLR_SHADOWED_EN, 0u, 1u)
-REG32(CLASS_ACCUM_CNT, 0x6d8u)
+REG32(CLASS_ACCUM_CNT, 0x4a8u)
     SHARED_FIELD(CLASS_ACCUM_CNT, 0u, 16u)
-REG32(CLASS_ACCUM_THRESH_SHADOWED, 0x6dcu)
+REG32(CLASS_ACCUM_THRESH_SHADOWED, 0x4acu)
     SHARED_FIELD(CLASS_ACCUM_THRESH_SHADOWED, 0u, 16u)
-REG32(CLASS_TIMEOUT_CYC_SHADOWED, 0x6e0u)
-REG32(CLASS_CRASHDUMP_TRIGGER_SHADOWED, 0x6e4u)
+REG32(CLASS_TIMEOUT_CYC_SHADOWED, 0x4b0u)
+REG32(CLASS_CRASHDUMP_TRIGGER_SHADOWED, 0x4b4u)
     SHARED_FIELD(CLASS_CRASHDUMP_TRIGGER_SHADOWED, 0u, 2u)
-REG32(CLASS_PHASE0_CYC_SHADOWED, 0x6e8u)
-REG32(CLASS_PHASE1_CYC_SHADOWED, 0x6ecu)
-REG32(CLASS_PHASE2_CYC_SHADOWED, 0x6f0u)
-REG32(CLASS_PHASE3_CYC_SHADOWED, 0x6f4u)
-REG32(CLASS_ESC_CNT, 0x6f8u)
-REG32(CLASS_STATE, 0x6fcu)
+REG32(CLASS_PHASE0_CYC_SHADOWED, 0x4b8u)
+REG32(CLASS_PHASE1_CYC_SHADOWED, 0x4bcu)
+REG32(CLASS_PHASE2_CYC_SHADOWED, 0x4c0u)
+REG32(CLASS_PHASE3_CYC_SHADOWED, 0x4c4u)
+REG32(CLASS_ESC_CNT, 0x4c8u)
+REG32(CLASS_STATE, 0x4ccu)
     FIELD(CLASS_STATE, VAL, 0u, 3u)
 /* clang-format on */
 
@@ -159,7 +160,7 @@ enum {
 
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
-#define R_LAST_REG R32_OFF(0x7a4u)
+#define R_LAST_REG R32_OFF(0x574u)
 #define REGS_COUNT (R_LAST_REG + 1u)
 #define REGS_SIZE  (REGS_COUNT * sizeof(uint32_t))
 
@@ -175,7 +176,7 @@ enum {
 #define CLASS_SLOT(_reg_)     SLOT_OFFSET(_reg_, R_CLASS_REGWEN, CLASS)
 
 #define CHECK_REGWEN(_reg_, _cond_) \
-    ot_alert_dj_check_regwen(__func__, (_reg_), (_cond_))
+    ot_alert_eg_check_regwen(__func__, (_reg_), (_cond_))
 
 struct intr {
     uint32_t state;
@@ -228,10 +229,7 @@ typedef struct OtAlertRegs {
     struct classes classes[PARAM_N_CLASSES];
 } OtAlertRegs;
 
-
-#define OtAlertDjState OtAlertDarjeelingState
-
-struct OtAlertDjState {
+struct OtAlertEgState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
@@ -244,7 +242,7 @@ struct OtAlertDjState {
 };
 
 static inline bool
-ot_alert_dj_check_regwen(const char *func, unsigned reg, bool cond)
+ot_alert_eg_check_regwen(const char *func, unsigned reg, bool cond)
 {
     if (!cond) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: reg 0x%04x is write-protected\n",
@@ -254,7 +252,7 @@ ot_alert_dj_check_regwen(const char *func, unsigned reg, bool cond)
     return true;
 }
 
-static void ot_alert_dj_update_irqs(OtAlertDjState *s)
+static void ot_alert_eg_update_irqs(OtAlertEgState *s)
 {
     uint32_t level = s->regs->intr.state & s->regs->intr.enable;
 
@@ -263,9 +261,9 @@ static void ot_alert_dj_update_irqs(OtAlertDjState *s)
     }
 }
 
-static uint64_t ot_alert_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t ot_alert_eg_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtAlertDjState *s = opaque;
+    OtAlertEgState *s = opaque;
     (void)size;
     OtAlertRegs *regs = s->regs;
     uint32_t val32;
@@ -416,10 +414,10 @@ static uint64_t ot_alert_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
     return (uint64_t)val32;
 };
 
-static void ot_alert_dj_regs_write(void *opaque, hwaddr addr, uint64_t val64,
+static void ot_alert_eg_regs_write(void *opaque, hwaddr addr, uint64_t val64,
                                    unsigned size)
 {
-    OtAlertDjState *s = opaque;
+    OtAlertEgState *s = opaque;
     (void)size;
     OtAlertRegs *regs = s->regs;
     uint32_t val32 = (uint32_t)val64;
@@ -433,17 +431,17 @@ static void ot_alert_dj_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     case R_INTR_STATE:
         val32 &= INTR_MASK;
         regs->intr.state &= ~val32; /* RW1C */
-        ot_alert_dj_update_irqs(s);
+        ot_alert_eg_update_irqs(s);
         break;
     case R_INTR_ENABLE:
         val32 &= INTR_MASK;
         regs->intr.enable = val32;
-        ot_alert_dj_update_irqs(s);
+        ot_alert_eg_update_irqs(s);
         break;
     case R_INTR_TEST:
         val32 &= INTR_MASK;
         regs->intr.state |= val32;
-        ot_alert_dj_update_irqs(s);
+        ot_alert_eg_update_irqs(s);
         break;
     case R_PING_TIMER_REGWEN:
         val32 &= R_PING_TIMER_REGWEN_EN_MASK;
@@ -611,23 +609,23 @@ static void ot_alert_dj_regs_write(void *opaque, hwaddr addr, uint64_t val64,
     }
 };
 
-static Property ot_alert_dj_properties[] = {
-    DEFINE_PROP_LINK("edn", OtAlertDjState, edn, TYPE_OT_EDN, OtEDNState *),
-    DEFINE_PROP_UINT8("edn-ep", OtAlertDjState, edn_ep, UINT8_MAX),
+static Property ot_alert_eg_properties[] = {
+    DEFINE_PROP_LINK("edn", OtAlertEgState, edn, TYPE_OT_EDN, OtEDNState *),
+    DEFINE_PROP_UINT8("edn-ep", OtAlertEgState, edn_ep, UINT8_MAX),
     DEFINE_PROP_END_OF_LIST(),
 };
 
-static const MemoryRegionOps ot_alert_dj_regs_ops = {
-    .read = &ot_alert_dj_regs_read,
-    .write = &ot_alert_dj_regs_write,
+static const MemoryRegionOps ot_alert_eg_regs_ops = {
+    .read = &ot_alert_eg_regs_read,
+    .write = &ot_alert_eg_regs_write,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .impl.min_access_size = 4u,
     .impl.max_access_size = 4u,
 };
 
-static void ot_alert_dj_reset(DeviceState *dev)
+static void ot_alert_eg_reset(DeviceState *dev)
 {
-    OtAlertDjState *s = OT_ALERT_DARJEELING(dev);
+    OtAlertEgState *s = OT_ALERT_EG(dev);
 
     OtAlertRegs *regs = s->regs;
     memset(regs, 0, sizeof(*regs));
@@ -646,15 +644,15 @@ static void ot_alert_dj_reset(DeviceState *dev)
         regs->classes[ix].clr_regwen = 0x1u;
     }
 
-    ot_alert_dj_update_irqs(s);
+    ot_alert_eg_update_irqs(s);
 }
 
-static void ot_alert_dj_init(Object *obj)
+static void ot_alert_eg_init(Object *obj)
 {
-    OtAlertDjState *s = OT_ALERT_DARJEELING(obj);
+    OtAlertEgState *s = OT_ALERT_EG(obj);
 
-    memory_region_init_io(&s->mmio, obj, &ot_alert_dj_regs_ops, s,
-                          TYPE_OT_ALERT_DARJEELING, REGS_SIZE);
+    memory_region_init_io(&s->mmio, obj, &ot_alert_eg_regs_ops, s,
+                          TYPE_OT_ALERT_EG, REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     s->regs = g_new0(OtAlertRegs, 1);
@@ -664,28 +662,28 @@ static void ot_alert_dj_init(Object *obj)
     }
 }
 
-static void ot_alert_dj_class_init(ObjectClass *klass, void *data)
+static void ot_alert_eg_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     (void)data;
 
-    dc->reset = &ot_alert_dj_reset;
-    device_class_set_props(dc, ot_alert_dj_properties);
+    dc->reset = &ot_alert_eg_reset;
+    device_class_set_props(dc, ot_alert_eg_properties);
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 
-static const TypeInfo ot_alert_dj_info = {
-    .name = TYPE_OT_ALERT_DARJEELING,
+static const TypeInfo ot_alert_eg_info = {
+    .name = TYPE_OT_ALERT_EG,
     .parent = TYPE_SYS_BUS_DEVICE,
-    .instance_size = sizeof(OtAlertDjState),
-    .instance_init = &ot_alert_dj_init,
+    .instance_size = sizeof(OtAlertEgState),
+    .instance_init = &ot_alert_eg_init,
     .class_size = sizeof(OtAlertStateClass),
-    .class_init = &ot_alert_dj_class_init,
+    .class_init = &ot_alert_eg_class_init,
 };
 
-static void ot_alert_dj_register_types(void)
+static void ot_alert_eg_register_types(void)
 {
-    type_register_static(&ot_alert_dj_info);
+    type_register_static(&ot_alert_eg_info);
 }
 
-type_init(ot_alert_dj_register_types);
+type_init(ot_alert_eg_register_types);

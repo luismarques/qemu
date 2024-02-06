@@ -1829,7 +1829,7 @@ static void ot_flash_init(Object *obj)
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
     s->op_delay = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_flash_op_signal, s);
 }

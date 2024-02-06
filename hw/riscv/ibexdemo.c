@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Board Compatible with Ibex Demo System FPGA platform
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -388,16 +388,16 @@ static void ibexdemo_machine_class_init(ObjectClass *oc, void *data)
     mc->default_ram_size = ibexdemo_ram.size;
 }
 
-static const TypeInfo ot_earlgrey_machine_type_info = {
+static const TypeInfo ibexdemo_machine_type_info = {
     .name = TYPE_RISCV_IBEXDEMO_MACHINE,
     .parent = TYPE_MACHINE,
     .instance_size = sizeof(IbexDemoMachineState),
     .class_init = &ibexdemo_machine_class_init,
 };
 
-static void ot_earlgrey_machine_register_types(void)
+static void ibexdemo_machine_register_types(void)
 {
-    type_register_static(&ot_earlgrey_machine_type_info);
+    type_register_static(&ibexdemo_machine_type_info);
 }
 
-type_init(ot_earlgrey_machine_register_types);
+type_init(ibexdemo_machine_register_types);

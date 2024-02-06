@@ -1,7 +1,7 @@
 /* Generated from otp_ctrl_mmap.hjson with otptool.py */
 
 /* this prevents linters from checking this file without its parent file */
-#ifdef OT_OTP_DARJEELING_PARTS
+#ifdef OT_OTP_DJ_PARTS
 
 /* clang-format off */
 /* NOLINTBEGIN */
@@ -294,4 +294,4 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
 /* NOLINTEND */
 /* clang-format on */
 
-#endif /* OT_OTP_DARJEELING_PARTS */
+#endif /* OT_OTP_DJ_PARTS */

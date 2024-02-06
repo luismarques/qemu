@@ -1,2 +1,2 @@
-config OPENTITAN_BIGNUMBER
+config OT_BIGNUMBER
     bool

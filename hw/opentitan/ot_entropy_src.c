@@ -38,7 +38,7 @@
 #include "qemu/typedefs.h"
 #include "qapi/error.h"
 #include "hw/opentitan/ot_alert.h"
-#include "hw/opentitan/ot_ast_earlgrey.h"
+#include "hw/opentitan/ot_ast_eg.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_entropy_src.h"
 #include "hw/opentitan/ot_fifo32.h"
@@ -322,7 +322,7 @@ static const char *REG_NAMES[REGS_COUNT] = {
 #define ES_FINAL_FIFO_DEPTH 4u
 #define ES_FILL_RATE_NS \
     ((NANOSECONDS_PER_SECOND * ES_FILL_BITS) / \
-     ((uint64_t)OT_AST_EARLGREY_RANDOM_4BIT_RATE * 4u))
+     ((uint64_t)OT_AST_EG_RANDOM_4BIT_RATE * 4u))
 #define OT_ENTROPY_SRC_FILL_WORD_COUNT (ES_FILL_BITS / (8u * sizeof(uint32_t)))
 #define ES_WORD_COUNT                  (OT_RANDOM_SRC_WORD_COUNT)
 #define ES_SWREAD_FIFO_WORD_COUNT      ES_WORD_COUNT
@@ -386,7 +386,7 @@ struct OtEntropySrcState {
     bool otp_fw_read;
     bool otp_fw_over;
 
-    OtASTEarlGreyState *ast;
+    OtASTEgState *ast;
     OtOTPState *otp_ctrl;
 };
 
@@ -1514,8 +1514,8 @@ static void ot_entropy_src_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 };
 
 static Property ot_entropy_src_properties[] = {
-    DEFINE_PROP_LINK("ast", OtEntropySrcState, ast, TYPE_OT_AST_EARLGREY,
-                     OtASTEarlGreyState *),
+    DEFINE_PROP_LINK("ast", OtEntropySrcState, ast, TYPE_OT_AST_EG,
+                     OtASTEgState *),
     DEFINE_PROP_LINK("otp_ctrl", OtEntropySrcState, otp_ctrl, TYPE_OT_OTP,
                      OtOTPState *),
     DEFINE_PROP_END_OF_LIST(),
@@ -1608,7 +1608,7 @@ static void ot_entropy_src_init(Object *obj)
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
     ot_fifo32_create(&s->input_fifo, OT_ENTROPY_SRC_FILL_WORD_COUNT * 2u);

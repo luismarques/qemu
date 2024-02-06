@@ -1659,17 +1659,17 @@ static void ot_lc_ctrl_init(Object *obj)
     s->regs = g_new0(uint32_t, REGS_COUNT);
 
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->broadcasts); ix++) {
         ibex_qdev_init_irq(obj, &s->broadcasts[ix], OT_LC_BROADCAST);
     }
 
-    ibex_qdev_init_irq(obj, &s->pwc_lc_rsp, OPENTITAN_PWRMGR_LC_RSP);
+    ibex_qdev_init_irq(obj, &s->pwc_lc_rsp, OT_PWRMGR_LC_RSP);
 
     qdev_init_gpio_in_named(DEVICE(obj), &ot_lc_ctrl_pwr_lc_req,
-                            OPENTITAN_PWRMGR_LC_REQ, 1);
+                            OT_PWRMGR_LC_REQ, 1);
 
     s->pwc_lc_bh = qemu_bh_new(&ot_lc_ctrl_pwr_lc_bh, s);
 }

@@ -1,7 +1,7 @@
 /*
- * QEMU OpenTitan Darjeeling Ibex Wrapper device
+ * QEMU OpenTitan EarlGrey Analog Sensor Top device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -25,14 +25,16 @@
  * THE SOFTWARE.
  */
 
-#ifndef HW_OPENTITAN_OT_IBEX_WRAPPER_DARJEELING_H
-#define HW_OPENTITAN_OT_IBEX_WRAPPER_DARJEELING_H
+#ifndef HW_OPENTITAN_OT_AST_EG_H
+#define HW_OPENTITAN_OT_AST_EG_H
 
 #include "qom/object.h"
-#include "hw/opentitan/ot_ibex_wrapper.h"
 
-#define TYPE_OT_IBEX_WRAPPER_DARJEELING "ot-ibex_wrapper-darjeeling"
-OBJECT_DECLARE_TYPE(OtIbexWrapperDarjeelingState, OtIbexWrapperStateClass,
-                    OT_IBEX_WRAPPER_DARJEELING)
+#define TYPE_OT_AST_EG "ot-ast-eg"
+OBJECT_DECLARE_SIMPLE_TYPE(OtASTEgState, OT_AST_EG)
 
-#endif /* HW_OPENTITAN_OT_IBEX_WRAPPER_DARJEELING_H */
+#define OT_AST_EG_RANDOM_4BIT_RATE 50000u /* 50 kHz */
+
+void ot_ast_eg_getrandom(void *buf, size_t len);
+
+#endif /* HW_OPENTITAN_OT_AST_EG_H */

@@ -41,7 +41,7 @@
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
 #include "hw/opentitan/ot_lc_ctrl.h"
-#include "hw/opentitan/ot_otp_darjeeling.h"
+#include "hw/opentitan/ot_otp_dj.h"
 #include "hw/opentitan/ot_present.h"
 #include "hw/opentitan/ot_pwrmgr.h"
 #include "hw/qdev-properties-system.h"
@@ -711,10 +711,12 @@ typedef struct {
     uint16_t iskeymgr_owner : 1;
 } OtOTPPartDesc;
 
-#define OT_OTP_DARJEELING_PARTS
+#define OT_OTP_DJ_PARTS
 
 /* NOLINTNEXTLINE */
-#include "ot_otp_darjeeling_parts.c"
+#include "ot_otp_dj_parts.c"
+/* NOLINTNEXTLINE */
+#include "ot_otp_dj_lcvalues.c"
 
 static_assert(OTP_PART_COUNT == NUM_PART, "Invalid partition definitions");
 static_assert(OTP_PART_COUNT == OTP_PART_COUNT,
@@ -783,8 +785,6 @@ typedef struct {
 
 static_assert(OT_OTP_LC_BROADCAST_COUNT < 8 * sizeof(uint16_t),
               "Invalid OT_OTP_LC_BROADCAST_COUNT");
-
-#define OtOTPDjState OtOTPDarjeelingState
 
 struct OtOTPDjState {
     OtOTPState parent_obj;
@@ -1056,9 +1056,6 @@ ot_otp_dj_lci_change_state_line(OtOTPDjState *s, OtOTPLCIState state, int line);
 #define OT_OTP_PART_DATA_BYTE_SIZE(_pix_) \
     ((unsigned)(OtOTPPartDescs[(_pix_)].size - \
                 sizeof(uint32_t) * NUM_DIGEST_WORDS))
-
-/* NOLINTNEXTLINE */
-#include "ot_otp_darjeeling_lcvalues.c"
 
 #define LC_TRANSITION_COUNT_MAX 24u
 #define LC_STATE_BIT_WIDTH      5u
@@ -1874,7 +1871,7 @@ static void ot_otp_dj_dai_digest(OtOTPDjState *s)
 
 static void ot_otp_dj_dai_write_digest(void *opaque)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    OtOTPDjState *s = OT_OTP_DJ(opaque);
 
     g_assert((s->dai.partition >= 0) && (s->dai.partition < OTP_PART_COUNT));
 
@@ -1943,7 +1940,7 @@ static void ot_otp_dj_lci_init(OtOTPDjState *s)
 
 static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    OtOTPDjState *s = OT_OTP_DJ(opaque);
     (void)size;
     uint32_t val32;
 
@@ -2221,7 +2218,7 @@ static uint64_t ot_otp_dj_regs_read(void *opaque, hwaddr addr, unsigned size)
 static void ot_otp_dj_regs_write(void *opaque, hwaddr addr, uint64_t value,
                                  unsigned size)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    OtOTPDjState *s = OT_OTP_DJ(opaque);
     (void)size;
     uint32_t val32 = (uint32_t)value;
 
@@ -2561,7 +2558,7 @@ static const char *ot_otp_dj_swcfg_reg_name(unsigned swreg)
 static MemTxResult ot_otp_dj_swcfg_read_with_attrs(
     void *opaque, hwaddr addr, uint64_t *data, unsigned size, MemTxAttrs attrs)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    OtOTPDjState *s = OT_OTP_DJ(opaque);
     (void)attrs;
     uint32_t val32;
 
@@ -2765,7 +2762,7 @@ static void ot_otp_dj_get_lc_info(
     const OtOTPState *s, uint32_t *lc_state, unsigned *tcount,
     uint8_t *lc_valid, uint8_t *secret_valid, const OtOTPTokens **tokens)
 {
-    const OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    const OtOTPDjState *ds = OT_OTP_DJ(s);
     const OtOTPLCIController *lci = &ds->lci;
 
     if (lc_state) {
@@ -2794,7 +2791,7 @@ static void ot_otp_dj_get_lc_info(
 
 static const OtOTPHWCfg *ot_otp_dj_get_hw_cfg(const OtOTPState *s)
 {
-    const OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    const OtOTPDjState *ds = OT_OTP_DJ(s);
 
     return ds->hw_cfg;
 }
@@ -2841,7 +2838,7 @@ static bool ot_otp_dj_program_req(OtOTPState *s, uint32_t lc_state,
                                   unsigned tcount, ot_otp_program_ack_fn ack,
                                   void *opaque)
 {
-    OtOTPDjState *ds = OT_OTP_DARJEELING(s);
+    OtOTPDjState *ds = OT_OTP_DJ(s);
     OtOTPLCIController *lci = &ds->lci;
 
     switch (lci->state) {
@@ -2916,7 +2913,7 @@ static void ot_otp_dj_lci_write_complete(OtOTPDjState *s, bool success)
 
 static void ot_otp_dj_lci_write_word(void *opaque)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(opaque);
+    OtOTPDjState *s = OT_OTP_DJ(opaque);
     OtOTPLCIController *lci = &s->lci;
     const OtOTPPartDesc *lcdesc = &OtOTPPartDescs[OTP_PART_LIFE_CYCLE];
 
@@ -3158,7 +3155,7 @@ static const MemoryRegionOps ot_otp_dj_csrs_ops = {
 
 static void ot_otp_dj_reset(DeviceState *dev)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(dev);
+    OtOTPDjState *s = OT_OTP_DJ(dev);
 
     trace_ot_otp_reset();
 
@@ -3218,14 +3215,14 @@ static void ot_otp_dj_reset(DeviceState *dev)
 static void ot_otp_dj_realize(DeviceState *dev, Error **errp)
 {
     (void)errp;
-    OtOTPDjState *s = OT_OTP_DARJEELING(dev);
+    OtOTPDjState *s = OT_OTP_DJ(dev);
 
     ot_otp_dj_load(s, &error_fatal);
 }
 
 static void ot_otp_dj_init(Object *obj)
 {
-    OtOTPDjState *s = OT_OTP_DARJEELING(obj);
+    OtOTPDjState *s = OT_OTP_DJ(obj);
 
     /*
      * "ctrl" region covers two sub-regions:
@@ -3252,10 +3249,10 @@ static void ot_otp_dj_init(Object *obj)
                           TYPE_OT_OTP "-prim", CSRS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->prim.csrs);
 
-    ibex_qdev_init_irq(obj, &s->pwc_otp_rsp, OPENTITAN_PWRMGR_OTP_RSP);
+    ibex_qdev_init_irq(obj, &s->pwc_otp_rsp, OT_PWRMGR_OTP_RSP);
 
     qdev_init_gpio_in_named(DEVICE(obj), &ot_otp_dj_pwr_otp_req,
-                            OPENTITAN_PWRMGR_OTP_REQ, 1);
+                            OT_PWRMGR_OTP_REQ, 1);
 
     s->pwc_otp_bh = qemu_bh_new(&ot_otp_dj_pwr_otp_bh, s);
 
@@ -3265,7 +3262,7 @@ static void ot_otp_dj_init(Object *obj)
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
     qdev_init_gpio_in_named(DEVICE(obj), &ot_otp_dj_lc_broadcast_recv,
@@ -3307,7 +3304,7 @@ static void ot_otp_dj_class_init(ObjectClass *klass, void *data)
 }
 
 static const TypeInfo ot_otp_dj_info = {
-    .name = TYPE_OT_OTP_DARJEELING,
+    .name = TYPE_OT_OTP_DJ,
     .parent = TYPE_OT_OTP,
     .instance_size = sizeof(OtOTPDjState),
     .instance_init = &ot_otp_dj_init,

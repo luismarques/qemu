@@ -587,11 +587,11 @@ static void ot_clkmgr_init(Object *obj)
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     for (unsigned ix = 0; ix < PARAM_NUM_ALERTS; ix++) {
-        ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
+        ibex_qdev_init_irq(obj, &s->alerts[ix], OT_DEVICE_ALERT);
     }
 
-    qdev_init_gpio_in_named(DEVICE(obj), &ot_clkmgr_clock_hint,
-                            OPENTITAN_CLKMGR_HINT, OT_CLKMGR_HINT_COUNT);
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_clkmgr_clock_hint, OT_CLKMGR_HINT,
+                            OT_CLKMGR_HINT_COUNT);
 }
 
 static void ot_clkmgr_class_init(ObjectClass *klass, void *data)

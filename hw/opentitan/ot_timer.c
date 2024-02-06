@@ -367,7 +367,7 @@ static void ot_timer_init(Object *obj)
 
     ibex_sysbus_init_irq(obj, &s->irq);
     ibex_qdev_init_irq(obj, &s->m_timer_irq, NULL);
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 
     memory_region_init_io(&s->mmio, obj, &ot_timer_ops, s, TYPE_OT_TIMER,
                           REGS_SIZE);

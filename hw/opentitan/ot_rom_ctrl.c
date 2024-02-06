@@ -573,14 +573,14 @@ static void ot_rom_ctrl_init(Object *obj)
 {
     OtRomCtrlState *s = OT_ROM_CTRL(obj);
 
-    ibex_qdev_init_irq(obj, &s->pwrmgr_good, OPENTITAN_ROM_CTRL_GOOD);
-    ibex_qdev_init_irq(obj, &s->pwrmgr_done, OPENTITAN_ROM_CTRL_DONE);
+    ibex_qdev_init_irq(obj, &s->pwrmgr_good, OT_ROM_CTRL_GOOD);
+    ibex_qdev_init_irq(obj, &s->pwrmgr_done, OT_ROM_CTRL_DONE);
 
     memory_region_init_io(&s->mmio, obj, &ot_rom_ctrl_regs_ops, s,
                           TYPE_OT_ROM_CTRL "-regs", REGS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
-    ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
 }
 
 static void ot_rom_ctrl_class_init(ObjectClass *klass, void *data)

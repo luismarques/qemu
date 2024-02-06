@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Alert handler device
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -32,10 +32,10 @@
 #include "qom/object.h"
 #include "hw/sysbus.h"
 
-#define OPENTITAN_DEVICE_ALERT "ot-alert"
-
 #define TYPE_OT_ALERT "ot-alert"
 OBJECT_DECLARE_TYPE(OtAlertState, OtAlertStateClass, OT_ALERT)
+
+#define OT_DEVICE_ALERT TYPE_OT_ALERT "-sig"
 
 struct OtAlertState {
     SysBusDevice parent_obj;

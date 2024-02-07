@@ -27,7 +27,7 @@
 
 #include "ot_lc_defs.h"
 
-/* Section auto-generated with otptool.py [-i/-c/-h/-O lc_arrays] script */
+/* Section auto-generated with otptool.py script */
 
 /* clang-format off */
 /* NOLINTBEGIN */

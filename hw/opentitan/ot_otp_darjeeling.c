@@ -701,12 +701,15 @@ typedef struct {
     uint16_t sw_digest : 1;
     uint16_t secret : 1;
     uint16_t buffered : 1;
-    uint16_t wr_lockable : 1;
-    uint16_t rd_lockable : 1;
+    uint16_t write_lock : 1;
+    uint16_t read_lock : 1;
+    uint16_t read_lock_csr : 1;
     uint16_t integrity : 1;
-    uint16_t is_keymgr : 1;
-    uint16_t wide : 1; /* false: 32-bit granule, true: 64-bit granule */
+    uint16_t iskeymgr_creator : 1;
+    uint16_t iskeymgr_owner : 1;
 } OtOTPPartDesc;
+
+#define OT_OTP_DARJEELING_PARTS
 
 /* NOLINTNEXTLINE */
 #include "ot_otp_darjeeling_parts.c"
@@ -1090,10 +1093,17 @@ static void ot_otp_dj_update_irqs(OtOTPDjState *s)
     }
 }
 
-static bool ot_otp_dj_is_wide_granule(int partition)
+static bool ot_otp_dj_is_wide_granule(int partition, unsigned address)
 {
-    if (partition >= 0 && partition < OTP_PART_COUNT) {
-        return OtOTPPartDescs[partition].wide;
+    if ((unsigned)partition < OTP_PART_COUNT) {
+        if (OtOTPPartDescs[partition].secret) {
+            return true;
+        }
+
+        if (OtOTPPartDescs[partition].digest_offset ==
+            (address & OTP_DIGEST_ADDR_MASK)) {
+            return true;
+        }
     }
 
     return false;
@@ -1247,88 +1257,65 @@ static bool ot_otp_dj_is_readable(OtOTPDjState *s, int partition)
         return false;
     }
 
-    if (!s->partctrls[partition].read_lock) {
-        /* not unlocked */
-        return false;
-    }
-
-    if (!OtOTPPartDescs[partition].rd_lockable) {
-        /* read lock is not supported for the this partition */
+    if (!OtOTPPartDescs[partition].read_lock) {
+        /* read lock is not supported for this partition */
         return true;
     }
 
+    if (!OtOTPPartDescs[partition].read_lock_csr &&
+        !s->partctrls[partition].read_lock) {
+        /* hw read lock, not unlocked */
+        return false;
+    }
+
     bool rdaccess;
+    uint32_t reg;
 
     switch (partition) {
     case OTP_PART_VENDOR_TEST:
-        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_VENDOR_TEST_READ_LOCK],
-                                           READ_LOCK);
+        reg = R_VENDOR_TEST_READ_LOCK;
         break;
     case OTP_PART_CREATOR_SW_CFG:
-        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_CREATOR_SW_CFG_READ_LOCK],
-                                           READ_LOCK);
+        reg = R_CREATOR_SW_CFG_READ_LOCK;
         break;
     case OTP_PART_OWNER_SW_CFG:
-        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[R_OWNER_SW_CFG_READ_LOCK],
-                                           READ_LOCK);
+        reg = R_OWNER_SW_CFG_READ_LOCK;
         break;
     case OTP_PART_OWNERSHIP_SLOT_STATE:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_OWNERSHIP_SLOT_STATE_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_OWNERSHIP_SLOT_STATE_READ_LOCK;
         break;
     case OTP_PART_ROT_CREATOR_AUTH:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_ROT_CREATOR_AUTH_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_ROT_CREATOR_AUTH_READ_LOCK;
         break;
     case OTP_PART_ROT_OWNER_AUTH_SLOT0:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_ROT_OWNER_AUTH_SLOT0_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_ROT_OWNER_AUTH_SLOT0_READ_LOCK;
         break;
     case OTP_PART_ROT_OWNER_AUTH_SLOT1:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_ROT_OWNER_AUTH_SLOT1_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_ROT_OWNER_AUTH_SLOT1_READ_LOCK;
         break;
     case OTP_PART_PLAT_INTEG_AUTH_SLOT0:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_INTEG_AUTH_SLOT0_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_PLAT_INTEG_AUTH_SLOT0_READ_LOCK;
         break;
     case OTP_PART_PLAT_INTEG_AUTH_SLOT1:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_INTEG_AUTH_SLOT1_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_PLAT_INTEG_AUTH_SLOT1_READ_LOCK;
         break;
     case OTP_PART_PLAT_OWNER_AUTH_SLOT0:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT0_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_PLAT_OWNER_AUTH_SLOT0_READ_LOCK;
         break;
     case OTP_PART_PLAT_OWNER_AUTH_SLOT1:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT1_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_PLAT_OWNER_AUTH_SLOT1_READ_LOCK;
         break;
     case OTP_PART_PLAT_OWNER_AUTH_SLOT2:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT2_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_PLAT_OWNER_AUTH_SLOT2_READ_LOCK;
         break;
     case OTP_PART_PLAT_OWNER_AUTH_SLOT3:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK],
-                                    READ_LOCK);
+        reg = R_PLAT_OWNER_AUTH_SLOT3_READ_LOCK;
         break;
     case OTP_PART_EXT_NVM:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_EXT_NVM_READ_LOCK], READ_LOCK);
+        reg = R_EXT_NVM_READ_LOCK;
         break;
     case OTP_PART_ROM_PATCH:
-        rdaccess =
-            (bool)SHARED_FIELD_EX32(s->regs[R_ROM_PATCH_READ_LOCK], READ_LOCK);
+        reg = R_ROM_PATCH_READ_LOCK;
         break;
     case OTP_PART_HW_CFG0:
     case OTP_PART_HW_CFG1:
@@ -1336,15 +1323,30 @@ static bool ot_otp_dj_is_readable(OtOTPDjState *s, int partition)
     case OTP_PART_SECRET1:
     case OTP_PART_SECRET2:
     case OTP_PART_SECRET3:
+        reg = UINT32_MAX;
+        break;
+    default:
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: invalid partition: %d\n", __func__,
+                      partition);
+        return false;
+    }
+
+    if (OtOTPPartDescs[partition].read_lock_csr) {
+        if (reg == UINT32_MAX) {
+            error_setg(&error_fatal, "CSR register not defined");
+            g_assert_not_reached();
+        }
+        rdaccess = (bool)SHARED_FIELD_EX32(s->regs[reg], READ_LOCK);
+    } else {
+        if (reg != UINT32_MAX) {
+            error_setg(&error_fatal, "Unexpected CSR register");
+            g_assert_not_reached();
+        }
         /*
          * hwdigest-protected partition are only readable if digest is not yet
          * set.
          */
         rdaccess = ot_otp_dj_get_buffered_part_digest(s, partition) == 0u;
-        break;
-    default:
-        rdaccess = false;
-        break;
     }
 
     return rdaccess;
@@ -1485,8 +1487,6 @@ static void ot_otp_dj_initialize_partitions(OtOTPDjState *s)
             ot_otp_dj_check_partition_integrity(s, ix);
             continue;
         }
-
-        g_assert_not_reached();
     }
 }
 
@@ -1554,7 +1554,7 @@ static void ot_otp_dj_dai_read(OtOTPDjState *s)
 
     bool is_digest = ot_otp_dj_is_part_digest_offset(partition, address);
     bool is_readable = ot_otp_dj_is_readable(s, partition);
-    bool is_wide = ot_otp_dj_is_wide_granule(partition);
+    bool is_wide = ot_otp_dj_is_wide_granule(partition, address);
 
     unsigned waddr = address >> 2u;
 
@@ -1639,7 +1639,7 @@ static void ot_otp_dj_dai_write(OtOTPDjState *s)
     }
 
     bool is_digest = ot_otp_dj_is_part_digest_offset(partition, address);
-    bool is_wide = ot_otp_dj_is_wide_granule(partition);
+    bool is_wide = ot_otp_dj_is_wide_granule(partition, address);
 
     if (is_digest) {
         if (OtOTPPartDescs[partition].hw_digest) {
@@ -3073,7 +3073,8 @@ static void ot_otp_dj_reset(DeviceState *dev)
         unsigned part_size = OT_OTP_PART_DATA_BYTE_SIZE(ix);
         memset(s->partctrls[ix].buffer.data, 0, part_size);
         s->partctrls[ix].buffer.digest = 0;
-        if (OtOTPPartDescs[ix].is_keymgr) {
+        if (OtOTPPartDescs[ix].iskeymgr_creator ||
+            OtOTPPartDescs[ix].iskeymgr_owner) {
             s->partctrls[ix].read_lock = true;
             s->partctrls[ix].write_lock = true;
         }

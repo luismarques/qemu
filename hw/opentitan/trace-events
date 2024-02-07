@@ -244,7 +244,7 @@ ot_otbn_request_entropy(unsigned ep) "ep:%u"
 # ot_otp.c
 
 ot_otp_addr_to_part(uint32_t addr, const char *part, unsigned pix) "addr 0x%08x partition %s (#%u)"
-ot_otp_access_error_on(int part, uint32_t addr, const char *msg) "part #%u, addr 0x%04x: %s"
+ot_otp_access_error_on(int part, uint32_t addr, const char *msg) "part #%d, addr 0x%04x: %s"
 ot_otp_dai_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"
 ot_otp_dai_read(const char* part, unsigned pix, uint32_t hi, uint32_t lo) "DAI read %s (#%u): 0x%08x%08x"
 ot_otp_initial_lifecycle(uint32_t lc_state, unsigned tcount) "lifecyle 0x%x, transition count %u"

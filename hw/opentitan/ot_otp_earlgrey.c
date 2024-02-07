@@ -403,14 +403,16 @@ typedef struct {
     uint16_t size;
     uint16_t offset;
     uint16_t digest_offset;
-    bool hw_digest;
-    bool secret;
-    bool buffered;
-    bool wr_lockable;
-    bool rd_lockable;
-    bool ecc_fatal_alert;
-    bool wide; /* false: 32-bit granule, true: 64-bit granule */
-} OtOTPPartition;
+    uint16_t hw_digest : 1;
+    uint16_t sw_digest : 1;
+    uint16_t secret : 1;
+    uint16_t buffered : 1;
+    uint16_t write_lock : 1;
+    uint16_t read_lock : 1;
+    uint16_t read_lock_csr : 1;
+    uint16_t integrity : 1;
+    uint16_t iskeymgr : 1;
+} OtOTPPartDesc;
 
 typedef struct {
     uint32_t *storage; /* overall buffer for the storage backend */
@@ -460,104 +462,12 @@ struct OtOTPEgState {
     uint8_t edn_ep;
 };
 
-static const OtOTPPartition OtOTPPartitions[] = {
-    [OTP_PART_VENDOR_TEST] = {
-        .size = OTP_PART_VENDOR_TEST_SIZE,
-        .offset = OTP_PART_VENDOR_TEST_OFFSET,
-        .digest_offset = R_VENDOR_TEST_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = false,
-        .wide = false,
-    },
-    [OTP_PART_CREATOR_SW_CFG] = {
-        .size = OTP_PART_CREATOR_SW_CFG_SIZE,
-        .offset = OTP_PART_CREATOR_SW_CFG_OFFSET,
-        .digest_offset = R_CREATOR_SW_CFG_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_OWNER_SW_CFG] = {
-        .size = OTP_PART_OWNER_SW_CFG_SIZE,
-        .offset = OTP_PART_OWNER_SW_CFG_OFFSET,
-        .digest_offset = R_OWNER_SW_CFG_DIGEST,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = false,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_HW_CFG] = {
-        .size = OTP_PART_HW_CFG_SIZE,
-        .offset = OTP_PART_HW_CFG_OFFSET,
-        .digest_offset = R_HW_CFG_DIGEST,
-        .hw_digest = true,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = false,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-    [OTP_PART_SECRET0] = {
-        .size = OTP_PART_SECRET0_SIZE,
-        .offset = OTP_PART_SECRET0_OFFSET,
-        .digest_offset = R_SECRET0_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET1] = {
-        .size = OTP_PART_SECRET1_SIZE,
-        .offset = OTP_PART_SECRET1_OFFSET,
-        .digest_offset = R_SECRET1_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_SECRET2] = {
-        .size = OTP_PART_SECRET2_SIZE,
-        .offset = OTP_PART_SECRET2_OFFSET,
-        .digest_offset = R_SECRET2_DIGEST,
-        .hw_digest = true,
-        .secret = true,
-        .buffered = true,
-        .wr_lockable = true,
-        .rd_lockable = true,
-        .ecc_fatal_alert = true,
-        .wide = true,
-    },
-    [OTP_PART_LIFE_CYCLE] = {
-        .size = OTP_PART_LIFE_CYCLE_SIZE,
-        .offset = OTP_PART_LIFE_CYCLE_OFFSET,
-        .digest_offset = UINT16_MAX,
-        .hw_digest = false,
-        .secret = false,
-        .buffered = true,
-        .wr_lockable = false,
-        .rd_lockable = false,
-        .ecc_fatal_alert = true,
-        .wide = false,
-    },
-};
+#define OTP_DIGEST_ADDR_MASK (sizeof(uint64_t) - 1u)
+
+#define OT_OTP_EARLGREY_PARTS
+
+/* NOLINTNEXTLINE */
+#include "ot_otp_earlgrey_parts.c"
 
 /* initialized to zero, i.e. no valid token declared for now */
 static const OtOTPTokens OT_OTP_EARLGREY_TOKENS;
@@ -594,7 +504,7 @@ static void ot_otp_eg_set_error(OtOTPEgState *s, int part, OtOTPError err)
 static uint32_t ot_otp_eg_get_status(OtOTPEgState *s)
 {
     uint32_t status = 0;
-    for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartitions); ix++) {
+    for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartDescs); ix++) {
         unsigned err_off = 3u << ix;
         uint32_t err_mask =
             ((1u << (err_off + 1u)) - 1u) & ~((1u << err_off) - 1u);
@@ -611,8 +521,8 @@ static uint32_t ot_otp_eg_get_status(OtOTPEgState *s)
 
 static int ot_otp_eg_swcfg_get_part(hwaddr addr)
 {
-    for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartitions); ix++) {
-        const OtOTPPartition *part = &OtOTPPartitions[ix];
+    for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartDescs); ix++) {
+        const OtOTPPartDesc *part = &OtOTPPartDescs[ix];
         if ((addr >= part->offset) &&
             ((addr + sizeof(uint32_t)) <= (part->offset + part->size))) {
             return (OtOTPPartitionType)ix;
@@ -632,7 +542,7 @@ static uint16_t ot_otp_eg_swcfg_get_part_digest_offset(int part)
     case OTP_PART_SECRET1:
     case OTP_PART_SECRET2:
     case OTP_PART_LIFE_CYCLE:
-        return OtOTPPartitions[part].digest_offset;
+        return OtOTPPartDescs[part].digest_offset;
     default:
         return UINT16_MAX;
     }
@@ -677,8 +587,8 @@ static bool ot_otp_eg_is_readable(OtOTPEgState *s, int partition, unsigned addr)
     bool rdaccess = ot_otp_eg_swcfg_is_part_digest_offset(partition, addr);
 
     if (!rdaccess) {
-        if (!OtOTPPartitions[partition].rd_lockable) {
-            /* read lock is not supported for the this partition */
+        if (!OtOTPPartDescs[partition].read_lock) {
+            /* read lock is not supported for this partition */
             return true;
         }
     }
@@ -712,10 +622,17 @@ static bool ot_otp_eg_is_readable(OtOTPEgState *s, int partition, unsigned addr)
     return rdaccess;
 }
 
-static bool ot_otp_eg_is_wide_granule(int partition)
+static bool ot_otp_eg_is_wide_granule(int partition, unsigned address)
 {
-    if (partition >= 0 && partition < ARRAY_SIZE(OtOTPPartitions)) {
-        return OtOTPPartitions[partition].wide;
+    if ((unsigned)partition < OTP_PART_COUNT) {
+        if (OtOTPPartDescs[partition].secret) {
+            return true;
+        }
+
+        if (OtOTPPartDescs[partition].digest_offset ==
+            (address & OTP_DIGEST_ADDR_MASK)) {
+            return true;
+        }
     }
 
     return false;
@@ -723,8 +640,8 @@ static bool ot_otp_eg_is_wide_granule(int partition)
 
 static bool ot_otp_eg_is_buffered(int partition)
 {
-    if (partition >= 0 && partition < ARRAY_SIZE(OtOTPPartitions)) {
-        return OtOTPPartitions[partition].buffered;
+    if (partition >= 0 && partition < ARRAY_SIZE(OtOTPPartDescs)) {
+        return OtOTPPartDescs[partition].buffered;
     }
 
     return false;
@@ -754,7 +671,7 @@ static void ot_otp_eg_direct_read(OtOTPEgState *s)
             const uint32_t *data = s->otp.data;
             address >>= 2u;
             s->regs[R_DIRECT_ACCESS_RDATA_0] = data[address];
-            if (ot_otp_eg_is_wide_granule(partition)) {
+            if (ot_otp_eg_is_wide_granule(partition, address)) {
                 s->regs[R_DIRECT_ACCESS_RDATA_1] = data[address + 1u];
             }
             ot_otp_eg_set_error(s, partition, OTP_NO_ERROR);
@@ -1352,8 +1269,8 @@ static void ot_otp_eg_load(OtOTPEgState *s, Error **errp)
     size_t data_size = 0u;
     size_t ecc_size = 0u;
 
-    for (unsigned ix = 0u; ix < ARRAY_SIZE(OtOTPPartitions); ix++) {
-        size_t psize = (size_t)OtOTPPartitions[ix].size;
+    for (unsigned ix = 0u; ix < ARRAY_SIZE(OtOTPPartDescs); ix++) {
+        size_t psize = (size_t)OtOTPPartDescs[ix].size;
         size_t dsize = ROUND_UP(psize, sizeof(uint64_t));
         data_size += dsize;
         /* up to 1 ECC byte for 2 data bytes */

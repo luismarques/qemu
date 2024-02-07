@@ -35,6 +35,23 @@
 #define TYPE_OT_OTP "ot-otp"
 OBJECT_DECLARE_TYPE(OtOTPState, OtOTPStateClass, OT_OTP)
 
+/* Input signals from life cycle */
+typedef enum {
+    /* "Enable the TL-UL access port to the proprietary OTP IP." */
+    OT_OTP_LC_DFT_EN,
+    /* "Move all FSMs within OTP into the error state." */
+    OT_OTP_LC_ESCALATE_EN,
+    /* "Bypass consistency checks during life cycle state transitions." */
+    OT_OTP_LC_CHECK_BYP_EN,
+    /* "Enables SW R/W to the KeyMgr material partitions", should be SECRET2 */
+    OT_OTP_LC_CREATOR_SEED_SW_RW_EN,
+    /* see above, should be SECRET3 */
+    OT_OTP_LC_OWNER_SEED_SW_RW_EN,
+    /* "Enable HW R/O to the CREATOR_ROOT_KEY_SHARE{0,1}." */
+    OT_OTP_LC_SEED_HW_RD_EN,
+    OT_OTP_LC_BROADCAST_COUNT,
+} OtOtpLcBroadcast;
+
 /*
  * Hardware configuration (for HW_CFG partition)
  */

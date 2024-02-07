@@ -40,6 +40,7 @@
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_edn.h"
+#include "hw/opentitan/ot_lc_ctrl.h"
 #include "hw/opentitan/ot_otp_darjeeling.h"
 #include "hw/opentitan/ot_present.h"
 #include "hw/qdev-properties-system.h"
@@ -774,6 +775,14 @@ typedef struct {
     uint8_t digest_constant[16u]; /* Present digest finalization constant */
 } OtOTPStorage;
 
+typedef struct {
+    uint16_t signal; /* each bit tells if signal needs to be handled */
+    uint16_t level; /* level of the matching signal */
+} OtOTPLcBroadcast;
+
+static_assert(OT_OTP_LC_BROADCAST_COUNT < 8 * sizeof(uint16_t),
+              "Invalid OT_OTP_LC_BROADCAST_COUNT");
+
 #define OtOTPDjState OtOTPDarjeelingState
 
 struct OtOTPDjState {
@@ -789,11 +798,13 @@ struct OtOTPDjState {
     struct {
         MemoryRegion csrs;
     } prim;
+    QEMUBH *lc_broadcast_bh;
     IbexIRQ irqs[NUM_IRQS];
     IbexIRQ alerts[NUM_ALERTS];
 
     uint32_t regs[REGS_COUNT];
 
+    OtOTPLcBroadcast lc_broadcast;
     // TODO: allocate outside the structure
     OtOTPDAIController dai;
     OtOTPLCIController lci;
@@ -1368,6 +1379,89 @@ ot_otp_dj_lci_change_state_line(OtOTPDjState *s, OtOTPLCIState state, int line)
                                   s->lci.state, LCI_STATE_NAME(state), state);
 
     s->lci.state = state;
+}
+
+static void ot_otp_dj_lc_broadcast_recv(void *opaque, int n, int level)
+{
+    OtOTPDjState *s = opaque;
+    OtOTPLcBroadcast *bcast = &s->lc_broadcast;
+
+    g_assert((unsigned)n < OT_OTP_LC_BROADCAST_COUNT);
+
+    uint16_t bit = 1u << (unsigned)n;
+    bcast->signal |= bit;
+    /*
+     * as these signals are only used to change permissions, it is valid to
+     * override a signal value that has not been processed yet
+     */
+    if (level) {
+        bcast->level |= bit;
+    } else {
+        bcast->level &= ~bit;
+    }
+
+    /* use a BH to decouple IRQ signaling from actual handling */
+    qemu_bh_schedule(s->lc_broadcast_bh);
+}
+
+static void ot_otp_dj_lc_broadcast_bh(void *opaque)
+{
+    OtOTPDjState *s = opaque;
+    OtOTPLcBroadcast *bcast = &s->lc_broadcast;
+
+    /* handle all flagged signals */
+    while (bcast->signal) {
+        /* pick and clear */
+        unsigned sig = ctz16(bcast->signal);
+        uint16_t bit = 1u << (unsigned)sig;
+        bcast->signal &= ~bit;
+        bool level = (bool)(bcast->level & bit);
+
+        trace_ot_otp_lc_broadcast(sig, level);
+
+        switch ((int)sig) {
+        case OT_OTP_LC_DFT_EN:
+            qemu_log_mask(LOG_UNIMP, "%s: DFT feature not supported\n",
+                          __func__);
+            break;
+        case OT_OTP_LC_ESCALATE_EN:
+            if (level) {
+                DAI_CHANGE_STATE(s, OTP_DAI_ERROR);
+                LCI_CHANGE_STATE(s, OTP_LCI_ERROR);
+                // TODO: manage other FSMs
+                qemu_log_mask(LOG_UNIMP, "%s: ESCALATE partially implemented\n",
+                              __func__);
+            }
+            break;
+        case OT_OTP_LC_CHECK_BYP_EN:
+            qemu_log_mask(LOG_UNIMP, "%s: Bypass is ignored\n", __func__);
+            break;
+        case OT_OTP_LC_CREATOR_SEED_SW_RW_EN:
+            for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
+                if (OtOTPPartDescs[OTP_PART_SECRET2].iskeymgr_creator) {
+                    s->partctrls[OTP_PART_SECRET2].read_lock = !level;
+                    s->partctrls[OTP_PART_SECRET2].write_lock = !level;
+                }
+            }
+            break;
+        case OT_OTP_LC_OWNER_SEED_SW_RW_EN:
+            for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
+                if (OtOTPPartDescs[OTP_PART_SECRET2].iskeymgr_owner) {
+                    s->partctrls[OTP_PART_SECRET2].read_lock = !level;
+                    s->partctrls[OTP_PART_SECRET2].write_lock = !level;
+                }
+            }
+            break;
+        case OT_OTP_LC_SEED_HW_RD_EN:
+            qemu_log_mask(LOG_UNIMP, "%s: Seed HW read is ignored\n", __func__);
+            break;
+        default:
+            error_setg(&error_fatal, "%s: unexpected LC broadcast %d\n",
+                       __func__, sig);
+            g_assert_not_reached();
+            break;
+        }
+    }
 }
 
 static uint64_t ot_otp_dj_compute_partition_digest(
@@ -3057,6 +3151,8 @@ static void ot_otp_dj_reset(DeviceState *dev)
     s->regs[R_EXT_NVM_READ_LOCK] = 0x1u;
     s->regs[R_ROM_PATCH_READ_LOCK] = 0x1u;
 
+    s->lc_broadcast = (OtOTPLcBroadcast){ 0, 0 };
+
     ot_otp_dj_update_irqs(s);
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
         ibex_irq_set(&s->alerts[ix], 0);
@@ -3132,12 +3228,17 @@ static void ot_otp_dj_init(Object *obj)
                           TYPE_OT_OTP "-prim", CSRS_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->prim.csrs);
 
+    s->lc_broadcast_bh = qemu_bh_new(&ot_otp_dj_lc_broadcast_bh, s);
+
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->irqs); ix++) {
         ibex_sysbus_init_irq(obj, &s->irqs[ix]);
     }
     for (unsigned ix = 0; ix < ARRAY_SIZE(s->alerts); ix++) {
         ibex_qdev_init_irq(obj, &s->alerts[ix], OPENTITAN_DEVICE_ALERT);
     }
+
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_otp_dj_lc_broadcast_recv,
+                            OT_LC_BROADCAST, OT_OTP_LC_BROADCAST_COUNT);
 
     for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
         if (!OtOTPPartDescs[ix].buffered) {

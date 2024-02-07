@@ -905,17 +905,22 @@ static const char *REG_NAMES[REGS_COUNT] = {
 };
 #undef REG_NAME_ENTRY
 
+/* clang-format off */
 #define CSR_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
 static const char CSR_NAMES[CSRS_COUNT][6u] = {
-    CSR_NAME_ENTRY(CSR0), CSR_NAME_ENTRY(CSR1), CSR_NAME_ENTRY(CSR2),
-    CSR_NAME_ENTRY(CSR3), CSR_NAME_ENTRY(CSR4), CSR_NAME_ENTRY(CSR5),
-    CSR_NAME_ENTRY(CSR6), CSR_NAME_ENTRY(CSR7),
+    CSR_NAME_ENTRY(CSR0),
+    CSR_NAME_ENTRY(CSR1),
+    CSR_NAME_ENTRY(CSR2),
+    CSR_NAME_ENTRY(CSR3),
+    CSR_NAME_ENTRY(CSR4),
+    CSR_NAME_ENTRY(CSR5),
+    CSR_NAME_ENTRY(CSR6),
+    CSR_NAME_ENTRY(CSR7),
 };
 #undef CSR_NAME_ENTRY
 
 #define OTP_NAME_ENTRY(_st_) [_st_] = stringify(_st_)
 
-/* clang-format off */
 static const char *DAI_STATE_NAMES[] = {
     OTP_NAME_ENTRY(OTP_DAI_RESET),
     OTP_NAME_ENTRY(OTP_DAI_INIT_OTP),
@@ -945,6 +950,12 @@ static const char *LCI_STATE_NAMES[] = {
     OTP_NAME_ENTRY(OTP_LCI_WRITE),
     OTP_NAME_ENTRY(OTP_LCI_WRITE_WAIT),
     OTP_NAME_ENTRY(OTP_LCI_ERROR),
+};
+
+static const char *OTP_TOKEN_NAMES[] = {
+    OTP_NAME_ENTRY(OTP_TOKEN_TEST_UNLOCK),
+    OTP_NAME_ENTRY(OTP_TOKEN_TEST_EXIT),
+    OTP_NAME_ENTRY(OTP_TOKEN_RMA),
 };
 
 static const char *PART_NAMES[] = {
@@ -987,20 +998,24 @@ static const char *ERR_CODE_NAMES[] = {
 #undef OTP_NAME_ENTRY
 
 #define BUF_STATE_NAME(_st_) \
-    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(BUF_STATE_NAMES) ? \
+    ((unsigned)(_st_) < ARRAY_SIZE(BUF_STATE_NAMES) ? \
          BUF_STATE_NAMES[(_st_)] : \
          "?")
 #define UNBUF_STATE_NAME(_st_) \
-    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(UNBUF_STATE_NAMES) ? \
+    ((unsigned)(_st_) < ARRAY_SIZE(UNBUF_STATE_NAMES) ? \
          UNBUF_STATE_NAMES[(_st_)] : \
          "?")
 #define DAI_STATE_NAME(_st_) \
-    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(DAI_STATE_NAMES) ? \
+    ((unsigned)(_st_) < ARRAY_SIZE(DAI_STATE_NAMES) ? \
          DAI_STATE_NAMES[(_st_)] : \
          "?")
 #define LCI_STATE_NAME(_st_) \
-    ((_st_) >= 0 && (_st_) < ARRAY_SIZE(LCI_STATE_NAMES) ? \
+    ((unsigned)(_st_) < ARRAY_SIZE(LCI_STATE_NAMES) ? \
          LCI_STATE_NAMES[(_st_)] : \
+         "?")
+#define OTP_TOKEN_NAME(_tk_) \
+    ((unsigned)(_tk_) < ARRAY_SIZE(OTP_TOKEN_NAMES) ? \
+         OTP_TOKEN_NAMES[(_tk_)] : \
          "?")
 #define PART_NAME(_pt_) \
     (((unsigned)(_pt_)) < ARRAY_SIZE(PART_NAMES) ? PART_NAMES[(_pt_)] : "?")
@@ -2611,21 +2626,41 @@ static void ot_otp_dj_load_tokens(OtOTPDjState *s)
     memset(s->tokens, 0, sizeof(*s->tokens));
 
     const uint32_t *data = s->otp.data;
-    OtOTPTokenValue *values = s->tokens->values;
+    OtOTPTokens *tokens = s->tokens;
 
-    if (s->partctrls[OTP_PART_SECRET0].locked) {
-        memcpy(&values[OTP_TOKEN_TEST_UNLOCK], &data[R_TEST_UNLOCK_TOKEN], 16u);
-        s->tokens->valid_bm |= 1u << OTP_TOKEN_TEST_UNLOCK;
-    }
+    static_assert(sizeof(OtOTPTokenValue) == 16u, "Invalid token size");
 
-    if (s->partctrls[OTP_PART_SECRET0].locked) {
-        memcpy(&values[OTP_TOKEN_TEST_EXIT], &data[R_TEST_EXIT_TOKEN], 16u);
-        s->tokens->valid_bm |= 1u << OTP_TOKEN_TEST_EXIT;
-    }
+    for (unsigned tkx = 0; tkx < OTP_TOKEN_COUNT; tkx++) {
+        unsigned partition;
+        uint32_t reg;
 
-    if (s->partctrls[OTP_PART_SECRET2].locked) {
-        memcpy(&values[OTP_TOKEN_RMA], &data[R_RMA_TOKEN], 16u);
-        s->tokens->valid_bm |= 1u << OTP_TOKEN_RMA;
+        switch (tkx) {
+        case OTP_TOKEN_TEST_UNLOCK:
+            partition = OTP_PART_SECRET0;
+            reg = R_TEST_UNLOCK_TOKEN;
+            break;
+        case OTP_TOKEN_TEST_EXIT:
+            partition = OTP_PART_SECRET0;
+            reg = R_TEST_EXIT_TOKEN;
+            break;
+        case OTP_TOKEN_RMA:
+            partition = OTP_PART_SECRET2;
+            reg = R_RMA_TOKEN;
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+
+        OtOTPTokenValue value;
+        memcpy(&value, &data[reg], sizeof(OtOTPTokenValue));
+        if (s->partctrls[partition].locked) {
+            tokens->values[tkx] = value;
+            tokens->valid_bm |= 1u << tkx;
+        }
+        trace_ot_otp_load_token(OTP_TOKEN_NAME(tkx), tkx, value.hi, value.lo,
+                                (s->tokens->valid_bm & (1u << tkx)) ? "" :
+                                                                      "in");
     }
 }
 

@@ -156,14 +156,66 @@ static const char *REG_NAMES[REGS_COUNT] = {
 };
 #undef REG_NAME_ENTRY
 
+/* not a real register, but a way to store incoming signals */
+SHARED_FIELD(INPUTS_LC, 0u, 1u)
+SHARED_FIELD(INPUTS_OTP, 1u, 1u)
+
+typedef enum {
+    OT_PWRMGR_INIT_OTP,
+    OT_PWRMGR_INIT_LC_CTRL,
+    OT_PWRMGR_INIT_COUNT,
+} OtPwrMgrInit;
+
+typedef enum {
+    OT_PWR_FAST_ST_LOW_POWER,
+    OT_PWR_FAST_ST_ENABLE_CLOCKS,
+    OT_PWR_FAST_ST_RELEASE_LC_RST,
+    OT_PWR_FAST_ST_OTP_INIT,
+    OT_PWR_FAST_ST_LC_INIT,
+    OT_PWR_FAST_ST_STRAP,
+    OT_PWR_FAST_ST_ACK_PWR_UP,
+    OT_PWR_FAST_ST_ROM_CHECK_DONE,
+    OT_PWR_FAST_ST_ROM_CHECK_GOOD,
+    OT_PWR_FAST_ST_ACTIVE,
+    OT_PWR_FAST_ST_DIS_CLKS,
+    OT_PWR_FAST_ST_FALL_THROUGH,
+    OT_PWR_FAST_ST_NVM_IDLE_CHK,
+    OT_PWR_FAST_ST_LOW_POWER_PREP,
+    OT_PWR_FAST_ST_NVM_SHUT_DOWN, /* not used in DJ */
+    OT_PWR_FAST_ST_RESET_PREP,
+    OT_PWR_FAST_ST_RESET_WAIT,
+    OT_PWR_FAST_ST_REQ_PWR_DN,
+    OT_PWR_FAST_ST_INVALID,
+} OtPwrMgrFastState;
+
+typedef enum {
+    OT_PWR_SLOW_ST_RESET,
+    OT_PWR_SLOW_ST_LOW_POWER,
+    OT_PWR_SLOW_ST_MAIN_POWER_ON,
+    OT_PWR_SLOW_ST_PWR_CLAMP_OFF,
+    OT_PWR_SLOW_ST_CLOCKS_ON,
+    OT_PWR_SLOW_ST_REQ_PWR_UP,
+    OT_PWR_SLOW_ST_IDLE,
+    OT_PWR_SLOW_ST_ACK_PWR_DN,
+    OT_PWR_SLOW_ST_CLOCKS_OFF,
+    OT_PWR_SLOW_ST_PWR_CLAMP_ON,
+    OT_PWR_SLOW_ST_MAIN_POWER_OFF,
+    OT_PWR_SLOW_ST_INVALID,
+} OtPwrMgrSlowState;
+
 typedef struct {
     bool good;
     bool done;
 } OtPwrMgrRomStatus;
 
+typedef enum {
+    OT_PWRMGR_SLOW_DOMAIN,
+    OT_PWRMGR_FAST_DOMAIN,
+} OtPwrMgrClockDomain;
+
 typedef struct {
     OtRstMgrResetReq req;
-    bool domain;
+    OtPwrMgrClockDomain domain;
 } OtPwrMgrResetReq;
 
 struct OtPwrMgrState {
@@ -171,43 +223,157 @@ struct OtPwrMgrState {
 
     MemoryRegion mmio;
     QEMUTimer *cdc_sync;
-    QEMUBH *reset_bh;
+    QEMUBH *fsm_tick_bh;
     IbexIRQ irq; /* wake from low power */
     IbexIRQ alert;
+    IbexIRQ cpu_enable;
+    IbexIRQ pwr_lc_req;
+    IbexIRQ pwr_otp_req;
 
-    OtPwrMgrRomStatus *roms;
-    OtRstMgrState *rstmgr;
+    OtPwrMgrFastState f_state;
+    OtPwrMgrSlowState s_state;
+    unsigned fsm_event_count;
+    uint32_t inputs;
 
     uint32_t *regs;
     OtPwrMgrResetReq reset_req;
+    OtPwrMgrRomStatus *roms;
 
     char *ot_id;
+    OtRstMgrState *rstmgr;
     uint8_t num_rom;
 };
 
-static const char *WAKEUP_NAMES[OT_PWRMGR_WAKEUP_COUNT] = {
-    [OT_PWRMGR_WAKEUP_SYSRST] = "SYSRST",
-    [OT_PWRMGR_WAKEUP_ADC_CTRL] = "ADC_CTRL",
-    [OT_PWRMGR_WAKEUP_PINMUX] = "PINMUX",
-    [OT_PWRMGR_WAKEUP_USBDEV] = "USBDEV",
-    [OT_PWRMGR_WAKEUP_AON_TIMER] = "AON_TIMER",
-    [OT_PWRMGR_WAKEUP_SENSOR] = "SENSOR",
+#define PWRMGR_NAME_ENTRY(_pre_, _name_) [_pre_##_##_name_] = stringify(_name_)
+
+#define FAST_ST_NAME_ENTRY(_name_) PWRMGR_NAME_ENTRY(OT_PWR_FAST_ST, _name_)
+/* clang-format off */
+static const char *FAST_ST_NAMES[] = {
+    FAST_ST_NAME_ENTRY(LOW_POWER),
+    FAST_ST_NAME_ENTRY(ENABLE_CLOCKS),
+    FAST_ST_NAME_ENTRY(RELEASE_LC_RST),
+    FAST_ST_NAME_ENTRY(OTP_INIT),
+    FAST_ST_NAME_ENTRY(LC_INIT),
+    FAST_ST_NAME_ENTRY(STRAP),
+    FAST_ST_NAME_ENTRY(ACK_PWR_UP),
+    FAST_ST_NAME_ENTRY(ROM_CHECK_DONE),
+    FAST_ST_NAME_ENTRY(ROM_CHECK_GOOD),
+    FAST_ST_NAME_ENTRY(ACTIVE),
+    FAST_ST_NAME_ENTRY(DIS_CLKS),
+    FAST_ST_NAME_ENTRY(FALL_THROUGH),
+    FAST_ST_NAME_ENTRY(NVM_IDLE_CHK),
+    FAST_ST_NAME_ENTRY(LOW_POWER_PREP),
+    FAST_ST_NAME_ENTRY(NVM_SHUT_DOWN),
+    FAST_ST_NAME_ENTRY(RESET_PREP),
+    FAST_ST_NAME_ENTRY(RESET_WAIT),
+    FAST_ST_NAME_ENTRY(REQ_PWR_DN),
+    FAST_ST_NAME_ENTRY(INVALID),
 };
+/* clang-format on */
+#undef FAST_ST_NAME_ENTRY
+#define FST_NAME(_st_) \
+    ((_st_) < ARRAY_SIZE(FAST_ST_NAMES) ? FAST_ST_NAMES[(_st_)] : "?")
+
+#define SLOW_ST_NAME_ENTRY(_name_) PWRMGR_NAME_ENTRY(OT_PWR_SLOW_ST, _name_)
+/* clang-format off */
+static const char *SLOW_ST_NAMES[] = {
+    SLOW_ST_NAME_ENTRY(RESET),
+    SLOW_ST_NAME_ENTRY(LOW_POWER),
+    SLOW_ST_NAME_ENTRY(MAIN_POWER_ON),
+    SLOW_ST_NAME_ENTRY(PWR_CLAMP_OFF),
+    SLOW_ST_NAME_ENTRY(CLOCKS_ON),
+    SLOW_ST_NAME_ENTRY(REQ_PWR_UP),
+    SLOW_ST_NAME_ENTRY(IDLE),
+    SLOW_ST_NAME_ENTRY(ACK_PWR_DN),
+    SLOW_ST_NAME_ENTRY(CLOCKS_OFF),
+    SLOW_ST_NAME_ENTRY(PWR_CLAMP_ON),
+    SLOW_ST_NAME_ENTRY(MAIN_POWER_OFF),
+    SLOW_ST_NAME_ENTRY(INVALID),
+};
+/* clang-format on */
+#undef SLOW_ST_NAME_ENTRY
+#define SST_NAME(_st_) \
+    ((_st_) < ARRAY_SIZE(SLOW_ST_NAMES) ? SLOW_ST_NAMES[(_st_)] : "?")
+
+#define WAKEUP_NAME_ENTRY(_name_) PWRMGR_NAME_ENTRY(OT_PWRMGR_WAKEUP, _name_)
+/* clang-format off */
+static const char *WAKEUP_NAMES[] = {
+    WAKEUP_NAME_ENTRY(SYSRST),
+    WAKEUP_NAME_ENTRY(ADC_CTRL),
+    WAKEUP_NAME_ENTRY(PINMUX),
+    WAKEUP_NAME_ENTRY(USBDEV),
+    WAKEUP_NAME_ENTRY(AON_TIMER),
+    WAKEUP_NAME_ENTRY(SENSOR),
+};
+/* clang-format on */
+#undef WAKEUP_NAME_ENTRY
 #define WAKEUP_NAME(_clk_) \
     ((_clk_) < ARRAY_SIZE(WAKEUP_NAMES) ? WAKEUP_NAMES[(_clk_)] : "?")
 
-static const char *RST_REQ_NAMES[OT_PWRMGR_RST_COUNT] = {
-    [OT_PWRMGR_RST_SYSRST] = "SYSRST",
-    [OT_PWRMGR_RST_AON_TIMER] = "AON_TIMER",
+#define RESET_NAME_ENTRY(_name_) PWRMGR_NAME_ENTRY(OT_PWRMGR_RST, _name_)
+/* clang-format off */
+static const char *RST_NAMES[] = {
+    RESET_NAME_ENTRY(SYSRST),
+    RESET_NAME_ENTRY(AON_TIMER),
 };
-#define RST_REQ_NAME(_clk_) \
-    ((_clk_) < ARRAY_SIZE(RST_REQ_NAMES) ? RST_REQ_NAMES[(_clk_)] : "?")
+/* clang-format on */
+#undef RESET_NAME_ENTRY
+#define RST_NAME(_clk_) \
+    ((_clk_) < ARRAY_SIZE(RST_NAMES) ? RST_NAMES[(_clk_)] : "?")
+
+#undef PWRMGR_NAME_ENTRY
+
+#define PWR_CHANGE_FAST_STATE(_s_, _st_) \
+    ot_pwrmgr_change_fast_state_line(_s_, OT_PWR_FAST_ST_##_st_, __LINE__)
+
+#define PWR_CHANGE_SLOW_STATE(_s_, _st_) \
+    ot_pwrmgr_change_slow_state_line(_s_, OT_PWR_SLOW_ST_##_st_, __LINE__)
+
+static void ot_pwrmgr_change_fast_state_line(OtPwrMgrState *s,
+                                             OtPwrMgrFastState state, int line)
+{
+    trace_ot_pwrmgr_change_state(s->ot_id, line, "fast", FST_NAME(s->f_state),
+                                 s->f_state, FST_NAME(state), state);
+
+    s->f_state = state;
+}
+
+static void ot_pwrmgr_change_slow_state_line(OtPwrMgrState *s,
+                                             OtPwrMgrSlowState state, int line)
+{
+    trace_ot_pwrmgr_change_state(s->ot_id, line, "slow", SST_NAME(s->s_state),
+                                 s->s_state, SST_NAME(state), state);
+
+    s->s_state = state;
+}
 
 static void ot_pwrmgr_update_irq(OtPwrMgrState *s)
 {
     uint32_t level = s->regs[R_INTR_STATE] & s->regs[R_INTR_ENABLE];
 
     ibex_irq_set(&s->irq, (int)(bool)level);
+}
+
+static void ot_pwrmgr_fsm_push_event(OtPwrMgrState *s, bool trigger)
+{
+    s->fsm_event_count += 1u;
+    if (trigger) {
+        qemu_bh_schedule(s->fsm_tick_bh);
+    }
+}
+
+static void ot_pwrmgr_fsm_pop_event(OtPwrMgrState *s)
+{
+    g_assert(s->fsm_event_count);
+
+    s->fsm_event_count -= 1u;
+}
+
+static void ot_pwrmgr_fsm_schedule(OtPwrMgrState *s)
+{
+    if (s->fsm_event_count) {
+        qemu_bh_schedule(s->fsm_tick_bh);
+    }
 }
 
 static void ot_pwrmgr_cdc_sync(void *opaque)
@@ -217,51 +383,30 @@ static void ot_pwrmgr_cdc_sync(void *opaque)
     s->regs[R_CFG_CDC_SYNC] &= ~R_CFG_CDC_SYNC_SYNC_MASK;
 }
 
-static void ot_pwrmgr_rom_good(void *opaque, int irq, int level)
+static void ot_pwrmgr_rom_good(void *opaque, int n, int level)
 {
     OtPwrMgrState *s = opaque;
 
-    g_assert(irq < s->num_rom);
+    g_assert((unsigned)n < s->num_rom);
 
-    s->roms[irq].good = level;
+    s->roms[n].good = level;
+
+    trace_ot_pwrmgr_rom(s->ot_id, n, "good", s->roms[n].good);
+
+    ot_pwrmgr_fsm_push_event(s, true);
 }
 
-static void ot_pwrmgr_rom_done(void *opaque, int irq, int level)
+static void ot_pwrmgr_rom_done(void *opaque, int n, int level)
 {
     OtPwrMgrState *s = opaque;
 
-    g_assert(irq < s->num_rom);
+    g_assert((unsigned)n < s->num_rom);
 
-    s->roms[irq].done = level;
+    s->roms[n].done = level;
 
-    trace_ot_pwrmgr_rom_done(s->ot_id, irq, s->roms[irq].good,
-                             s->roms[irq].done);
+    trace_ot_pwrmgr_rom(s->ot_id, n, "done", s->roms[n].done);
 
-    /* compute combined ROM check status */
-    bool good = true;
-    bool done = true;
-    for (unsigned idx = 0; idx < s->num_rom; idx++) {
-        good &= s->roms[idx].good;
-        done &= s->roms[idx].done;
-    }
-
-    /* if all ROM checks are done, start vCPU or report error */
-    if (done) {
-        if (good) {
-            CPUState *cpu = ot_common_get_local_cpu(DEVICE(s));
-            if (cpu) {
-                cpu->halted = 0;
-                resettable_release_reset(OBJECT(cpu), RESET_TYPE_COLD);
-                cpu_resume(cpu);
-            } else {
-                error_report("ot_pwrmgr: Could not find a vCPU to start!");
-            }
-        } else {
-            warn_report(
-                "ot_pwrmgr: ROM controller reports failed digest check, "
-                "will not start vCPU");
-        }
-    }
+    ot_pwrmgr_fsm_push_event(s, true);
 }
 
 static void ot_pwrmgr_wkup(void *opaque, int irq, int level)
@@ -271,7 +416,7 @@ static void ot_pwrmgr_wkup(void *opaque, int irq, int level)
 
     assert(src < OT_PWRMGR_WAKEUP_COUNT);
 
-    /* not implemented yet */
+    qemu_log_mask(LOG_UNIMP, "%s", __func__);
 
     trace_ot_pwrmgr_wkup(s->ot_id, WAKEUP_NAME(src), src, (bool)level);
 }
@@ -281,41 +426,37 @@ static void ot_pwrmgr_rst_req(void *opaque, int irq, int level)
     OtPwrMgrState *s = opaque;
 
     unsigned src = (unsigned)irq;
-
-    trace_ot_pwrmgr_rst_req(s->ot_id, RST_REQ_NAME(src), src, (bool)level);
-
-    switch (irq) {
-    case OT_PWRMGR_RST_SYSRST:
-        s->reset_req.req = OT_RSTMGR_RESET_SYSCTRL;
-        s->reset_req.domain = false;
-        break;
-    case OT_PWRMGR_RST_AON_TIMER:
-        s->reset_req.req = OT_RSTMGR_RESET_AON_TIMER;
-        s->reset_req.domain = false;
-        break;
-    default:
-        g_assert_not_reached();
-        break;
-    }
+    g_assert(src < OT_PWRMGR_RST_COUNT);
 
     uint32_t rstmask = 1u << src; /* rst_req are stored in the LSBs */
 
     if (level) {
+        trace_ot_pwrmgr_rst_req(s->ot_id, RST_NAME(src), src);
+
         if (s->regs[R_RESET_STATUS]) {
             /* do nothing if a reset is already in progress */
+            /* TODO: is it true for HW vs. SW request ?*/
             return;
         }
-
         s->regs[R_RESET_STATUS] |= rstmask;
 
-        /*
-         * for now, there is no FSM in PWRMGR implementation.
-         * simply forward the request to the RSTMGR
-         */
-        qemu_bh_schedule(s->reset_bh);
+        switch (irq) {
+        case OT_PWRMGR_RST_SYSRST:
+            s->reset_req.req = OT_RSTMGR_RESET_SYSCTRL;
+            s->reset_req.domain = OT_PWRMGR_SLOW_DOMAIN;
+            break;
+        case OT_PWRMGR_RST_AON_TIMER:
+            s->reset_req.req = OT_RSTMGR_RESET_AON_TIMER;
+            s->reset_req.domain = OT_PWRMGR_SLOW_DOMAIN;
+            break;
+        default:
+            g_assert_not_reached();
+            break;
+        }
+
         trace_ot_pwrmgr_reset_req(s->ot_id, "scheduling reset", src);
-    } else {
-        s->regs[R_RESET_STATUS] &= ~rstmask;
+
+        ot_pwrmgr_fsm_push_event(s, true);
     }
 }
 
@@ -324,13 +465,13 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
     OtPwrMgrState *s = opaque;
 
     unsigned src = (unsigned)irq;
-    assert(src < NUM_SW_RST_REQ);
-
-    trace_ot_pwrmgr_sw_rst_req(s->ot_id, src, (bool)level);
+    g_assert(src < NUM_SW_RST_REQ);
 
     uint32_t rstbit = 1u << (NUM_SW_RST_REQ + src);
 
     if (level) {
+        trace_ot_pwrmgr_rst_req(s->ot_id, "SW", src);
+
         if (!(s->regs[R_RESET_EN] & rstbit)) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: SW reset #%u not enabled 0x%08x 0x%08x\n",
@@ -342,27 +483,168 @@ static void ot_pwrmgr_sw_rst_req(void *opaque, int irq, int level)
             /* do nothing if a reset is already in progress */
             return;
         }
-
         s->regs[R_RESET_STATUS] |= rstbit;
 
-        /*
-         * for now, there is no FSM in PWRMGR implementation.
-         * simply forward the request to the RSTMGR
-         */
         s->reset_req.req = OT_RSTMGR_RESET_SW;
-        s->reset_req.domain = true;
-        qemu_bh_schedule(s->reset_bh);
+        s->reset_req.domain = OT_PWRMGR_FAST_DOMAIN;
+
         trace_ot_pwrmgr_reset_req(s->ot_id, "scheduling SW reset", 0);
-    } else {
-        s->regs[R_RESET_STATUS] &= ~rstbit;
+        ot_pwrmgr_fsm_push_event(s, true);
     }
 }
 
-static void ot_pwrmgr_trigger_reset(void *opaque)
+
+static void ot_pwrmgr_slow_fsm_tick(OtPwrMgrState *s)
+{
+    /* fast forward to IDLE slow FSM state for now */
+    if (s->s_state == OT_PWR_SLOW_ST_RESET) {
+        PWR_CHANGE_SLOW_STATE(s, IDLE);
+    }
+}
+
+static void ot_pwrmgr_fast_fsm_tick(OtPwrMgrState *s)
+{
+    if (s->s_state != OT_PWR_SLOW_ST_IDLE) {
+        // TODO: to be handled
+        return;
+    }
+
+    switch (s->f_state) {
+    case OT_PWR_FAST_ST_LOW_POWER:
+        PWR_CHANGE_FAST_STATE(s, ENABLE_CLOCKS);
+        ot_pwrmgr_fsm_push_event(s, false);
+        break;
+    case OT_PWR_FAST_ST_ENABLE_CLOCKS:
+        PWR_CHANGE_FAST_STATE(s, RELEASE_LC_RST);
+        // TODO: need to release ROM controllers from reset here to emulate
+        // they are clocked and start to verify their contents.
+        ot_pwrmgr_fsm_push_event(s, false);
+        break;
+    case OT_PWR_FAST_ST_RELEASE_LC_RST:
+        PWR_CHANGE_FAST_STATE(s, OTP_INIT);
+        ibex_irq_set(&s->pwr_otp_req, (int)true);
+        break;
+    case OT_PWR_FAST_ST_OTP_INIT:
+        if (s->inputs & INPUTS_OTP_MASK) {
+            /* release the request signal */
+            ibex_irq_set(&s->pwr_otp_req, (int)false);
+            PWR_CHANGE_FAST_STATE(s, LC_INIT);
+            ibex_irq_set(&s->pwr_lc_req, (int)true);
+        }
+        break;
+    case OT_PWR_FAST_ST_LC_INIT:
+        if (s->inputs & INPUTS_LC_MASK) {
+            /* release the request signal */
+            ibex_irq_set(&s->pwr_lc_req, (int)false);
+            PWR_CHANGE_FAST_STATE(s, STRAP);
+        }
+        break;
+    case OT_PWR_FAST_ST_STRAP:
+        // TODO: need to sample straps
+        PWR_CHANGE_FAST_STATE(s, ACK_PWR_UP);
+        ot_pwrmgr_fsm_push_event(s, false);
+        break;
+    case OT_PWR_FAST_ST_ACK_PWR_UP:
+        PWR_CHANGE_FAST_STATE(s, ROM_CHECK_DONE);
+        ot_pwrmgr_fsm_push_event(s, false);
+        break;
+    case OT_PWR_FAST_ST_ROM_CHECK_DONE:
+        for (unsigned ix = 0; ix < s->num_rom; ix++) {
+            if (!s->roms[ix].done) {
+                break;
+            }
+        }
+        PWR_CHANGE_FAST_STATE(s, ROM_CHECK_GOOD);
+        break;
+    case OT_PWR_FAST_ST_ROM_CHECK_GOOD: {
+        bool success = true;
+        for (unsigned ix = 0; ix < s->num_rom; ix++) {
+            if (!s->roms[ix].good) {
+                success = false;
+                break;
+            }
+        }
+        if (success) {
+            PWR_CHANGE_FAST_STATE(s, ACTIVE);
+            ot_pwrmgr_fsm_push_event(s, false);
+        }
+    } break;
+    case OT_PWR_FAST_ST_ACTIVE:
+        if (!s->regs[R_RESET_STATUS]) {
+            ibex_irq_set(&s->cpu_enable, (int)true);
+        } else {
+            ibex_irq_set(&s->cpu_enable, (int)false);
+            PWR_CHANGE_FAST_STATE(s, DIS_CLKS);
+            ot_pwrmgr_fsm_push_event(s, false);
+        }
+        break;
+    case OT_PWR_FAST_ST_DIS_CLKS:
+        PWR_CHANGE_FAST_STATE(s, RESET_PREP);
+        ot_pwrmgr_fsm_push_event(s, false);
+        break;
+    case OT_PWR_FAST_ST_FALL_THROUGH:
+    case OT_PWR_FAST_ST_NVM_IDLE_CHK:
+    case OT_PWR_FAST_ST_LOW_POWER_PREP:
+    case OT_PWR_FAST_ST_NVM_SHUT_DOWN:
+        qemu_log_mask(LOG_UNIMP, "%s: low power modes are not implemented\n",
+                      __func__);
+        break;
+    case OT_PWR_FAST_ST_RESET_PREP: /* fallthrough */
+        PWR_CHANGE_FAST_STATE(s, RESET_WAIT);
+        ot_rstmgr_reset_req(s->rstmgr, (bool)s->reset_req.domain,
+                            s->reset_req.req);
+        break;
+    /* NOLINTNEXTLINE */
+    case OT_PWR_FAST_ST_RESET_WAIT:
+        /* wait here for QEMU to reset the Power Manager */
+        break;
+    case OT_PWR_FAST_ST_REQ_PWR_DN:
+    case OT_PWR_FAST_ST_INVALID:
+        break;
+    }
+}
+
+static void ot_pwrmgr_fsm_tick(void *opaque)
 {
     OtPwrMgrState *s = opaque;
 
-    ot_rstmgr_reset_req(s->rstmgr, s->reset_req.domain, s->reset_req.req);
+    ot_pwrmgr_fsm_pop_event(s);
+
+    ot_pwrmgr_slow_fsm_tick(s);
+    ot_pwrmgr_fast_fsm_tick(s);
+
+    if (s->f_state != OT_PWR_FAST_ST_INVALID &&
+        s->s_state != OT_PWR_SLOW_ST_INVALID) {
+        ot_pwrmgr_fsm_schedule(s);
+    }
+}
+
+/*
+ * Input lines
+ */
+
+static void ot_pwrmgr_pwr_lc_rsp(void *opaque, int n, int level)
+{
+    OtPwrMgrState *s = opaque;
+
+    g_assert(n == 0);
+
+    if (level == 1) {
+        s->inputs |= INPUTS_LC_MASK;
+        ot_pwrmgr_fsm_push_event(s, true);
+    }
+}
+
+static void ot_pwrmgr_pwr_otp_rsp(void *opaque, int n, int level)
+{
+    OtPwrMgrState *s = opaque;
+
+    g_assert(n == 0);
+
+    if (level == 1) {
+        s->inputs |= INPUTS_OTP_MASK;
+        ot_pwrmgr_fsm_push_event(s, true);
+    }
 }
 
 static uint64_t ot_pwrmgr_regs_read(void *opaque, hwaddr addr, unsigned size)
@@ -537,10 +819,21 @@ static void ot_pwrmgr_reset(DeviceState *dev)
     s->regs[R_WAKEUP_EN_REGWEN] = 0x1u;
     s->regs[R_RESET_EN_REGWEN] = 0x1u;
 
+    s->inputs = 0;
+    s->fsm_event_count = 0;
+
+    PWR_CHANGE_FAST_STATE(s, LOW_POWER);
+    PWR_CHANGE_SLOW_STATE(s, RESET);
+
     ot_pwrmgr_update_irq(s);
+    ibex_irq_set(&s->cpu_enable, 0);
+    ibex_irq_set(&s->pwr_otp_req, 0);
+    ibex_irq_set(&s->pwr_lc_req, 0);
     ibex_irq_set(&s->alert, 0);
 
     memset(s->roms, 0, s->num_rom * sizeof(OtPwrMgrRomStatus));
+
+    ot_pwrmgr_fsm_push_event(s, true);
 }
 
 static void ot_pwrmgr_realize(DeviceState *dev, Error **errp)
@@ -571,6 +864,10 @@ static void ot_pwrmgr_init(Object *obj)
     s->regs = g_new0(uint32_t, REGS_COUNT);
     ibex_sysbus_init_irq(obj, &s->irq);
     ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
+    ibex_qdev_init_irq(obj, &s->pwr_lc_req, OPENTITAN_PWRMGR_LC_REQ);
+    ibex_qdev_init_irq(obj, &s->pwr_otp_req, OPENTITAN_PWRMGR_OTP_REQ);
+    ibex_qdev_init_irq(obj, &s->cpu_enable, OPENTITAN_PWRMGR_CPU_EN);
+
     s->cdc_sync = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_pwrmgr_cdc_sync, s);
 
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_wkup, OPENTITAN_PWRMGR_WKUP,
@@ -579,8 +876,12 @@ static void ot_pwrmgr_init(Object *obj)
                             OPENTITAN_PWRMGR_RST, OT_PWRMGR_RST_COUNT);
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_sw_rst_req,
                             OPENTITAN_PWRMGR_SW_RST, NUM_SW_RST_REQ);
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_pwr_lc_rsp,
+                            OPENTITAN_PWRMGR_LC_RSP, 1);
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_pwr_otp_rsp,
+                            OPENTITAN_PWRMGR_OTP_RSP, 1);
 
-    s->reset_bh = qemu_bh_new(&ot_pwrmgr_trigger_reset, s);
+    s->fsm_tick_bh = qemu_bh_new(&ot_pwrmgr_fsm_tick, s);
 }
 
 static void ot_pwrmgr_class_init(ObjectClass *klass, void *data)

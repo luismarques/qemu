@@ -1,7 +1,7 @@
 /*
  * QEMU OpenTitan Power Manager device
  *
- * Copyright (c) 2023 Rivos, Inc.
+ * Copyright (c) 2023-2024 Rivos, Inc.
  *
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
@@ -34,9 +34,6 @@
 #define TYPE_OT_PWRMGR "ot-pwrmgr"
 OBJECT_DECLARE_SIMPLE_TYPE(OtPwrMgrState, OT_PWRMGR)
 
-#define OPENTITAN_PWRMGR_ROM_GOOD TYPE_OT_PWRMGR "-rom-good"
-#define OPENTITAN_PWRMGR_ROM_DONE TYPE_OT_PWRMGR "-rom-done"
-
 /* Match PWRMGR_PARAM_*_WKUP_REQ_IDX definitions */
 typedef enum {
     OT_PWRMGR_WAKEUP_SYSRST,
@@ -49,13 +46,26 @@ typedef enum {
 } OtPwrMgrWakeup;
 
 typedef enum {
-    OT_PWRMGR_RST_REQ_SYSRST,
-    OT_PWRMGR_RST_REQ_AON_TIMER, /* watchdog bite */
-    OT_PWRMGR_RST_REQ_COUNT,
-} OtPwrMgrRstReq;
+    OT_PWRMGR_RST_SYSRST,
+    OT_PWRMGR_RST_AON_TIMER, /* watchdog bite */
+    OT_PWRMGR_RST_COUNT,
+} OtPwrMgrRst;
 
-#define OPENTITAN_PWRMGR_WKUP_REQ   TYPE_OT_PWRMGR "-wkup-req"
-#define OPENTITAN_PWRMGR_RST_REQ    TYPE_OT_PWRMGR "-rst-req"
-#define OPENTITAN_PWRMGR_SW_RST_REQ TYPE_OT_PWRMGR "-sw-rst-req"
+/* output lines */
+#define OPENTITAN_PWRMGR_LC_REQ  TYPE_OT_PWRMGR "-lc-req"
+#define OPENTITAN_PWRMGR_OTP_REQ TYPE_OT_PWRMGR "-otp-req"
+#define OPENTITAN_PWRMGR_CPU_EN  TYPE_OT_PWRMGR "-cpu-en"
+
+/* input lines */
+#define OPENTITAN_PWRMGR_LC_RSP  TYPE_OT_PWRMGR "-lc-rsp"
+#define OPENTITAN_PWRMGR_OTP_RSP TYPE_OT_PWRMGR "-otp-rsp"
+
+#define OPENTITAN_PWRMGR_WKUP   TYPE_OT_PWRMGR "-wkup"
+#define OPENTITAN_PWRMGR_RST    TYPE_OT_PWRMGR "-rst"
+#define OPENTITAN_PWRMGR_SW_RST TYPE_OT_PWRMGR "-sw-rst"
+
+#define OPENTITAN_PWRMGR_ROM_GOOD TYPE_OT_PWRMGR "-rom-good"
+#define OPENTITAN_PWRMGR_ROM_DONE TYPE_OT_PWRMGR "-rom-done"
+
 
 #endif /* HW_OPENTITAN_OT_PWRMGR_H */

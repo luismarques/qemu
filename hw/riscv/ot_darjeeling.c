@@ -846,7 +846,7 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_DARJEELING_SOC_SIGNAL(OPENTITAN_RSTMGR_SW_RST, 0, PWRMGR,
-                                     OPENTITAN_PWRMGR_SW_RST_REQ, 0)
+                                     OPENTITAN_PWRMGR_SW_RST, 0)
         ),
     },
     [OT_DARJEELING_SOC_DEV_CLKMGR] = {
@@ -870,11 +870,11 @@ static const IbexDeviceDef ot_darjeeling_soc_devices[] = {
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(0, PLIC, 79),
             OT_DARJEELING_SOC_GPIO_SYSBUS_IRQ(1, PLIC, 80),
             OT_DARJEELING_SOC_SIGNAL(OPENTITAN_AON_TIMER_WKUP, 0, PWRMGR,
-                                     OPENTITAN_PWRMGR_WKUP_REQ,
+                                     OPENTITAN_PWRMGR_WKUP,
                                      OT_PWRMGR_WAKEUP_AON_TIMER),
             OT_DARJEELING_SOC_SIGNAL(OPENTITAN_AON_TIMER_BITE, 0, PWRMGR,
-                                     OPENTITAN_PWRMGR_RST_REQ,
-                                     OT_PWRMGR_RST_REQ_AON_TIMER)
+                                     OPENTITAN_PWRMGR_RST,
+                                     OT_PWRMGR_RST_AON_TIMER)
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_UINT_PROP("pclk", OT_DARJEELING_AON_CLK_HZ)

@@ -196,9 +196,9 @@ static const char *WAKEUP_NAMES[OT_PWRMGR_WAKEUP_COUNT] = {
 #define WAKEUP_NAME(_clk_) \
     ((_clk_) < ARRAY_SIZE(WAKEUP_NAMES) ? WAKEUP_NAMES[(_clk_)] : "?")
 
-static const char *RST_REQ_NAMES[OT_PWRMGR_RST_REQ_COUNT] = {
-    [OT_PWRMGR_RST_REQ_SYSRST] = "SYSRST",
-    [OT_PWRMGR_RST_REQ_AON_TIMER] = "AON_TIMER",
+static const char *RST_REQ_NAMES[OT_PWRMGR_RST_COUNT] = {
+    [OT_PWRMGR_RST_SYSRST] = "SYSRST",
+    [OT_PWRMGR_RST_AON_TIMER] = "AON_TIMER",
 };
 #define RST_REQ_NAME(_clk_) \
     ((_clk_) < ARRAY_SIZE(RST_REQ_NAMES) ? RST_REQ_NAMES[(_clk_)] : "?")
@@ -285,11 +285,11 @@ static void ot_pwrmgr_rst_req(void *opaque, int irq, int level)
     trace_ot_pwrmgr_rst_req(s->ot_id, RST_REQ_NAME(src), src, (bool)level);
 
     switch (irq) {
-    case OT_PWRMGR_RST_REQ_SYSRST:
+    case OT_PWRMGR_RST_SYSRST:
         s->reset_req.req = OT_RSTMGR_RESET_SYSCTRL;
         s->reset_req.domain = false;
         break;
-    case OT_PWRMGR_RST_REQ_AON_TIMER:
+    case OT_PWRMGR_RST_AON_TIMER:
         s->reset_req.req = OT_RSTMGR_RESET_AON_TIMER;
         s->reset_req.domain = false;
         break;
@@ -573,12 +573,12 @@ static void ot_pwrmgr_init(Object *obj)
     ibex_qdev_init_irq(obj, &s->alert, OPENTITAN_DEVICE_ALERT);
     s->cdc_sync = timer_new_ns(QEMU_CLOCK_VIRTUAL, &ot_pwrmgr_cdc_sync, s);
 
-    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_wkup,
-                            OPENTITAN_PWRMGR_WKUP_REQ, OT_PWRMGR_WAKEUP_COUNT);
+    qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_wkup, OPENTITAN_PWRMGR_WKUP,
+                            OT_PWRMGR_WAKEUP_COUNT);
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_rst_req,
-                            OPENTITAN_PWRMGR_RST_REQ, OT_PWRMGR_RST_REQ_COUNT);
+                            OPENTITAN_PWRMGR_RST, OT_PWRMGR_RST_COUNT);
     qdev_init_gpio_in_named(DEVICE(obj), &ot_pwrmgr_sw_rst_req,
-                            OPENTITAN_PWRMGR_SW_RST_REQ, NUM_SW_RST_REQ);
+                            OPENTITAN_PWRMGR_SW_RST, NUM_SW_RST_REQ);
 
     s->reset_bh = qemu_bh_new(&ot_pwrmgr_trigger_reset, s);
 }

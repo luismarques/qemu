@@ -74,10 +74,9 @@ jobs:
       - name: Check execution
         run: |
           clang-format-16 -i \
-             include/hw/opentitan/*.h hw/opentitan/*.c \
-             include/hw/riscv/ot_*.h hw/riscv/ot_*.c  \
-             include/hw/riscv/ibex*.h hw/riscv/ibex*.c \
-             target/riscv/ibex_csr.c
+             hw/opentitan/*.c hw/opentitan/*.h include/hw/opentitan/*.h \
+             hw/riscv/ibex*.c include/hw/riscv/ibex*.h target/riscv/ibex*.c \
+             hw/riscv/ot_*.c include/hw/riscv/ot_*.h
 
   lint-clang:
     runs-on: ubuntu-latest
@@ -130,6 +129,7 @@ jobs:
       - name: Check Darjeeling VM execution
         run: |
           timeout -s KILL 4 ./qemu-system-riscv32 -M ot-darjeeling,no_epmp_cfg=true -nographic \
+            -global ot-ibex_wrapper-dj.lc-ignore=on \
             -object ot-rom-img,id=rom0,file=exit_dj.bin,digest=fake,addr=0x8080 -d in_asm,int
 
   build-gcc:

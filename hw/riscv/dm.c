@@ -936,7 +936,7 @@ static void riscv_dm_acknowledge(void *opaque, int irq, int level)
     RISCVDMHartState *hart;
     unsigned hartnum;
 
-    assert(qemu_mutex_iothread_locked());
+    assert(bql_locked());
 
     switch (irq) {
     case ACK_HALTED:
@@ -1602,7 +1602,7 @@ static void riscv_dm_sysbus_increment_address(RISCVDMState *dm)
     uint32_t old = dm->regs[A_SBADDRESS0];
     dm->regs[A_SBADDRESS0] += size;
     if (old > dm->regs[A_SBADDRESS0] &&
-        dm->hart->cpu->env.misa_mxl_max > MXL_RV32) {
+        dm->hart->cpu->env.misa_mxl > MXL_RV32) {
         dm->regs[A_SBADDRESS1] += 1u;
     }
 }
@@ -1623,7 +1623,7 @@ static CmdErr riscv_dm_sysbus_read(RISCVDMState *dm)
     CmdErr ret = CMD_ERR_NONE;
     MemTxResult res;
     hwaddr address = (hwaddr)dm->regs[A_SBADDRESS0];
-    if (dm->hart->cpu->env.misa_mxl_max > MXL_RV32) {
+    if (dm->hart->cpu->env.misa_mxl > MXL_RV32) {
         address |= ((hwaddr)dm->regs[A_SBADDRESS1]) << 32u;
     }
 
@@ -1703,8 +1703,7 @@ static CmdErr riscv_dm_sbaddress0_write(RISCVDMState *dm, uint32_t value)
 
 static CmdErr riscv_dm_sbaddress1_write(RISCVDMState *dm, uint32_t value)
 {
-    if ((!dm->cfg.sysbus_access) ||
-        (dm->hart->cpu->env.misa_mxl_max < MXL_RV64)) {
+    if ((!dm->cfg.sysbus_access) || (dm->hart->cpu->env.misa_mxl < MXL_RV64)) {
         xtrace_riscv_dm_error(dm->soc, "no support");
         return CMD_ERR_NONE;
     }
@@ -1802,7 +1801,7 @@ static CmdErr riscv_dm_sbdata0_write(RISCVDMState *dm, uint32_t value)
     riscv_dm_sysbus_set_busy(dm, true);
     MemTxResult res;
     hwaddr address = (hwaddr)dm->regs[A_SBADDRESS0];
-    if (dm->hart->cpu->env.misa_mxl_max > MXL_RV32) {
+    if (dm->hart->cpu->env.misa_mxl > MXL_RV32) {
         address |= ((hwaddr)dm->regs[A_SBADDRESS1]) << 32u;
     }
     if (address & (size - 1u)) {
@@ -1843,8 +1842,7 @@ end:
 
 static CmdErr riscv_dm_sbdata1_read(RISCVDMState *dm, uint32_t *value)
 {
-    if ((!dm->cfg.sysbus_access) ||
-        (dm->hart->cpu->env.misa_mxl_max < MXL_RV64)) {
+    if ((!dm->cfg.sysbus_access) || (dm->hart->cpu->env.misa_mxl < MXL_RV64)) {
         *value = 0;
         xtrace_riscv_dm_error(dm->soc, "no support");
         return CMD_ERR_NONE;
@@ -1863,8 +1861,7 @@ static CmdErr riscv_dm_sbdata1_read(RISCVDMState *dm, uint32_t *value)
 
 static CmdErr riscv_dm_sbdata1_write(RISCVDMState *dm, uint32_t value)
 {
-    if ((!dm->cfg.sysbus_access) ||
-        (dm->hart->cpu->env.misa_mxl_max < MXL_RV64)) {
+    if ((!dm->cfg.sysbus_access) || (dm->hart->cpu->env.misa_mxl < MXL_RV64)) {
         xtrace_riscv_dm_error(dm->soc, "no support");
         return CMD_ERR_NONE;
     }
@@ -1968,7 +1965,7 @@ static CmdErr riscv_dm_access_register(RISCVDMState *dm, uint32_t value)
     bool postexec = (bool)FIELD_EX32(value, COMMAND, REG_POSTEXEC);
     bool aarpostinc = (bool)FIELD_EX32(value, COMMAND, REG_AARPOSTINCREMENT);
     unsigned aarsize = (unsigned)FIELD_EX32(value, COMMAND, REG_AARSIZE);
-    unsigned maxarr = env->misa_mxl_max + 1u;
+    unsigned maxarr = env->misa_mxl + 1u;
 
     if (transfer) {
         if (aarsize > maxarr) {
@@ -2215,12 +2212,12 @@ static CmdErr riscv_dm_access_memory(RISCVDMState *dm, uint32_t value)
     bool virt = (bool)FIELD_EX32(value, COMMAND, MEM_AAMVIRTUAL);
     hwaddr size = 1u << aamsize;
 
-    if (aamsize > env->misa_mxl_max + 1u) {
+    if (aamsize > env->misa_mxl + 1u) {
         xtrace_riscv_dm_error(dm->soc, "ammsize");
         return CMD_ERR_NOT_SUPPORTED;
     }
 
-    unsigned argwidth = env->misa_mxl_max; /* in 32-bit word count */
+    unsigned argwidth = env->misa_mxl; /* in 32-bit word count */
     unsigned datawcount = aamsize > 2u ? 2u : 1u;
     /* zero-init is only useful to help w/ debug on RV32 */
     hwaddr val = 0u;
@@ -2527,10 +2524,9 @@ static void riscv_dm_internal_reset(RISCVDMState *dm)
     uint32_t value = 0u;
     if (dm->cfg.sysbus_access && env) {
         value = FIELD_DP32(value, SBCS, SBVERSION, RISCV_DEBUG_SB_VERSION);
+        value = FIELD_DP32(value, SBCS, SBASIZE, 1u << (4u + env->misa_mxl));
         value =
-            FIELD_DP32(value, SBCS, SBASIZE, 1u << (4u + env->misa_mxl_max));
-        value = FIELD_DP32(value, SBCS, SBACCESS64,
-                           (uint32_t)(env->misa_mxl_max > 1u));
+            FIELD_DP32(value, SBCS, SBACCESS64, (uint32_t)(env->misa_mxl > 1u));
         value = FIELD_DP32(value, SBCS, SBACCESS32, 1u);
         value = FIELD_DP32(value, SBCS, SBACCESS16, 1u);
         value = FIELD_DP32(value, SBCS, SBACCESS8, 1u);

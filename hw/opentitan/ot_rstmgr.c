@@ -233,9 +233,9 @@ static void ot_rstmgr_reset_bus(void *opaque)
 
     /* wait for the vCPU to stop */
     while (!s->cpu->stopped) {
-        qemu_mutex_unlock_iothread();
+        bql_unlock();
         qemu_cpu_kick(s->cpu);
-        qemu_mutex_lock_iothread();
+        bql_lock();
     }
     qemu_notify_event();
 

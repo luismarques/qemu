@@ -188,8 +188,7 @@ void pmp_unlock_entries(CPURISCVState *env)
     }
 }
 
-static void pmp_decode_napot(target_ulong a, target_ulong *sa,
-                             target_ulong *ea)
+static void pmp_decode_napot(hwaddr a, hwaddr *sa, hwaddr *ea)
 {
     /*
      * aaaa...aaa0   8-byte NAPOT range
@@ -211,8 +210,8 @@ void pmp_update_rule_addr(CPURISCVState *env, uint32_t pmp_index)
     uint8_t this_cfg = env->pmp_state.pmp[pmp_index].cfg_reg;
     target_ulong this_addr = env->pmp_state.pmp[pmp_index].addr_reg;
     target_ulong prev_addr = 0u;
-    target_ulong sa = 0u;
-    target_ulong ea = 0u;
+    hwaddr sa = 0u;
+    hwaddr ea = 0u;
 
     if (pmp_index >= 1u) {
         prev_addr = env->pmp_state.pmp[pmp_index - 1].addr_reg;
@@ -265,8 +264,7 @@ void pmp_update_rule_nums(CPURISCVState *env)
     }
 }
 
-static int pmp_is_in_range(CPURISCVState *env, int pmp_index,
-                           target_ulong addr)
+static int pmp_is_in_range(CPURISCVState *env, int pmp_index, hwaddr addr)
 {
     int result = 0;
 
@@ -343,14 +341,14 @@ static bool pmp_hart_has_privs_default(CPURISCVState *env, pmp_priv_t privs,
  * Return true if a pmp rule match or default match
  * Return false if no match
  */
-bool pmp_hart_has_privs(CPURISCVState *env, target_ulong addr,
+bool pmp_hart_has_privs(CPURISCVState *env, hwaddr addr,
                         target_ulong size, pmp_priv_t privs,
                         pmp_priv_t *allowed_privs, target_ulong mode)
 {
     int i = 0;
     int pmp_size = 0;
-    target_ulong s = 0;
-    target_ulong e = 0;
+    hwaddr s = 0;
+    hwaddr e = 0;
 
     /* Short cut if no rules */
     if (0 == pmp_get_num_rules(env)) {
@@ -382,7 +380,7 @@ bool pmp_hart_has_privs(CPURISCVState *env, target_ulong addr,
         /* partially inside */
         if ((s + e) == 1) {
             qemu_log_mask(LOG_GUEST_ERROR,
-                          "pmp violation at 0x" TARGET_FMT_lx "+" TARGET_FMT_lu
+                          "pmp violation at 0x" HWADDR_FMT_plx "+" TARGET_FMT_lu
                           " - access is partially inside pmp[%u]\n",
                           addr, size, i);
             *allowed_privs = 0;
@@ -670,12 +668,12 @@ target_ulong mseccfg_csr_read(CPURISCVState *env)
  * To avoid this we return a size of 1 (which means no caching) if the PMP
  * region only covers partial of the TLB page.
  */
-target_ulong pmp_get_tlb_size(CPURISCVState *env, target_ulong addr)
+target_ulong pmp_get_tlb_size(CPURISCVState *env, hwaddr addr)
 {
-    target_ulong pmp_sa;
-    target_ulong pmp_ea;
-    target_ulong tlb_sa = addr & ~(TARGET_PAGE_SIZE - 1);
-    target_ulong tlb_ea = tlb_sa + TARGET_PAGE_SIZE - 1;
+    hwaddr pmp_sa;
+    hwaddr pmp_ea;
+    hwaddr tlb_sa = addr & ~(TARGET_PAGE_SIZE - 1);
+    hwaddr tlb_ea = tlb_sa + TARGET_PAGE_SIZE - 1;
     int i;
 
     /*

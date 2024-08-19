@@ -910,61 +910,60 @@ static void ot_edn_handle_ep_request(void *opaque)
     OtEDNState *s = opaque;
     OtEDNCSRNG *c = &s->rng;
 
-    OtEDNEndPoint *ep = QSIMPLEQ_FIRST(&s->ep_requests);
-    if (!ep) {
-        xtrace_ot_edn_error(c->appid, "scheduled request w/o request?");
-        g_assert_not_reached();
-    }
+    OtEDNEndPoint *ep = NULL;
+    while ((ep = QSIMPLEQ_FIRST(&s->ep_requests)) != NULL) {
+        unsigned ep_id = (unsigned)(uintptr_t)(ep - &s->endpoints[0]);
+        trace_ot_edn_handle_ep_request(c->appid, ep_id);
 
-    unsigned ep_id = (unsigned)(uintptr_t)(ep - &s->endpoints[0]);
-    trace_ot_edn_handle_ep_request(c->appid, ep_id);
-
-    uint32_t bits;
-    bool available; /* entropy is available in EP unpacker output */
-    if (ot_fifo32_is_empty(&ep->fifo)) {
-        /* if the local packer is empty ... */
-        if (ot_fifo32_num_used(&c->bits_fifo) >= OT_CSRNG_PACKET_WORD_COUNT) {
-            /*
-             * .... try to refill if from the input entropy FIFO, 128 bits
-             * at a time, first 32-bit packet is pushed to the EP client,
-             * remaining 96-bits are stored in the unpacker FIFO
-             */
-            bits = ot_fifo32_pop(&c->bits_fifo);
-            for (unsigned int ix = 1; ix < OT_CSRNG_PACKET_WORD_COUNT; ix++) {
-                ot_fifo32_push(&ep->fifo, ot_fifo32_pop(&c->bits_fifo));
+        uint32_t bits;
+        bool available; /* entropy is available in EP unpacker output */
+        if (ot_fifo32_is_empty(&ep->fifo)) {
+            /* if the local packer is empty ... */
+            if (ot_fifo32_num_used(&c->bits_fifo) >= OT_CSRNG_PACKET_WORD_COUNT) {
+                /*
+                 * .... try to refill if from the input entropy FIFO, 128 bits
+                 * at a time, first 32-bit packet is pushed to the EP client,
+                 * remaining 96-bits are stored in the unpacker FIFO
+                 */
+                bits = ot_fifo32_pop(&c->bits_fifo);
+                for (unsigned int ix = 1; ix < OT_CSRNG_PACKET_WORD_COUNT; ix++) {
+                    ot_fifo32_push(&ep->fifo, ot_fifo32_pop(&c->bits_fifo));
+                }
+                ep->fips = !c->no_fips;
+                available = true;
+                trace_ot_edn_ep_fifo(c->appid, "reload",
+                                     ot_fifo32_num_used(&ep->fifo));
+            } else {
+                /* ... otherwise, the input FIFO being empty, defer handling */
+                available = false;
+                trace_ot_edn_ep_fifo(c->appid, "empty", 0);
             }
-            ep->fips = !c->no_fips;
+        } else {
+            bits = ot_fifo32_pop(&ep->fifo);
             available = true;
-            trace_ot_edn_ep_fifo(c->appid, "reload",
-                                 ot_fifo32_num_used(&ep->fifo));
-        } else {
-            /* ... otherwise, the input FIFO being empty, defer handling */
-            available = false;
-            trace_ot_edn_ep_fifo(c->appid, "empty", 0);
+            trace_ot_edn_ep_fifo(c->appid, "pop", ot_fifo32_num_used(&ep->fifo));
         }
-    } else {
-        bits = ot_fifo32_pop(&ep->fifo);
-        available = true;
-        trace_ot_edn_ep_fifo(c->appid, "pop", ot_fifo32_num_used(&ep->fifo));
-    }
 
-    bool refill = ot_edn_update_genbits_ready(s);
+        bool refill = ot_edn_update_genbits_ready(s);
 
-    trace_ot_edn_ep_request(c->appid, available, STATE_NAME(s->state), s->state,
-                            refill, c->rem_packet_count);
+        trace_ot_edn_ep_request(c->appid, available, STATE_NAME(s->state), s->state,
+                                refill, c->rem_packet_count);
 
-    if (available) {
-        /* remove the request from the queue only if it has been handled */
-        QSIMPLEQ_REMOVE_HEAD(&s->ep_requests, request);
-        /* signal the endpoint with the requested entropy */
-        if (ep->fn) {
-            ep->gen_count += 1u;
-            ep->total_count += 1u;
-            trace_ot_edn_fill_endpoint(c->appid, ep_id, bits, ep->fips,
-                                       ep->gen_count, ep->total_count);
-            (*ep->fn)(ep->opaque, bits, ep->fips);
+        if (available) {
+            /* remove the request from the queue only if it has been handled */
+            QSIMPLEQ_REMOVE_HEAD(&s->ep_requests, request);
+            /* signal the endpoint with the requested entropy */
+            if (ep->fn) {
+                ep->gen_count += 1u;
+                ep->total_count += 1u;
+                trace_ot_edn_fill_endpoint(c->appid, ep_id, bits, ep->fips,
+                                           ep->gen_count, ep->total_count);
+                (*ep->fn)(ep->opaque, bits, ep->fips);
+            } else {
+                xtrace_ot_edn_error(c->appid, "no filler function");
+            }
         } else {
-            xtrace_ot_edn_error(c->appid, "no filler function");
+            break;
         }
     }
 }

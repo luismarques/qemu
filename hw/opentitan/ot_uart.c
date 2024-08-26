@@ -310,7 +310,8 @@ static void ot_uart_xmit(OtUARTState *s)
         }
 
         /* get a continuous buffer from the FIFO */
-        buf = fifo8_peek_buf(&s->tx_fifo, fifo8_num_used(&s->tx_fifo), &size);
+        buf =
+            fifo8_peek_bufptr(&s->tx_fifo, fifo8_num_used(&s->tx_fifo), &size);
         /* send as much as possible */
         ret = qemu_chr_fe_write(&s->chr, buf, (int)size);
         /* if some characters where sent, remove them from the FIFO */

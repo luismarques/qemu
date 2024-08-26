@@ -1186,14 +1186,13 @@ static void ot_eg_soc_reset_hold(Object *obj, ResetType type)
     }
 
     Object *dtm = OBJECT(s->devices[OT_EG_SOC_DEV_DTM]);
-    resettable_reset(dtm, RESET_TYPE_COLD);
+    resettable_reset(dtm, type);
 
     Object *dm = OBJECT(s->devices[OT_EG_SOC_DEV_DM]);
-    resettable_reset(dm, RESET_TYPE_COLD);
+    resettable_reset(dm, type);
 
     /* keep ROM_CTRL in reset, we'll release it last */
-    resettable_assert_reset(OBJECT(s->devices[OT_EG_SOC_DEV_ROM_CTRL]),
-                            RESET_TYPE_COLD);
+    resettable_assert_reset(OBJECT(s->devices[OT_EG_SOC_DEV_ROM_CTRL]), type);
 
     /*
      * Power-On-Reset: leave hart on reset
@@ -1204,7 +1203,7 @@ static void ot_eg_soc_reset_hold(Object *obj, ResetType type)
      * realization.
      */
     CPUState *cs = CPU(s->devices[OT_EG_SOC_DEV_HART]);
-    resettable_assert_reset(OBJECT(cs), RESET_TYPE_COLD);
+    resettable_assert_reset(OBJECT(cs), type);
 }
 
 static void ot_eg_soc_reset_exit(Object *obj, ResetType type)
@@ -1217,8 +1216,7 @@ static void ot_eg_soc_reset_exit(Object *obj, ResetType type)
     }
 
     /* let ROM_CTRL get out of reset now */
-    resettable_release_reset(OBJECT(s->devices[OT_EG_SOC_DEV_ROM_CTRL]),
-                             RESET_TYPE_COLD);
+    resettable_release_reset(OBJECT(s->devices[OT_EG_SOC_DEV_ROM_CTRL]), type);
 }
 
 static void ot_eg_soc_realize(DeviceState *dev, Error **errp)

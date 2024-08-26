@@ -1534,22 +1534,18 @@ static void ot_dj_soc_reset_hold(Object *obj, ResetType type)
     }
 
     Object *dmi = OBJECT(s->devices[OT_DJ_SOC_DEV_DTM]);
-    resettable_reset(dmi, RESET_TYPE_COLD);
+    resettable_reset(dmi, type);
 
     // TODO: not sure where Reset is plugged here...
-    resettable_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_DM_TL_LC_CTRL]),
-                     RESET_TYPE_COLD);
-    resettable_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_DM_TL_MBX]),
-                     RESET_TYPE_COLD);
+    resettable_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_DM_TL_LC_CTRL]), type);
+    resettable_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_DM_TL_MBX]), type);
 
     Object *dm = OBJECT(s->devices[OT_DJ_SOC_DEV_DM]);
-    resettable_reset(dm, RESET_TYPE_COLD);
+    resettable_reset(dm, type);
 
     /* keep ROM_CTRLs in reset, we'll release them last */
-    resettable_assert_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM0]),
-                            RESET_TYPE_COLD);
-    resettable_assert_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM1]),
-                            RESET_TYPE_COLD);
+    resettable_assert_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM0]), type);
+    resettable_assert_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM1]), type);
 
     /*
      * Power-On-Reset: leave hart on reset
@@ -1560,7 +1556,7 @@ static void ot_dj_soc_reset_hold(Object *obj, ResetType type)
      * realization.
      */
     CPUState *cs = CPU(s->devices[OT_DJ_SOC_DEV_HART]);
-    resettable_assert_reset(OBJECT(cs), RESET_TYPE_COLD);
+    resettable_assert_reset(OBJECT(cs), type);
 }
 
 static void ot_dj_soc_reset_exit(Object *obj, ResetType type)
@@ -1573,10 +1569,8 @@ static void ot_dj_soc_reset_exit(Object *obj, ResetType type)
     }
 
     /* let ROM_CTRLs get out of reset now */
-    resettable_release_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM0]),
-                             RESET_TYPE_COLD);
-    resettable_release_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM1]),
-                             RESET_TYPE_COLD);
+    resettable_release_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM0]), type);
+    resettable_release_reset(OBJECT(s->devices[OT_DJ_SOC_DEV_ROM1]), type);
 }
 
 static void ot_dj_soc_realize(DeviceState *dev, Error **errp)

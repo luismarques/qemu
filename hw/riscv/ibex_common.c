@@ -26,7 +26,9 @@
 #include "qapi/error.h"
 #include "qom/object.h"
 #include "chardev/chardev-internal.h"
+/* NOLINTBEGIN(misc-header-include-cycle) */
 #include "cpu.h"
+/* NOLINTEND(misc-header-include-cycle) */
 #include "disas/disas.h"
 #include "elf.h"
 #include "exec/hwaddr.h"

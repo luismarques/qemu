@@ -24,7 +24,9 @@
 
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+/* NOLINTBEGIN(misc-header-include-cycle) */
 #include "cpu.h"
+/* NOLINTEND(misc-header-include-cycle) */
 
 /* Custom CSRs */
 #define CSR_CPUCTRLSTS 0x7c0

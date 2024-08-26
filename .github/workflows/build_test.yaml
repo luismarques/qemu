@@ -28,7 +28,8 @@ jobs:
           git clean -dffx subprojects
           mkdir build-clang
           (cd build-clang &&
-           ../configure --cc=clang-18 --disable-werror --target-list=riscv32-softmmu,riscv64-softmmu)
+           ../configure --cc=clang-18 --disable-werror --disable-install-blobs \
+             --target-list=riscv32-softmmu,riscv64-softmmu)
       - name: Build
         run: |
           ninja -C build-clang &&
@@ -155,7 +156,8 @@ jobs:
           git clean -dffx subprojects
           mkdir build-gcc
           (cd build-gcc &&
-           ../configure --cc=gcc --enable-werror --target-list=riscv32-softmmu,riscv64-softmmu)
+           ../configure --cc=gcc --enable-werror --disable-install-blobs \
+             --target-list=riscv32-softmmu,riscv64-softmmu)
       - name: Build
         run: |
           ninja -C build-gcc

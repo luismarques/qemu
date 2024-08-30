@@ -209,7 +209,7 @@ fi
 # QEMU loads the ROM image using the ELF information to locate and execute the
 # ROM. This is useful to get debugging symbols
 [ -f "${OT_TEST_ROM_ELF}" ] || die "Unable to find ROM ELF file"
-QEMU_GUEST_OPT="-object ot-rom-img,id=rom,file=${OT_TEST_ROM_ELF},digest=fake"
+QEMU_GUEST_OPT="-object ot-rom-img,id=rom,file=${OT_TEST_ROM_ELF}"
 
 if [ ${OTBN_LOG} -gt 0 ]; then
     QEMU_GUEST_OPT="${QEMU_GUEST_OPT} -global ot-otbn.logfile=otbn.log"

@@ -12,6 +12,7 @@ from argparse import ArgumentParser, FileType
 from struct import pack as spack
 from sys import exit as sysexit, modules, stderr, stdout
 from traceback import format_exc
+from typing import Union
 
 # pylint: disable=missing-function-docstring
 
@@ -25,7 +26,9 @@ BASE_ADDRESS = {
 LUI_MASK = (1 << 12) - 1
 
 
-def to_int(value: str) -> int:
+def to_int(value: Union[int,str]) -> int:
+    if isinstance(value, int):
+        return value
     return int(value.strip(), value.startswith('0x') and 16 or 10)
 
 
@@ -56,6 +59,8 @@ def main():
         argparser = ArgumentParser(description=f'{desc}')
         argparser.add_argument('-a', '--address', type=to_int,
                                help='Base address for swexit device (default: depends on SoC)')
+        argparser.add_argument('-b', '--base', type=to_int, default=0x80,
+                               help='Offset for the first instruction (default: 0x80)')
         argparser.add_argument('-t', '--soc', choices=list(BASE_ADDRESS),
                                help='SoC type', required=True)
         argparser.add_argument('-o', '--output', type=FileType('wb'),
@@ -71,6 +76,8 @@ def main():
         else:
             bincode = opentitan_code(addr)
         out = args.output or stdout.buffer
+        padding = bytes(args.base)
+        out.write(padding)
         out.write(bincode)
 
     # pylint: disable=broad-except

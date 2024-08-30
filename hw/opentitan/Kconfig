@@ -118,6 +118,9 @@ config OT_PLIC_EXT
 config OT_PRESENT
     bool
 
+config OT_PRINCE
+    bool
+
 config OT_PRNG
     bool
 
@@ -130,6 +133,7 @@ config OT_RANDOM_SRC
 config OT_ROM_CTRL
     bool
     select OT_COMMON
+    select OT_PRINCE
 
 config OT_RSTMGR
     bool

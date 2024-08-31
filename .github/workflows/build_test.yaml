@@ -37,9 +37,9 @@ jobs:
           strip build-clang/qemu-system-riscv32
       - name: Create minimal test binaries
         run: |
-          scripts/opentitan/swexit.py -t ibexdemo -o build-clang/exit_id.bin
-          scripts/opentitan/swexit.py -t earlgrey -o build-clang/exit_eg.bin
-          scripts/opentitan/swexit.py -t darjeeling -o build-clang/exit_dj.bin
+          scripts/opentitan/swexit.py -t ibexdemo -b 0x0 -o build-clang/exit_id.bin
+          scripts/opentitan/swexit.py -t earlgrey -b 0x80 -o build-clang/exit_eg.bin
+          scripts/opentitan/swexit.py -t darjeeling -b 0x80 -o build-clang/exit_dj.bin
       - name: Upload QEMU binary artifacts
         uses: actions/upload-artifact@v3
         with:
@@ -130,12 +130,12 @@ jobs:
       - name: Check EarlGrey VM execution
         run: |
           timeout -s KILL 4 ./qemu-system-riscv32 -M ot-earlgrey,no_epmp_cfg=true -nographic \
-            -object ot-rom-img,id=rom,file=exit_eg.bin,digest=fake,addr=0x8080 -d in_asm,int
+            -object ot-rom-img,id=rom,file=exit_eg.bin -d in_asm,int
       - name: Check Darjeeling VM execution
         run: |
           timeout -s KILL 4 ./qemu-system-riscv32 -M ot-darjeeling,no_epmp_cfg=true -nographic \
             -global ot-ibex_wrapper-dj.lc-ignore=on \
-            -object ot-rom-img,id=rom0,file=exit_dj.bin,digest=fake,addr=0x8080 -d in_asm,int
+            -object ot-rom-img,id=rom0,file=exit_dj.bin -d in_asm,int
 
   build-gcc:
     runs-on: ubuntu-latest

@@ -15,6 +15,8 @@ Please check out `hw/opentitan/ot_ref.log`
 
 * AES
   * missing side-loading
+* Alert controller
+  * ping mechanism is not supported
 * AON Timer
 * CSRNG
 * EDN
@@ -26,8 +28,9 @@ Please check out `hw/opentitan/ot_ref.log`
   * missing side-loading
 * OTP controller
   * read and write features are supported, Present scrambling is supported w/ digest checks,
-    ECC bits are ignored
+    ECC (detection and correction) is supported.
 * [RISC-V Debug Module](jtag-dm.md) and Pulp Debug Module
+* [ROM controller](rom_ctrl.md)
 * SPI data flash (from QEMU upstream w/ fixes)
 * SPI host controller
   * HW bus config is ignored (SPI mode, speed, ...)
@@ -56,7 +59,6 @@ Devices in this group implement subset(s) of the real HW.
 * Power Manager
   * Fast FSM is partially supported, Slow FSM is bypassed
   * Interactions with other devices (such as the Reset Manager) are limited
-* [ROM controller](rom_ctrl.md)
 * SPI device controller (only Flash mode is supported)
 * SRAM controller
   * Initialization and scrambling from OTP key supported
@@ -85,7 +87,6 @@ features are implemented.
 Devices in this group are mostly implemented with a RAM backend or real CSRs but do not implement
 any useful feature (only allow guest test code to execute as expected).
 
-* Alert controller
 * Key manager
 * Sensor
 
@@ -111,7 +112,7 @@ See the section "Useful execution options" for documentation about the `no_epmp_
 
 ````sh
 qemu-system-riscv32 -M ot-darjeeling -display none -serial mon:stdio \
-  -object ot-rom-img,id=rom,file=rom_with_fake_keys_fpga_cw310.elf,digest=fake \
+  -object ot-rom-img,id=rom,file=rom_with_fake_keys_fpga_cw310.elf \
   -drive if=pflash,file=otp-rma.raw,format=raw \
   -drive if=mtd,bus=1,file=flash.raw,format=raw
 ````

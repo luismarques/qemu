@@ -8,38 +8,52 @@ On real hardware, the ROM digest is computed on the ROM content _including ECC_ 
 digest value is stored at the end of the scrambled ROM (with invalid ECC to make sure it's not
 accessible by software).
 
-On the QEMU emulated ROM Controller, the digest is instead computed on the ROM content _without
-ECC_. The expected digest value either comes from the command line (see section "QEMU ROM options")
-or is faked (the expected digest registers are preloaded with the computed value just before the
-comparison happens).
+On the QEMU emulated ROM Controller, if the ROM controller is submitted a scrambled ROM image file,
+its digest is used and verified. Otherwise, a fake digest is generated, i.e. no actual ROM content
+validation is performed.
 
 ## QEMU ROM Options
 
-### Digest
+### Supported image file formats
 
-The ROM digest is either a sequence of 64 hex digits (_i.e._ 32 bytes) or the exact string `fake` to
-enable _fake digest_ mode).
+The type of a ROM image file format is automatically detected from its content.
+
+The ROM file digest can be provided on the QEMU command line using this option:
+
+```
+-object ot-rom-img,id=<romid>,file=/path/to/rom
+```
 
 ### ELF ROM file
 
-The ROM ELF file and its digest can be provided on the QEMU command line using this option:
+ELF32 RISC-V file can be used as a ROM controller image file. Such file format neither supports
+digest nor ECC. Digest is faked in this case.
 
-```
--object ot-rom-img,id=rom,file=/path/to/rom.elf,digest=<romdigest>
-```
+### VMEM ROM file
+
+Two kinds of VMEM files are supported:
+
+* 32-bit VMEM files, _i.e._ VMEM file without ECC. Such file should contain non-scrambled data.
+* 39-bit VMEM files, _i.e._ VMEM file with 7-bit ECC and scrambled data.
+
+39-bit scrambled ECC VMEM files are only supported when the QEMU machine has instanciated the ROM
+controller with `key` and `nonce` arguments.
+
+### HEX ROM file
+
+39-bit HEX files, _i.e._ HEX file with 7-bit ECC and scrambled data.
+
+39-bit scrambled ECC HEX files are only supported when the QEMU machine has instanciated the ROM
+controller with `key` and `nonce` arguments.
+
+Note that HEX file format differs from IHEX file format. The former only contains hexadecimal-
+encoded data, where the two first digits contain the 7-bit ECC value, and the remaining digits
+contains the 32-bit data value.
 
 ### Binary ROM file
 
-The ROM binary file and its digest can be provided on the QEMU command line using this option:
-
-```
--object ot-rom-img,id=rom,file=/path/to/rom.bin,digest=<romdigest>,addr=address
-```
-
-If `addr` is specifed, the file is loaded as a raw binary file, whatever its extension.
-
-`addr` is specified as an absolute address in the CPU address space, _i.e._ not relative to the
-ROM base address.
+Flat, raw binary file can be used as a ROM controller image file. Such file format neither supports
+digest nor ECC. Digest is faked in this case.
 
 ### ROM identifiers
 
@@ -56,9 +70,8 @@ The ROM image ID may depend on the SoC.
 
 This mode is useful to implement the standard OpenTitan boot flow.
 
-In this mode, the ROM digest is always checked against the expected digest value. A _fake digest_
-mode is implemented to avoid having to pass a valid digest: when enabled (using `digest=fake`), the
-expected digest is seeded from the value that is computed in order for the check to always succeed.
+In this mode, the ROM digest is always checked against the expected digest value if a scrambled ROM
+image file is submitted.
 
 ### Without ROM
 

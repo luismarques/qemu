@@ -956,7 +956,10 @@ static const IbexDeviceDef ot_eg_soc_devices[] = {
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_STRING_PROP("ot_id", "rom"),
             IBEX_DEV_UINT_PROP("size", 0x8000u),
-            IBEX_DEV_UINT_PROP("kmac-app", 2u)
+            IBEX_DEV_UINT_PROP("kmac-app", 2u),
+            /* Earlgrey-M2.5.2-RC0 */
+            IBEX_DEV_STRING_PROP("nonce", "755cf00bd7432c3f"),
+            IBEX_DEV_STRING_PROP("key", "8cd4e7eff1b9ec59ce812447c5714595")
         ),
     },
     [OT_EG_SOC_DEV_IBEX_WRAPPER] = {

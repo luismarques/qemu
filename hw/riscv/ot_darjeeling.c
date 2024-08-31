@@ -763,7 +763,9 @@ static const IbexDeviceDef ot_dj_soc_devices[] = {
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_STRING_PROP("ot_id", "rom0"),
             IBEX_DEV_UINT_PROP("size", 0x8000u),
-            IBEX_DEV_UINT_PROP("kmac-app", 2u)
+            IBEX_DEV_UINT_PROP("kmac-app", 2u),
+            IBEX_DEV_STRING_PROP("nonce", "a7bdb05fe921615b"),
+            IBEX_DEV_STRING_PROP("key", "f2ff984540f7d43ece76b4eb13363774")
         ),
     },
     [OT_DJ_SOC_DEV_ROM1] = {
@@ -786,7 +788,9 @@ static const IbexDeviceDef ot_dj_soc_devices[] = {
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_STRING_PROP("ot_id", "rom1"),
             IBEX_DEV_UINT_PROP("size", 0x10000u),
-            IBEX_DEV_UINT_PROP("kmac-app", 3u)
+            IBEX_DEV_UINT_PROP("kmac-app", 3u),
+            IBEX_DEV_STRING_PROP("nonce", "ed2ed45545e927f6"),
+            IBEX_DEV_STRING_PROP("key", "d9e4abac398d42c745eef646c1464dca")
         ),
     },
     [OT_DJ_SOC_DEV_IBEX_WRAPPER] = {

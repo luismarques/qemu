@@ -24,9 +24,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
- * ROM Images can be instanciated from the command line:
- *   "-object ot-rom-img,id=rom1,file=rom1.raw,digest=0123456789abcdef"
  */
 
 #include "qemu/osdep.h"
@@ -35,17 +32,95 @@
 #include "hw/opentitan/ot_rom_ctrl_img.h"
 
 /* Current ROMs digests are 256 bits (32 bytes) */
-#define ROM_DIGEST_BYTES (32u)
+#define ROM_DIGEST_BYTES 32u
 
-static const char HEX[] = "0123456789abcdef";
+static const uint8_t ELF_HEADER[] = {
+    0x7fu, 0x45u, 0x4cu, 0x46u, 0x01u, 0x01u, 0x01u, 0x00u,
+};
+
+static OtRomImgFormat ot_rom_img_guess_image_format(const char *filename)
+{
+    int fd = open(filename, O_RDONLY | O_BINARY | O_CLOEXEC);
+    if (fd == -1) {
+        return OT_ROM_IMG_FORMAT_NONE;
+    }
+
+    uint8_t data[128u];
+    ssize_t len = read(fd, data, sizeof(data));
+    close(fd);
+
+    if (len < sizeof(data)) {
+        return OT_ROM_IMG_FORMAT_NONE;
+    }
+
+    if (!memcmp(data, ELF_HEADER, sizeof(ELF_HEADER))) {
+        return OT_ROM_IMG_FORMAT_ELF;
+    }
+
+    if (data[0] == '@') { /* likely a VMEM file */
+        bool addr = true;
+        unsigned dlen = 0;
+        for (unsigned ix = 1; ix < sizeof(data); ix++) {
+            if (data[ix] == ' ') { /* separator */
+                if (addr) {
+                    addr = false;
+                    continue;
+                }
+                break;
+            }
+            if (addr) {
+                if (data[ix] != '0') {
+                    /* first address is always expected to be 0 */
+                    break;
+                }
+                continue;
+            }
+            dlen += 1u;
+        }
+        if (dlen == 8u) { /* 32 bits */
+            return OT_ROM_IMG_FORMAT_VMEM_PLAIN;
+        }
+        if (dlen == 10u) { /* 40 bits */
+            return OT_ROM_IMG_FORMAT_VMEM_SCRAMBLED_ECC;
+        }
+    }
+
+    bool hexa_only = true;
+    unsigned cr = 0;
+    unsigned ix;
+    for (ix = 0; ix < sizeof(data); ix++) {
+        if (data[ix] == '\r') {
+            cr = ix;
+            continue;
+        }
+        if (data[ix] == '\n') {
+            if (cr) {
+                if (cr != ix - 1) {
+                    /* the only valid pos for useless CR is right before LF */
+                    hexa_only = false;
+                } else {
+                    /* ignore CR in line length */
+                    ix -= 1u;
+                }
+            }
+            break;
+        }
+        if (!g_ascii_isxdigit(data[ix])) {
+            hexa_only = false;
+            break;
+        }
+    }
+    if (hexa_only && ix == 10u) {
+        return OT_ROM_IMG_FORMAT_HEX_SCRAMBLED_ECC;
+    }
+
+    return OT_ROM_IMG_FORMAT_BINARY;
+}
 
 static void ot_rom_img_reset(OtRomImg *ri)
 {
     ri->filename = NULL;
-    ri->digest = NULL;
-    ri->digest_len = 0;
-    ri->fake_digest = false;
-    ri->address = UINT32_MAX;
+    ri->format = OT_ROM_IMG_FORMAT_NONE;
 }
 
 static void ot_rom_img_prop_set_file(Object *obj, const char *value,
@@ -55,6 +130,20 @@ static void ot_rom_img_prop_set_file(Object *obj, const char *value,
     (void)errp;
 
     g_free(ri->filename);
+    ri->filename = NULL;
+
+    struct stat rom_stat;
+    int res = stat(value, &rom_stat);
+    if (res) {
+        error_setg(errp, "ROM image '%s' not found", value);
+        return;
+    }
+    if ((rom_stat.st_mode & S_IFMT) != S_IFREG) {
+        error_setg(errp, "ROM image '%s' is not a file", value);
+        return;
+    }
+    ri->raw_size = (unsigned)rom_stat.st_size;
+    ri->format = ot_rom_img_guess_image_format(value);
     ri->filename = g_strdup(value);
 }
 
@@ -64,92 +153,6 @@ static char *ot_rom_img_prop_get_file(Object *obj, Error **errp)
     (void)errp;
 
     return g_strdup(ri->filename);
-}
-
-static void ot_rom_img_prop_set_digest(Object *obj, const char *value,
-                                       Error **errp)
-{
-    OtRomImg *ri = OT_ROM_IMG(obj);
-    unsigned len = strlen(value);
-
-    if (!g_strcmp0(value, "fake")) {
-        ri->digest = NULL;
-        ri->digest_len = 0;
-        ri->fake_digest = true;
-        return;
-    }
-
-    if (len != (2 * ROM_DIGEST_BYTES)) {
-        error_setg(errp, "Invalid digest '%s': must be %u bytes long", value,
-                   ROM_DIGEST_BYTES);
-        return;
-    }
-
-    g_free(ri->digest);
-    ri->digest_len = ROM_DIGEST_BYTES;
-    ri->digest = g_new0(uint8_t, ri->digest_len);
-
-    for (unsigned idx = 0; idx < len; idx++) {
-        if (!g_ascii_isxdigit(value[idx])) {
-            error_setg(errp,
-                       "Invalid digest '%s': must only contain hex digits",
-                       value);
-            g_free(ri->digest);
-            ri->digest_len = 0;
-            ri->digest = NULL;
-            return;
-        }
-        uint8_t digit = g_ascii_xdigit_value(value[idx]);
-        digit = (idx & 1) ? (digit & 0xf) : (digit << 4);
-        ri->digest[ri->digest_len - 1 - (idx / 2)] |= digit;
-    }
-}
-
-static char *ot_rom_img_prop_get_digest(Object *obj, Error **errp)
-{
-    OtRomImg *ri = OT_ROM_IMG(obj);
-    (void)errp;
-
-    if (ri->fake_digest) {
-        return g_strdup("fake");
-    }
-
-    char *digest = g_new0(char, (ri->digest_len * 2u) + 1u);
-    for (unsigned idx = 0; idx < ri->digest_len; idx++) {
-        uint8_t val = ri->digest[ri->digest_len - 1u - idx];
-        /* NOLINTNEXTLINE */
-        digest[(idx * 2u)] = HEX[(val >> 4u) & 0xfu];
-        digest[(idx * 2u) + 1u] = HEX[val & 0xfu];
-    }
-    /* NOLINTNEXTLINE */
-    digest[ri->digest_len * 2u] = '\0';
-
-    return digest;
-}
-
-static void ot_rom_img_prop_get_addr(Object *obj, Visitor *v, const char *name,
-                                     void *opaque, Error **errp)
-{
-    OtRomImg *ri = OT_ROM_IMG(obj);
-    (void)opaque;
-
-    uint32_t address = ri->address;
-
-    visit_type_uint32(v, name, &address, errp);
-}
-
-static void ot_rom_img_prop_set_addr(Object *obj, Visitor *v, const char *name,
-                                     void *opaque, Error **errp)
-{
-    OtRomImg *ri = OT_ROM_IMG(obj);
-    (void)opaque;
-    uint32_t address;
-
-    if (!visit_type_uint32(v, name, &address, errp)) {
-        return;
-    }
-
-    ri->address = address;
 }
 
 static void ot_rom_img_instance_init(Object *obj)
@@ -164,7 +167,6 @@ static void ot_rom_img_finalize(Object *obj)
     OtRomImg *ri = OT_ROM_IMG(obj);
 
     g_free(ri->filename);
-    g_free(ri->digest);
 
     ot_rom_img_reset(ri);
 }
@@ -193,10 +195,6 @@ static void ot_rom_img_class_init(ObjectClass *oc, void *data)
 
     object_class_property_add_str(oc, "file", &ot_rom_img_prop_get_file,
                                   &ot_rom_img_prop_set_file);
-    object_class_property_add_str(oc, "digest", &ot_rom_img_prop_get_digest,
-                                  &ot_rom_img_prop_set_digest);
-    object_class_property_add(oc, "addr", "uint32", &ot_rom_img_prop_get_addr,
-                              &ot_rom_img_prop_set_addr, NULL, NULL);
 }
 
 static const TypeInfo ot_rom_img_info = {

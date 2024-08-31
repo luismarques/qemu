@@ -5,6 +5,7 @@
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
+ *  Emmanuel Blot <eblot@rivosinc.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +32,9 @@
 
 #include "qemu/osdep.h"
 #include "qemu/bswap.h"
+#include "qemu/fifo8.h"
 #include "qemu/log.h"
+#include "qemu/memalign.h"
 #include "qapi/error.h"
 #include "elf.h"
 #include "hw/core/rust_demangle.h"
@@ -39,6 +42,7 @@
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_kmac.h"
+#include "hw/opentitan/ot_prince.h"
 #include "hw/opentitan/ot_rom_ctrl.h"
 #include "hw/opentitan/ot_rom_ctrl_img.h"
 #include "hw/qdev-properties.h"
@@ -47,11 +51,7 @@
 #include "hw/riscv/ibex_irq.h"
 #include "trace.h"
 
-
 #define PARAM_NUM_ALERTS 1u
-
-#define ROM_DIGEST_WORDS 8u
-#define ROM_DIGEST_BYTES (ROM_DIGEST_WORDS * sizeof(uint32_t))
 
 /* clang-format off */
 REG32(ALERT_TEST, 0x0u)
@@ -99,7 +99,29 @@ static const char *REG_NAMES[REGS_COUNT] = {
 };
 #undef REG_NAME_ENTRY
 
-static const OtKMACAppCfg kmac_app_cfg =
+#define OT_ROM_CTRL_NUM_ADDR_SUBST_PERM_ROUNDS 2u
+#define OT_ROM_CTRL_NUM_DATA_SUBST_PERM_ROUNDS 2u
+#define OT_ROM_CTRL_NUM_PRINCE_HALF_ROUNDS     2u
+
+#define OT_ROM_CTRL_DATA_BITS  (sizeof(uint32_t) * 8u)
+#define OT_ROM_CTRL_ECC_BITS   7u
+#define OT_ROM_CTRL_WORD_BITS  (OT_ROM_CTRL_DATA_BITS + OT_ROM_CTRL_ECC_BITS)
+#define OT_ROM_CTRL_WORD_BYTES ((OT_ROM_CTRL_WORD_BITS + 7u) / 8u)
+
+#define ROM_DIGEST_WORDS 8u
+#define ROM_DIGEST_BYTES (ROM_DIGEST_WORDS * sizeof(uint32_t))
+
+/* clang-format off */
+static const uint8_t SBOX4[16u] = {
+    12u, 5u, 6u, 11u, 9u, 0u, 10u, 13u, 3u, 14u, 15u, 8u, 4u, 7u, 1u, 2u
+};
+
+static const uint8_t SBOX4_INV[16u] = {
+    5u, 14u, 15u, 8u, 12u, 1u, 2u, 13u, 11u, 4u, 6u, 3u, 0u, 7u, 9u, 10u
+};
+/* clang-format on */
+
+static const OtKMACAppCfg KMAC_APP_CFG =
     OT_KMAC_CONFIG(CSHAKE, 256u, "", "ROM_CTRL");
 
 struct OtRomCtrlClass {
@@ -119,14 +141,24 @@ struct OtRomCtrlState {
 
     uint32_t regs[REGS_COUNT];
 
-    hwaddr digest_offset;
+    Fifo8 hash_fifo;
+    uint64_t keys[2u]; /* may be NULL */
+    uint64_t nonce;
+    uint64_t addr_nonce;
+    uint64_t data_nonce;
+    unsigned addr_width; /* bit count */
+    unsigned data_nonce_width; /* bit count */
+    unsigned se_pos;
+    unsigned se_last_pos;
+    uint64_t *se_buffer;
     bool first_reset;
-    bool fake_digest;
 
     char *ot_id;
     uint32_t size;
     OtKMACState *kmac;
     uint8_t kmac_app;
+    char *nonce_xstr;
+    char *key_xstr;
 };
 
 static void ot_rom_ctrl_get_mem_bounds(OtRomCtrlState *s, hwaddr *minaddr,
@@ -149,7 +181,274 @@ static void ot_rom_ctrl_rust_demangle_fn(const char *st_name, int st_info,
     rust_demangle_replace((char *)st_name);
 }
 
-static void ot_rom_ctrl_load_elf(OtRomCtrlState *s, const OtRomImg *ri)
+static inline uint64_t
+ot_rom_ctrl_bitswap(uint64_t in, uint64_t mask, unsigned shift)
+{
+    return ((in & mask) << shift) | ((in & ~mask) >> shift);
+}
+
+static uint64_t ot_rom_ctrl_bitswap64(uint64_t val)
+{
+    val = ot_rom_ctrl_bitswap(val, 0x5555555555555555ull, 1u);
+    val = ot_rom_ctrl_bitswap(val, 0x3333333333333333ull, 2u);
+    val = ot_rom_ctrl_bitswap(val, 0x0f0f0f0f0f0f0f0full, 4u);
+    val = ot_rom_ctrl_bitswap(val, 0x00ff00ff00ff00ffull, 8u);
+    val = ot_rom_ctrl_bitswap(val, 0x0000ffff0000ffffull, 16u);
+    val = (val << 32u) | (val >> 32u);
+
+    return val;
+}
+
+static uint64_t ot_rom_ctrl_sbox(uint64_t in, unsigned width,
+                                 const uint8_t *sbox)
+{
+    g_assert(width < 64u);
+
+    uint64_t full_mask = (1ull << width) - 1ull;
+    width &= ~3ull;
+    uint64_t sbox_mask = (1ull << width) - 1ull;
+
+    uint64_t out = in & (full_mask & ~sbox_mask);
+    for (unsigned ix = 0; ix < width; ix += 4) {
+        uint64_t nibble = (in >> ix) & 0xfull;
+        out |= ((uint64_t)sbox[nibble]) << ix;
+    }
+
+    return out;
+}
+
+static uint64_t ot_rom_ctrl_flip(uint64_t in, unsigned width)
+{
+    uint64_t out = ot_rom_ctrl_bitswap64(in);
+
+    out >>= 64u - width;
+
+    return out;
+}
+
+static uint64_t ot_rom_ctrl_perm(uint64_t in, unsigned width, bool invert)
+{
+    g_assert(width < 64u);
+
+    uint64_t full_mask = (1ull << width) - 1ull;
+    width &= ~1ull;
+    uint64_t bfly_mask = (1ull << width) - 1ull;
+
+    uint64_t out = in & (full_mask & ~bfly_mask);
+
+    width >>= 1u;
+    if (!invert) {
+        for (unsigned ix = 0; ix < width; ix++) {
+            uint64_t bit = (in >> (ix << 1u)) & 1ull;
+            out |= bit << ix;
+            bit = (in >> ((ix << 1u) + 1u)) & 1ull;
+            out |= bit << (width + ix);
+        }
+    } else {
+        for (unsigned ix = 0; ix < width; ix++) {
+            uint64_t bit = (in >> ix) & 1ull;
+            out |= bit << (ix << 1u);
+            bit = (in >> (ix + width)) & 1ull;
+            out |= bit << ((ix << 1u) + 1);
+        }
+    }
+
+    return out;
+}
+
+static uint64_t ot_rom_ctrl_subst_perm_enc(uint64_t in, uint64_t key,
+                                           unsigned width, unsigned num_rounds)
+{
+    uint64_t state = in;
+
+    for (unsigned ix = 0; ix < num_rounds; ix++) {
+        state ^= key;
+        state = ot_rom_ctrl_sbox(state, width, SBOX4);
+        state = ot_rom_ctrl_flip(state, width);
+        state = ot_rom_ctrl_perm(state, width, false);
+    }
+
+    state ^= key;
+
+    return state;
+}
+
+static uint64_t ot_rom_ctrl_subst_perm_dec(uint64_t in, uint64_t key,
+                                           unsigned width, unsigned num_rounds)
+{
+    uint64_t state = in;
+
+    for (unsigned ix = 0; ix < num_rounds; ix++) {
+        state ^= key;
+        state = ot_rom_ctrl_perm(state, width, true);
+        state = ot_rom_ctrl_flip(state, width);
+        state = ot_rom_ctrl_sbox(state, width, SBOX4_INV);
+    }
+
+    state ^= key;
+
+    return state;
+}
+
+static unsigned ot_rom_ctrl_addr_sp_enc(const OtRomCtrlState *s, unsigned addr)
+{
+    return ot_rom_ctrl_subst_perm_enc(addr, s->addr_nonce, s->addr_width,
+                                      OT_ROM_CTRL_NUM_ADDR_SUBST_PERM_ROUNDS);
+}
+
+static uint64_t ot_rom_ctrl_data_sp_dec(const OtRomCtrlState *s, uint64_t in)
+{
+    (void)s;
+    return ot_rom_ctrl_subst_perm_dec(in, 0, OT_ROM_CTRL_WORD_BITS,
+                                      OT_ROM_CTRL_NUM_DATA_SUBST_PERM_ROUNDS);
+}
+
+static uint64_t
+ot_rom_ctrl_get_keystream(const OtRomCtrlState *s, unsigned addr)
+{
+    uint64_t scramble = (s->data_nonce << s->addr_width) | addr;
+    uint64_t stream = ot_prince_run(scramble, s->keys[1u], s->keys[0u],
+                                    OT_ROM_CTRL_NUM_PRINCE_HALF_ROUNDS);
+    return stream & ((1ull << OT_ROM_CTRL_WORD_BITS) - 1ull);
+}
+
+static void ot_rom_ctrl_compare_and_notify(OtRomCtrlState *s)
+{
+    /* compare digests */
+    bool rom_good = true;
+    for (unsigned ix = 0; ix < ROM_DIGEST_WORDS; ix++) {
+        if (s->regs[R_EXP_DIGEST_0 + ix] != s->regs[R_DIGEST_0 + ix]) {
+            rom_good = false;
+            error_setg(&error_fatal,
+                       "ot_rom_ctrl: %s: Digest mismatch (expected 0x%08x got "
+                       "0x%08x) @ %u\n",
+                       s->ot_id, s->regs[R_EXP_DIGEST_0 + ix],
+                       s->regs[R_DIGEST_0 + ix], ix);
+        }
+    }
+
+    trace_ot_rom_ctrl_notify(s->ot_id, rom_good);
+
+    /* notify end of check */
+    ibex_irq_set(&s->pwrmgr_good, rom_good);
+    ibex_irq_set(&s->pwrmgr_done, true);
+}
+
+static void ot_rom_ctrl_send_kmac_req(OtRomCtrlState *s)
+{
+    g_assert(s->se_buffer);
+    fifo8_reset(&s->hash_fifo);
+
+    while (!fifo8_is_full(&s->hash_fifo) && (s->se_pos < s->se_last_pos)) {
+        unsigned word_pos = s->se_pos / OT_ROM_CTRL_WORD_BYTES;
+        unsigned word_off = s->se_pos % OT_ROM_CTRL_WORD_BYTES;
+        unsigned phy_addr = ot_rom_ctrl_addr_sp_enc(s, word_pos);
+        uint8_t wbuf[sizeof(uint64_t)];
+        stq_le_p(wbuf, s->se_buffer[phy_addr]);
+        uint8_t *wb = wbuf;
+        unsigned wl = OT_ROM_CTRL_WORD_BYTES;
+        wb += word_off;
+        wl -= word_off;
+        wl = MIN(wl, fifo8_num_free(&s->hash_fifo));
+        s->se_pos += wl;
+        while (wl--) {
+            fifo8_push(&s->hash_fifo, *wb++);
+        }
+    }
+
+    g_assert(!fifo8_is_empty(&s->hash_fifo));
+
+    OtKMACAppReq req = {
+        .last = s->se_pos == s->se_last_pos,
+        .msg_len = fifo8_num_used(&s->hash_fifo),
+    };
+    uint32_t blen;
+    const uint8_t *buf = fifo8_pop_bufptr(&s->hash_fifo, req.msg_len, &blen);
+    g_assert(blen == req.msg_len);
+    memcpy(req.msg_data, buf, req.msg_len);
+
+    ot_kmac_app_request(s->kmac, s->kmac_app, &req);
+}
+
+static void
+ot_rom_ctrl_handle_kmac_response(void *opaque, const OtKMACAppRsp *rsp)
+{
+    OtRomCtrlState *s = OT_ROM_CTRL(opaque);
+
+    if (!rsp->done) {
+        ot_rom_ctrl_send_kmac_req(s);
+        return;
+    }
+
+    g_assert(s->se_buffer);
+    qemu_vfree(s->se_buffer);
+    s->se_buffer = NULL;
+
+    g_assert(s->se_pos == s->se_last_pos);
+
+    /* switch to ROMD mode */
+    memory_region_rom_device_set_romd(&s->mem, true);
+
+    /* retrieve digest */
+    for (unsigned ix = 0; ix < 8; ix++) {
+        uint32_t share0;
+        uint32_t share1;
+        memcpy(&share0, &rsp->digest_share0[ix * sizeof(uint32_t)],
+               sizeof(uint32_t));
+        memcpy(&share1, &rsp->digest_share1[ix * sizeof(uint32_t)],
+               sizeof(uint32_t));
+        s->regs[R_DIGEST_0 + ix] = share0 ^ share1;
+    }
+
+    trace_ot_rom_ctrl_digest_mode(s->ot_id, "stored");
+
+    /* compare digests and send notification */
+    ot_rom_ctrl_compare_and_notify(s);
+}
+
+static void ot_rom_ctrl_fake_digest(OtRomCtrlState *s)
+{
+    /* initialize a all-zero fake digest */
+    for (unsigned ix = 0; ix < ROM_DIGEST_WORDS; ix++) {
+        s->regs[R_EXP_DIGEST_0 + ix] = s->regs[R_DIGEST_0 + ix] = 0;
+    }
+
+    /* switch to ROMD mode */
+    memory_region_rom_device_set_romd(&s->mem, true);
+
+    trace_ot_rom_ctrl_digest_mode(s->ot_id, "fake");
+}
+
+static uint64_t
+ot_rom_ctrl_unscramble_word(const OtRomCtrlState *s, unsigned addr, uint64_t in)
+{
+    uint64_t keystream = ot_rom_ctrl_get_keystream(s, addr);
+    uint64_t sp = ot_rom_ctrl_data_sp_dec(s, in);
+    return keystream ^ sp;
+}
+
+static void ot_rom_ctrl_unscramble(OtRomCtrlState *s, const uint64_t *src,
+                                   uint32_t *dst, unsigned size)
+{
+    unsigned scr_word_size = (size - ROM_DIGEST_BYTES) / sizeof(uint32_t);
+    unsigned log_addr = 0;
+    /* unscramble the whole ROM, except the trailing ROM digest bytes */
+    for (; log_addr < scr_word_size; log_addr++) {
+        unsigned phy_addr = ot_rom_ctrl_addr_sp_enc(s, log_addr);
+        g_assert(phy_addr < size);
+        uint64_t srcdata = src[phy_addr];
+        uint64_t clrdata = ot_rom_ctrl_unscramble_word(s, log_addr, srcdata);
+        dst[log_addr] = (uint32_t)clrdata;
+    }
+    /* recover the ROM digest bytes, which are not scrambled */
+    for (unsigned wix = 0; wix < ROM_DIGEST_WORDS; wix++, log_addr++) {
+        unsigned phy_addr = ot_rom_ctrl_addr_sp_enc(s, log_addr);
+        g_assert(phy_addr < size);
+        s->regs[R_EXP_DIGEST_0 + wix] = (uint32_t)src[phy_addr];
+    }
+}
+
+static bool ot_rom_ctrl_load_elf(OtRomCtrlState *s, const OtRomImg *ri)
 {
     AddressSpace *as = ot_common_get_local_address_space(DEVICE(s));
     hwaddr minaddr;
@@ -162,134 +461,329 @@ static void ot_rom_ctrl_load_elf(OtRomCtrlState *s, const OtRomImg *ri)
         error_setg(&error_fatal,
                    "ot_rom_ctrl: %s: ROM image '%s', ELF loading failed",
                    s->ot_id, ri->filename);
-        return;
+        return false;
     }
     if ((loaddr < minaddr) || (loaddr > maxaddr)) {
         /* cannot test upper load address as QEMU loader returns VMA, not LMA */
-        error_setg(&error_fatal, "ot_rom_ctrl: %s: ELF cannot fit into ROM\n",
+        error_setg(&error_fatal, "ot_rom_ctrl: %s: ELF cannot fit into ROM",
                    s->ot_id);
     }
+
+    return false;
 }
 
-static void ot_rom_ctrl_load_binary(OtRomCtrlState *s, const OtRomImg *ri)
+static bool ot_rom_ctrl_load_binary(OtRomCtrlState *s, const OtRomImg *ri)
 {
-    hwaddr minaddr;
-    hwaddr maxaddr;
-    ot_rom_ctrl_get_mem_bounds(s, &minaddr, &maxaddr);
-
-    hwaddr binaddr = (hwaddr)ri->address;
-
-    if (binaddr < minaddr) {
-        error_setg(&error_fatal, "ot_rom_ctrl: %s: address 0x%x: not in ROM:\n",
-                   s->ot_id, ri->address);
+    if (ri->raw_size > s->size) {
+        error_setg(&error_fatal, "%s: %s: cannot fit into ROM", __func__,
+                   s->ot_id);
+        return false;
     }
 
     int fd = open(ri->filename, O_RDONLY | O_BINARY | O_CLOEXEC);
     if (fd == -1) {
-        error_setg(&error_fatal,
-                   "ot_rom_ctrl: %s: could not open ROM '%s': %s\n",
-                   ri->filename, s->ot_id, strerror(errno));
+        error_setg(&error_fatal, "%s: %s: could not open ROM '%s': %s",
+                   __func__, s->ot_id, ri->filename, strerror(errno));
+        return false;
     }
 
-    ssize_t binsize = (ssize_t)lseek(fd, 0, SEEK_END);
-    if (binsize == -1) {
-        close(fd);
-        error_setg(&error_fatal,
-                   "ot_rom_ctrl: %s: file %s: get size error: %s\n", s->ot_id,
-                   ri->filename, strerror(errno));
-    }
-
-    if (binaddr + binsize > maxaddr) {
-        close(fd);
-        error_setg(&error_fatal, "ot_rom_ctrl: cannot fit into ROM\n");
-    }
-
-    uint8_t *data = g_malloc0(binsize);
-    lseek(fd, 0, SEEK_SET);
-
-    ssize_t rc = read(fd, data, binsize);
+    uint8_t *data = g_malloc0(ri->raw_size);
+    ssize_t rc = read(fd, data, ri->raw_size);
     close(fd);
-    if (rc != binsize) {
-        g_free(data);
-        error_setg(
-            &error_fatal,
-            "ot_rom_ctrl: %s: file %s: read error: rc=%zd (expected %zd)\n",
-            s->ot_id, ri->filename, rc, binsize);
-        return; /* static analyzer does not know error_fatal never returns */
-    }
 
-    hwaddr offset = binaddr - minaddr;
+    if (rc != (ssize_t)ri->raw_size) {
+        g_free(data);
+        error_setg(&error_fatal,
+                   "%s: %s: file %s: read error: rc=%zd (expected %u)",
+                   __func__, s->ot_id, ri->filename, rc, ri->raw_size);
+        return false;
+    }
 
     uintptr_t hostptr = (uintptr_t)memory_region_get_ram_ptr(&s->mem);
-    hostptr += offset;
-    memcpy((void *)hostptr, data, binsize);
+    memcpy((void *)hostptr, data, ri->raw_size);
     g_free(data);
 
-    memory_region_set_dirty(&s->mem, offset, binsize);
+    memory_region_set_dirty(&s->mem, 0, ri->raw_size);
+
+    return false;
 }
 
+static char *ot_rom_ctrl_read_text_file(OtRomCtrlState *s, const OtRomImg *ri)
+{
+    if (!s->key_xstr || !s->nonce_xstr) {
+        error_setg(&error_fatal,
+                   "%s: %s: cannot unscrambled ROM '%s' w/o key and nonce\n",
+                   __func__, ri->filename, s->ot_id);
+        return NULL;
+    }
 
-static void ot_rom_ctrl_load_rom(OtRomCtrlState *s)
+    int fd = open(ri->filename, O_RDONLY | O_BINARY | O_CLOEXEC);
+    if (fd == -1) {
+        error_setg(&error_fatal, "%s: %s: could not open ROM '%s': %s\n",
+                   __func__, ri->filename, s->ot_id, strerror(errno));
+        return NULL;
+    }
+
+    char *buffer = g_malloc0(ri->raw_size);
+    ssize_t rc = read(fd, buffer, ri->raw_size);
+    close(fd);
+
+    if (rc != ri->raw_size) {
+        g_free(buffer);
+        error_setg(&error_fatal,
+                   "%s: %s: file %s: read error: rc=%zd (expected %u)",
+                   __func__, s->ot_id, ri->filename, rc, ri->raw_size);
+        return NULL;
+    }
+
+    return buffer;
+}
+
+static bool ot_rom_ctrl_load_vmem(OtRomCtrlState *s, const OtRomImg *ri,
+                                  bool scrambled_n_ecc)
+{
+    char *buffer = ot_rom_ctrl_read_text_file(s, ri);
+    if (!buffer) {
+        return false;
+    }
+
+    uintptr_t baseptr;
+    unsigned load_size;
+    if (!scrambled_n_ecc) {
+        load_size = s->size;
+        baseptr = (uintptr_t)memory_region_get_ram_ptr(&s->mem);
+    } else {
+        /*
+         * allocate a temporary buffer to store scrambled data and ECC.
+         * The buffer needs to be twice as large as the 32-bit data since ECC
+         * byte is stored in b39..b32, so storage is managed with 64-bit values.
+         * This buffer is descrambled and ECC verified in a post-postprocessing
+         * stage where clear data are copied back to the device memory region
+         * and ECC data are discarded once used.
+         */
+        load_size = s->size * 2u;
+        baseptr = (uintptr_t)qemu_memalign(sizeof(uint64_t), load_size);
+    }
+
+    uintptr_t lastptr = baseptr + load_size;
+    uintptr_t memptr = baseptr;
+    unsigned exp_addr = 0u;
+    unsigned blk_size = scrambled_n_ecc ? sizeof(uint64_t) : sizeof(uint32_t);
+    const char *sep = "\r\n";
+    char *brks;
+    char *line;
+    for (line = strtok_r(buffer, sep, &brks); line;
+         line = strtok_r(NULL, sep, &brks)) {
+        if (strlen(line) == 0) {
+            continue;
+        }
+
+        gchar **items = g_strsplit_set(line, " ", 0);
+        if (items[0][0] != '@') { /* block address */
+            g_strfreev(items);
+            continue;
+        }
+
+        unsigned blk_addr = (unsigned)g_ascii_strtoull(&items[0][1], NULL, 16);
+        if (blk_addr < exp_addr) {
+            g_strfreev(items);
+            g_free(buffer);
+            error_setg(&error_fatal,
+                       "%s: %s: address discrepancy in VMEM file '%s'",
+                       __func__, s->ot_id, ri->filename);
+            return false;
+        }
+        if (blk_addr != exp_addr) {
+            /* each block contains 32-bit of data */
+            unsigned pad_size = (blk_addr - exp_addr) * sizeof(uint32_t);
+            memptr += pad_size;
+        }
+
+        unsigned blk_count = 0;
+        while (items[1u + blk_count]) {
+            blk_count++;
+        }
+
+        if ((memptr + (uintptr_t)(blk_count * blk_size)) > lastptr) {
+            g_free(buffer);
+            error_setg(&error_fatal, "%s: %s: VMEM file '%s' too large",
+                       __func__, s->ot_id, ri->filename);
+            return false;
+        }
+
+        for (unsigned blk = 0; blk < blk_count; blk++) {
+            uint64_t value = g_ascii_strtoull(items[1u + blk], NULL, 16);
+            if (!scrambled_n_ecc) {
+                /* direct store to ROM controller memory */
+                stl_le_p((void *)memptr, value & UINT32_MAX);
+                memptr += sizeof(uint32_t);
+            } else {
+                /* store to an intermediate buffer for delayed descrambling */
+                stq_le_p((void *)memptr, value);
+                memptr += sizeof(uint64_t);
+            }
+        }
+        exp_addr += blk_count;
+        g_strfreev(items);
+    }
+    g_free(buffer);
+
+    if (memptr > baseptr) {
+        if (scrambled_n_ecc) {
+            uintptr_t dst = (uintptr_t)memory_region_get_ram_ptr(&s->mem);
+            g_assert((dst & 0x3u) == 0);
+            ot_rom_ctrl_unscramble(s, (const uint64_t *)baseptr,
+                                   (uint32_t *)dst,
+                                   s->size /* destination size */);
+        }
+
+        memory_region_set_dirty(&s->mem, 0, memptr - baseptr);
+
+        if (scrambled_n_ecc) {
+            /* spawn hash calculation */
+            s->se_buffer = (uint64_t *)baseptr;
+            unsigned word_count =
+                (s->size - ROM_DIGEST_BYTES) / sizeof(uint32_t);
+            s->se_last_pos = word_count * OT_ROM_CTRL_WORD_BYTES;
+            s->se_pos = 0;
+            ot_rom_ctrl_send_kmac_req(s);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool ot_rom_ctrl_load_hex(OtRomCtrlState *s, const OtRomImg *ri)
+{
+    char *buffer = ot_rom_ctrl_read_text_file(s, ri);
+    if (!buffer) {
+        return false;
+    }
+
+    /*
+     * allocate a temporary buffer to store scrambled data and ECC.
+     * The buffer needs to be twice as large as the 32-bit data since ECC
+     * byte is stored in b39..b32, so storage is managed with 64-bit values.
+     * This buffer is descrambled and ECC verified in a post-postprocessing
+     * stage where clear data are copied back to the device memory region
+     * and ECC data are discarded once used.
+     */
+    unsigned load_size = s->size * 2u;
+    uintptr_t baseptr = (uintptr_t)qemu_memalign(sizeof(uint64_t), load_size);
+    uintptr_t lastptr = baseptr + load_size;
+    uintptr_t memptr = baseptr;
+
+    const char *sep = "\r\n";
+    char *brks;
+    char *line;
+    for (line = strtok_r(buffer, sep, &brks); line;
+         line = strtok_r(NULL, sep, &brks)) {
+        if (strlen(line) == 0) {
+            continue;
+        }
+
+        if (memptr >= lastptr) {
+            g_free(buffer);
+            error_setg(&error_fatal, "%s: %s: HEX file '%s' too large",
+                       __func__, s->ot_id, ri->filename);
+            return false;
+        }
+
+        char *end;
+        uint64_t value = g_ascii_strtoull(line, &end, 16);
+        if (((uintptr_t)end - (uintptr_t)line) != 10u) {
+            g_free(buffer);
+            error_setg(&error_fatal, "%s: %s: invalid line in HEX file '%s'",
+                       __func__, s->ot_id, ri->filename);
+            return false;
+        }
+        stq_le_p((void *)memptr, value);
+        memptr += sizeof(uint64_t);
+    }
+    g_free(buffer);
+
+    uintptr_t dst = (uintptr_t)memory_region_get_ram_ptr(&s->mem);
+    g_assert((dst & 0x3u) == 0);
+    ot_rom_ctrl_unscramble(s, (const uint64_t *)baseptr, (uint32_t *)dst,
+                           s->size /* destination size */);
+
+    if (memptr > baseptr) {
+        memory_region_set_dirty(&s->mem, 0, memptr - baseptr);
+
+        unsigned loaded_size = (unsigned)(memptr - baseptr);
+        if (loaded_size != load_size) {
+            error_setg(&error_fatal,
+                       "%s: %s: incomplete HEX file '%s': %u bytes", __func__,
+                       s->ot_id, ri->filename, loaded_size / 2u);
+            return false;
+        }
+
+        /* spawn hash calculation */
+        s->se_buffer = (uint64_t *)baseptr;
+        unsigned word_count = (s->size - ROM_DIGEST_BYTES) / sizeof(uint32_t);
+        s->se_last_pos = word_count * OT_ROM_CTRL_WORD_BYTES;
+        s->se_pos = 0;
+        ot_rom_ctrl_send_kmac_req(s);
+        return true;
+    }
+
+    return false;
+}
+
+static bool ot_rom_ctrl_load_rom(OtRomCtrlState *s)
 {
     Object *obj = NULL;
     OtRomImg *rom_img = NULL;
-
-    /* let assume we'll use fake digest */
-    s->fake_digest = true;
 
     /* try to find our ROM image object */
     obj = object_resolve_path_component(object_get_objects_root(), s->ot_id);
     if (!obj) {
         trace_ot_rom_ctrl_load_rom_no_image(s->ot_id);
-        return;
+        return false;
     }
     rom_img = (OtRomImg *)object_dynamic_cast(obj, TYPE_OT_ROM_IMG);
     if (!rom_img) {
-        error_setg(&error_fatal, "ot_rom_ctrl: %s: Object is not a ROM Image",
+        error_setg(&error_fatal, "%s: %s: Object is not a ROM Image", __func__,
                    s->ot_id);
-        return;
+        return false;
     }
 
-    if (rom_img->address == UINT32_MAX) {
-        ot_rom_ctrl_load_elf(s, rom_img);
-    } else {
-        ot_rom_ctrl_load_binary(s, rom_img);
+    const char *basename = strrchr(rom_img->filename, '/');
+    basename = basename ? basename + 1 : rom_img->filename;
+
+    bool dig;
+    switch (rom_img->format) {
+    case OT_ROM_IMG_FORMAT_VMEM_PLAIN:
+        trace_ot_rom_ctrl_image_identify(s->ot_id, basename, "plain VMEM");
+        dig = ot_rom_ctrl_load_vmem(s, rom_img, false);
+        break;
+    case OT_ROM_IMG_FORMAT_VMEM_SCRAMBLED_ECC:
+        trace_ot_rom_ctrl_image_identify(s->ot_id, basename,
+                                         "scrambled VMEM w/ ECC");
+        dig = ot_rom_ctrl_load_vmem(s, rom_img, true);
+        break;
+    case OT_ROM_IMG_FORMAT_HEX_SCRAMBLED_ECC:
+        trace_ot_rom_ctrl_image_identify(s->ot_id, basename,
+                                         "scrambled HEX w/ ECC");
+        dig = ot_rom_ctrl_load_hex(s, rom_img);
+        break;
+    case OT_ROM_IMG_FORMAT_ELF:
+        trace_ot_rom_ctrl_image_identify(s->ot_id, basename, "ELF32");
+        dig = ot_rom_ctrl_load_elf(s, rom_img);
+        break;
+    case OT_ROM_IMG_FORMAT_BINARY:
+        trace_ot_rom_ctrl_image_identify(s->ot_id, basename, "Binary");
+        dig = ot_rom_ctrl_load_binary(s, rom_img);
+        break;
+    case OT_ROM_IMG_FORMAT_NONE:
+    default:
+        error_setg(&error_fatal, "%s: %s: unable to read binary file '%s'",
+                   __func__, s->ot_id, rom_img->filename);
+        dig = false;
     }
 
-    /* check if fake digest is requested */
-    if (rom_img->fake_digest) {
-        return;
-    }
-
-    /* copy digest to registers */
-    g_assert(rom_img->digest);
-    g_assert(rom_img->digest_len == ROM_DIGEST_BYTES);
-    s->fake_digest = false;
-    for (unsigned ix = 0; ix < ROM_DIGEST_WORDS; ix++) {
-        memcpy(&s->regs[R_EXP_DIGEST_0 + ix],
-               &rom_img->digest[ix * sizeof(uint32_t)], sizeof(uint32_t));
-    }
-}
-
-static void ot_rom_ctrl_compare_and_notify(OtRomCtrlState *s)
-{
-    /* compare digests */
-    bool rom_good = true;
-    for (unsigned ix = 0; ix < ROM_DIGEST_WORDS; ix++) {
-        if (s->regs[R_EXP_DIGEST_0 + ix] != s->regs[R_DIGEST_0 + ix]) {
-            rom_good = false;
-            error_setg(
-                &error_fatal,
-                "ot_rom_ctrl: %s: DIGEST_%u mismatch (expected 0x%08x got "
-                "0x%08x)",
-                s->ot_id, ix, s->regs[R_EXP_DIGEST_0 + ix],
-                s->regs[R_DIGEST_0 + ix]);
-        }
-    }
-
-    /* notify end of check */
-    ibex_irq_set(&s->pwrmgr_good, rom_good);
-    ibex_irq_set(&s->pwrmgr_done, true);
+    return dig;
 }
 
 static uint64_t ot_rom_ctrl_regs_read(void *opaque, hwaddr addr, unsigned size)
@@ -430,52 +924,38 @@ static bool ot_rom_ctrl_mem_accepts(void *opaque, hwaddr addr, unsigned size,
     return accept;
 }
 
-static void ot_rom_ctrl_send_kmac_req(OtRomCtrlState *s)
+static void ot_rom_ctrl_parse_hexstr(const char *name, uint8_t **buf,
+                                     const char *hexstr, unsigned size)
 {
-    OtKMACAppReq req;
-    uint8_t *rom_ptr = (uint8_t *)memory_region_get_ram_ptr(&s->mem);
-    size_t size = MIN(s->size - ROM_DIGEST_BYTES - s->digest_offset,
-                      OT_KMAC_APP_MSG_BYTES);
-
-    memcpy(req.msg_data, rom_ptr + s->digest_offset, size);
-    req.msg_len = size;
-    req.last = s->digest_offset == (s->size - ROM_DIGEST_BYTES);
-    s->digest_offset += size;
-
-    ot_kmac_app_request(s->kmac, s->kmac_app, &req);
-}
-
-static void
-ot_rom_ctrl_handle_kmac_response(void *opaque, const OtKMACAppRsp *rsp)
-{
-    OtRomCtrlState *s = OT_ROM_CTRL(opaque);
-
-    if (rsp->done) {
-        g_assert(s->digest_offset == (s->size - ROM_DIGEST_BYTES));
-
-        /* switch to ROMD mode */
-        memory_region_rom_device_set_romd(&s->mem, true);
-
-        /* retrieve digest */
-        for (unsigned ix = 0; ix < 8; ix++) {
-            uint32_t share0;
-            uint32_t share1;
-            memcpy(&share0, &rsp->digest_share0[ix * sizeof(uint32_t)],
-                   sizeof(uint32_t));
-            memcpy(&share1, &rsp->digest_share1[ix * sizeof(uint32_t)],
-                   sizeof(uint32_t));
-            s->regs[R_DIGEST_0 + ix] = share0 ^ share1;
-            /* "fake digest" mode enabled, copy computed digest to expected */
-            if (s->fake_digest) {
-                s->regs[R_EXP_DIGEST_0 + ix] = s->regs[R_DIGEST_0 + ix];
-            }
-        }
-
-        /* compare digests and send notification */
-        ot_rom_ctrl_compare_and_notify(s);
-    } else {
-        ot_rom_ctrl_send_kmac_req(s);
+    if (!hexstr) {
+        *buf = NULL;
+        return;
     }
+
+    size_t len = strlen(hexstr);
+    if ((unsigned)len != size * 2u) {
+        *buf = NULL;
+        /* 1 char for each nibble */
+        error_setg(&error_fatal, "%s: Invalid %s string length: %zu", __func__,
+                   name, len);
+        return;
+    }
+
+    uint8_t *out = g_new0(uint8_t, size);
+    for (unsigned ix = 0; ix < len; ix++) {
+        if (!g_ascii_isxdigit(hexstr[ix])) {
+            g_free(out);
+            *buf = NULL;
+            error_setg(&error_fatal, "%s: %s must only contain hex digits",
+                       __func__, name);
+            return;
+        }
+        uint8_t digit = g_ascii_xdigit_value(hexstr[ix]);
+        digit = (ix & 1u) ? (digit & 0xfu) : (digit << 4u);
+        out[ix / 2] |= digit;
+    }
+
+    *buf = out;
 }
 
 static Property ot_rom_ctrl_properties[] = {
@@ -483,6 +963,8 @@ static Property ot_rom_ctrl_properties[] = {
     DEFINE_PROP_UINT32("size", OtRomCtrlState, size, 0u),
     DEFINE_PROP_LINK("kmac", OtRomCtrlState, kmac, TYPE_OT_KMAC, OtKMACState *),
     DEFINE_PROP_UINT8("kmac-app", OtRomCtrlState, kmac_app, UINT8_MAX),
+    DEFINE_PROP_STRING("nonce", OtRomCtrlState, nonce_xstr),
+    DEFINE_PROP_STRING("key", OtRomCtrlState, key_xstr),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -525,7 +1007,7 @@ static void ot_rom_ctrl_reset_hold(Object *obj, ResetType type)
     ibex_irq_set(&s->pwrmgr_done, false);
 
     /* connect to KMAC */
-    ot_kmac_connect_app(s->kmac, s->kmac_app, &kmac_app_cfg,
+    ot_kmac_connect_app(s->kmac, s->kmac_app, &KMAC_APP_CFG,
                         ot_rom_ctrl_handle_kmac_response, s);
 }
 
@@ -539,22 +1021,28 @@ static void ot_rom_ctrl_reset_exit(Object *obj, ResetType type)
         c->parent_phases.exit(obj, type);
     }
 
+    bool notify = true;
+
     /* on initial reset, load ROM then set it read-only */
     if (s->first_reset) {
         /* pre-fill ROM region with zeros */
         memset(rom_ptr, 0, s->size);
 
         /* load ROM from file */
-        ot_rom_ctrl_load_rom(s);
+        bool dig = ot_rom_ctrl_load_rom(s);
 
         /* ensure ROM can no longer be written */
         s->first_reset = false;
 
-        /* start computing ROM digest */
-        s->digest_offset = 0;
-        ot_rom_ctrl_send_kmac_req(s);
-    } else {
-        /* only compare existing digests and send notification to pwrmgr */
+        if (!dig) {
+            ot_rom_ctrl_fake_digest(s);
+        }
+
+        notify = !dig;
+    }
+
+    if (notify) {
+        /* compare existing digests and send notification to pwrmgr */
         ot_rom_ctrl_compare_and_notify(s);
     }
 
@@ -584,7 +1072,33 @@ static void ot_rom_ctrl_realize(DeviceState *dev, Error **errp)
      * reads).
      */
     s->first_reset = true;
+    s->se_buffer = NULL;
+    fifo8_reset(&s->hash_fifo);
     memory_region_rom_device_set_romd(&s->mem, false);
+
+    unsigned wsize = s->size / sizeof(uint32_t);
+    unsigned addrbits = ctz32(wsize);
+    g_assert((wsize & ~(1ull << addrbits)) == 0);
+
+    uint8_t *bytes;
+
+    ot_rom_ctrl_parse_hexstr("nonce", &bytes, s->nonce_xstr, sizeof(s->nonce));
+    if (bytes) {
+        s->nonce = ldq_be_p(bytes);
+        s->data_nonce_width = (sizeof(s->nonce) * 8u) - addrbits;
+        s->addr_nonce = s->nonce >> s->data_nonce_width;
+        s->data_nonce = s->nonce & ((1ull << s->data_nonce_width) - 1u);
+        g_free(bytes);
+    }
+
+    ot_rom_ctrl_parse_hexstr("key", &bytes, s->key_xstr, sizeof(s->keys));
+    if (bytes) {
+        s->keys[0u] = ldq_be_p(&bytes[8u]);
+        s->keys[1u] = ldq_be_p(&bytes[0u]);
+        g_free(bytes);
+    }
+
+    s->addr_width = addrbits;
 }
 
 static void ot_rom_ctrl_init(Object *obj)
@@ -599,6 +1113,8 @@ static void ot_rom_ctrl_init(Object *obj)
     sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
 
     ibex_qdev_init_irq(obj, &s->alert, OT_DEVICE_ALERT);
+
+    fifo8_create(&s->hash_fifo, OT_KMAC_APP_MSG_BYTES);
 }
 
 static void ot_rom_ctrl_class_init(ObjectClass *klass, void *data)

@@ -34,13 +34,20 @@
 #define TYPE_OT_ROM_IMG "ot-rom-img"
 OBJECT_DECLARE_SIMPLE_TYPE(OtRomImg, OT_ROM_IMG)
 
+typedef enum {
+    OT_ROM_IMG_FORMAT_NONE, /* invalid image */
+    OT_ROM_IMG_FORMAT_VMEM_PLAIN, /* 32-bit VMEM, no scrambling, no ECC */
+    OT_ROM_IMG_FORMAT_VMEM_SCRAMBLED_ECC, /* 39-bit VMEM, scrambled, ECC */
+    OT_ROM_IMG_FORMAT_HEX_SCRAMBLED_ECC, /* 39-bit raw HEX, scrambled, ECC */
+    OT_ROM_IMG_FORMAT_ELF, /* ELF32 file, no scrambling, no ECC */
+    OT_ROM_IMG_FORMAT_BINARY, /* RAW binary file */
+} OtRomImgFormat;
+
 struct OtRomImg {
     Object parent_obj;
-    char *filename;
-    uint8_t *digest;
-    unsigned digest_len;
-    uint32_t address;
-    bool fake_digest;
+    char *filename; /* full file path to the image file */
+    unsigned raw_size; /* size in bytes of the image file */
+    OtRomImgFormat format; /* guessed format of the image file */
 };
 
 #endif /* HW_OPENTITAN_OT_ROM_CTRL_IMG */

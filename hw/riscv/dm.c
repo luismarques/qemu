@@ -239,10 +239,6 @@ REG32(FLAGS, RISCV_DM_FLAGS_OFFSET)
 #define GPR_S0   8u /* s0 = x8 */
 #define GPR_A0   10u /* a0 = x10 */
 
-/* Not sure how to define this at system level */
-#define MEMTXATTRS_DM_REQUESTER \
-    ((MemTxAttrs){ .requester_id = JTAG_MEMTX_REQUESTER_ID })
-
 static_assert((A_LAST - A_FIRST) < 64u, "too many registers");
 
 #define REG_BIT(_addr_)    (1ull << ((_addr_) - A_FIRST))
@@ -257,6 +253,8 @@ static_assert((A_LAST - A_FIRST) < 64u, "too many registers");
     trace_riscv_dm_access_register(_soc_, _msg_, \
                                    get_riscv_debug_reg_name(_reg_), \
                                    (_reg_) - (_off_));
+
+#define RISCVDM_DEFAULT_MTA 0x1ull /* "MEMTXATTRS_UNSPECIFIED" */
 
 /*
  * Type definitions
@@ -316,6 +314,8 @@ typedef struct RISCVDMConfig {
     hwaddr whereto_phyaddr;
     hwaddr data_phyaddr;
     hwaddr progbuf_phyaddr;
+    uint64_t mta_dm; /* MemTxAttrs */
+    uint64_t mta_sba; /* MemTxAttrs */
     uint16_t resume_offset;
     bool sysbus_access;
     bool abstractauto;
@@ -336,6 +336,8 @@ struct RISCVDMState {
     uint32_t address; /* DM register addr: only bADDRESS_BITS..b0 are used */
     uint32_t *regs; /* Debug module register values */
     uint64_t sbdata; /* Last sysbus data */
+    MemTxAttrs mta_dm; /* MemTxAttrs to access debug module implementation */
+    MemTxAttrs mta_sba; /* MemTxAttrs to access system bus devices */
     bool cmd_busy; /* A command is being executed */
     bool dtm_ok; /* DTM is available */
 
@@ -729,7 +731,7 @@ static CmdErr riscv_dm_read_absdata(RISCVDMState *dm, unsigned woffset,
     /* use a memory location to store abstract data */
     MemTxResult res;
     res = address_space_rw(dm->as, dm->cfg.data_phyaddr + (woffset << 2u),
-                           MEMTXATTRS_DM_REQUESTER, value, wcount << 2u, false);
+                           dm->mta_dm, value, wcount << 2u, false);
     trace_riscv_dm_absdata(dm->soc, "read", woffset, wcount, *value, res);
     if (res != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memtx");
@@ -756,7 +758,7 @@ static CmdErr riscv_dm_write_absdata(RISCVDMState *dm, unsigned woffset,
     /* use a memory location to store abstract data */
     MemTxResult res;
     res = address_space_rw(dm->as, dm->cfg.data_phyaddr + (woffset << 2u),
-                           MEMTXATTRS_DM_REQUESTER, &value, wcount << 2u, true);
+                           dm->mta_dm, &value, wcount << 2u, true);
     trace_riscv_dm_absdata(dm->soc, "write", woffset, wcount, value, res);
     if (res != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memtx");
@@ -783,8 +785,7 @@ static CmdErr riscv_dm_read_progbuf(RISCVDMState *dm, unsigned woffset,
     /* use a memory location to store abstract data */
     MemTxResult res;
     res = address_space_rw(dm->as, dm->cfg.progbuf_phyaddr + (woffset << 2u),
-                           MEMTXATTRS_DM_REQUESTER, value, sizeof(uint32_t),
-                           false);
+                           dm->mta_dm, value, sizeof(uint32_t), false);
     trace_riscv_dm_progbuf(dm->soc, "read", woffset, *value, res);
     if (res != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memtx");
@@ -811,8 +812,7 @@ static CmdErr riscv_dm_write_progbuf(RISCVDMState *dm, unsigned woffset,
     /* use a memory location to store abstract data */
     MemTxResult res;
     res = address_space_rw(dm->as, dm->cfg.progbuf_phyaddr + (woffset << 2u),
-                           MEMTXATTRS_DM_REQUESTER, &value, sizeof(uint32_t),
-                           true);
+                           dm->mta_dm, &value, sizeof(uint32_t), true);
     trace_riscv_dm_progbuf(dm->soc, "write", woffset, value, res);
     if (res != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memtx");
@@ -825,9 +825,8 @@ static CmdErr riscv_dm_write_progbuf(RISCVDMState *dm, unsigned woffset,
 static CmdErr riscv_dm_write_whereto(RISCVDMState *dm, uint32_t value)
 {
     /* use a memory location to store the where-to-jump location */
-    if (address_space_rw(dm->as, dm->cfg.whereto_phyaddr,
-                         MEMTXATTRS_DM_REQUESTER, &value, sizeof(value),
-                         true) != MEMTX_OK) {
+    if (address_space_rw(dm->as, dm->cfg.whereto_phyaddr, dm->mta_dm, &value,
+                         sizeof(value), true) != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memtx");
         return CMD_ERR_BUS;
     }
@@ -863,7 +862,7 @@ static CmdErr riscv_dm_update_flags(RISCVDMState *dm, unsigned hartnum,
     MemTxResult res;
     uint32_t flag_bm;
     hwaddr flagaddr = dm->cfg.dm_phyaddr + A_FLAGS + foffset;
-    res = address_space_rw(dm->as, flagaddr, MEMTXATTRS_DM_REQUESTER, &flag_bm,
+    res = address_space_rw(dm->as, flagaddr, dm->mta_dm, &flag_bm,
                            sizeof(flag_bm), false);
     if (res != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memrx");
@@ -874,7 +873,7 @@ static CmdErr riscv_dm_update_flags(RISCVDMState *dm, unsigned hartnum,
     } else {
         flag_bm &= ~flag_mask;
     }
-    res = address_space_rw(dm->as, flagaddr, MEMTXATTRS_DM_REQUESTER, &flag_bm,
+    res = address_space_rw(dm->as, flagaddr, dm->mta_dm, &flag_bm,
                            sizeof(flag_bm), true);
     if (res != MEMTX_OK) {
         xtrace_riscv_dm_error(dm->soc, "memtx");
@@ -1640,8 +1639,7 @@ static CmdErr riscv_dm_sysbus_read(RISCVDMState *dm)
      * contents of the remaining high bits may take on any value
      */
     uint64_t val64 = 0; /* however 0 is easier for debugging */
-    res = address_space_rw(dm->as, address, MEMTXATTRS_DM_REQUESTER, &val64,
-                           size, false);
+    res = address_space_rw(dm->as, address, dm->mta_sba, &val64, size, false);
     trace_riscv_dm_sysbus_data_read(dm->soc, address, size, val64, res);
     if (res != MEMTX_OK) {
         dm->regs[A_SBCS] =
@@ -1820,8 +1818,7 @@ static CmdErr riscv_dm_sbdata0_write(RISCVDMState *dm, uint32_t value)
     if (size > sizeof(uint32_t)) {
         val64 = ((uint64_t)dm->regs[A_SBDATA1]) << 32u;
     }
-    res = address_space_rw(dm->as, address, MEMTXATTRS_DM_REQUESTER, &val64,
-                           size, true);
+    res = address_space_rw(dm->as, address, dm->mta_sba, &val64, size, true);
     trace_riscv_dm_sysbus_data_write(dm->soc, address, size, val64, res);
     if (res != MEMTX_OK) {
         dm->regs[A_SBCS] =
@@ -2147,9 +2144,8 @@ static CmdErr riscv_dm_access_register(RISCVDMState *dm, uint32_t value)
     /* copy the abstract command opcode into executable memory */
     hwaddr abscmd_addr = dm->cfg.progbuf_phyaddr - sizeof(abscmd);
 
-    if (MEMTX_OK !=
-        address_space_rw(dm->as, abscmd_addr, MEMTXATTRS_DM_REQUESTER,
-                         &abscmd[0], sizeof(abscmd), true)) {
+    if (MEMTX_OK != address_space_rw(dm->as, abscmd_addr, dm->mta_dm,
+                                     &abscmd[0], sizeof(abscmd), true)) {
         xtrace_riscv_dm_error(dm->soc, "write to abtract commands to mem");
         return CMD_ERR_BUS;
     }
@@ -2243,15 +2239,15 @@ static CmdErr riscv_dm_access_memory(RISCVDMState *dm, uint32_t value)
             return res;
         }
         /* store value into main memory */
-        if (MEMTX_OK != address_space_rw(dm->as, addr, MEMTXATTRS_DM_REQUESTER,
-                                         &val, size, true)) {
+        if (MEMTX_OK !=
+            address_space_rw(dm->as, addr, dm->mta_sba, &val, size, true)) {
             xtrace_riscv_dm_error(dm->soc, "write to mem");
             return CMD_ERR_BUS;
         }
     } else {
         /* read value from main memory */
-        if (MEMTX_OK != address_space_rw(dm->as, addr, MEMTXATTRS_DM_REQUESTER,
-                                         &val, size, false)) {
+        if (MEMTX_OK !=
+            address_space_rw(dm->as, addr, dm->mta_sba, &val, size, false)) {
             xtrace_riscv_dm_error(dm->soc, "read from mem");
             return CMD_ERR_BUS;
         }
@@ -2365,9 +2361,9 @@ static void riscv_dm_resume_hart(RISCVDMState *dm, unsigned hartsel)
     uint32_t offset =
         dm->cfg.rom_phyaddr + dm->cfg.resume_offset - dm->cfg.whereto_phyaddr;
     uint32_t whereto = riscv_dm_insn_jal(GPR_ZERO, offset);
-    if (MEMTX_OK != address_space_rw(dm->as, dm->cfg.whereto_phyaddr,
-                                     MEMTXATTRS_DM_REQUESTER, &whereto,
-                                     sizeof(whereto), true)) {
+    if (MEMTX_OK !=
+        address_space_rw(dm->as, dm->cfg.whereto_phyaddr, dm->mta_dm, &whereto,
+                         sizeof(whereto), true)) {
         xtrace_riscv_dm_error(dm->soc, "write whereto to mem");
         return;
     }
@@ -2555,6 +2551,9 @@ static Property riscv_dm_properties[] = {
     DEFINE_PROP_BOOL("sysbus_access", RISCVDMState, cfg.sysbus_access, true),
     /* beware that OpenOCD (RISC-V 2024/04) assumes this is always supported */
     DEFINE_PROP_BOOL("abstractauto", RISCVDMState, cfg.abstractauto, true),
+    DEFINE_PROP_UINT64("mta_dm", RISCVDMState, cfg.mta_dm, RISCVDM_DEFAULT_MTA),
+    DEFINE_PROP_UINT64("mta_sba", RISCVDMState, cfg.mta_sba,
+                       RISCVDM_DEFAULT_MTA),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -2608,6 +2607,9 @@ static void riscv_dm_realize(DeviceState *dev, Error **errp)
     dm->soc = object_get_canonical_path_component(OBJECT(dev)->parent);
     dm->unavailable_bm = (1u << dm->hart_count) - 1u;
     dm->regs[A_NEXTDM] = dm->cfg.dmi_next;
+
+    dm->mta_dm = ((RISCVDMMemAttrs){ .value = dm->cfg.mta_dm }).attrs;
+    dm->mta_sba = ((RISCVDMMemAttrs){ .value = dm->cfg.mta_sba }).attrs;
 }
 
 static void riscv_dm_class_init(ObjectClass *klass, void *data)
@@ -2624,6 +2626,14 @@ static void riscv_dm_class_init(ObjectClass *klass, void *data)
     dmc->write_rq = &riscv_dm_write_rq;
     dmc->read_rq = &riscv_dm_read_rq;
     dmc->read_value = &riscv_dm_read_value;
+
+    /*
+     * unfortunately, MemTxtAttrs is a bitfield and there is no built-time way
+     * to define nor check its contents vs. an integral value. Run a quick
+     * sanity check at runtime.
+     */
+    RISCVDMMemAttrs mta = { .attrs = MEMTXATTRS_UNSPECIFIED };
+    g_assert(mta.value == RISCVDM_DEFAULT_MTA);
 }
 
 static const TypeInfo riscv_dm_info = {

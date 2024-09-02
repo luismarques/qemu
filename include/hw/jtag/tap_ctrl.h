@@ -41,8 +41,6 @@ struct _TapDataHandler {
     void (*update)(TapDataHandler *tdh);
 };
 
-#define JTAG_MEMTX_REQUESTER_ID UINT16_MAX
-
 /*
  * Create TAP IDCODE
  *

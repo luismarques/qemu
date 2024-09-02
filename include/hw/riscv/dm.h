@@ -1,7 +1,7 @@
 /*
  * QEMU RISC-V Debug Module
  *
- * Copyright (c) 2022-2023 Rivos, Inc.
+ * Copyright (c) 2022-2024 Rivos, Inc.
  * Author(s):
  *  Emmanuel Blot <eblot@rivosinc.com>
  *
@@ -27,8 +27,8 @@
 #ifndef HW_RISCV_DM_H
 #define HW_RISCV_DM_H
 
-#include "exec/hwaddr.h"
-#include "hw/irq.h"
+#include "qom/object.h"
+#include "exec/memattrs.h"
 
 #define TYPE_RISCV_DM "riscv-dm"
 OBJECT_DECLARE_SIMPLE_TYPE(RISCVDMState, RISCV_DM)
@@ -52,5 +52,11 @@ enum RISCVDMAckInterface {
     ACK_EXCEPTION, /* An exception has occured in debug mode */
     ACK_COUNT, /* Count of acknownledgement lines */
 };
+
+/* Simple helper to define MemTxAttrs properties as uint64_t values */
+typedef union {
+    MemTxAttrs attrs;
+    uint64_t value;
+} RISCVDMMemAttrs;
 
 #endif /* HW_RISCV_DM_H */

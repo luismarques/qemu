@@ -283,9 +283,17 @@ static void ibexdemo_soc_dm_configure(
 {
     (void)def;
     (void)parent;
+
     QList *hart = qlist_new();
     qlist_append_int(hart, 0);
     qdev_prop_set_array(dev, "hart", hart);
+
+    RISCVDMMemAttrs pulp_attrs = {
+        .attrs = {
+            .requester_id = PULP_RV_DM_REQUESTER_ID,
+        },
+    };
+    qdev_prop_set_uint64(dev, "mta_dm", pulp_attrs.value);
 }
 
 

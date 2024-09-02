@@ -25,9 +25,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  *
- * Note: This implementation is missing some features:
- *   - Scrambling (including loading of scrambled VMEM files)
- *   - KeyMgr interface (to send digest to Key Manager)
+ * Notes:
+ *  - KeyMgr interface (to send digest to Key Manager) is not yet supported
+ *  - Unscrambling & ECC are performed at boot time when a VMEM or HEX file
+ *    is loaded, not when the data are fetched from the system bus as on real
+ *    HW, for execution performance reason. Moreover any ECC unrecoverable error
+ *    discards the whole ROM content, whereas the real HW reports TL-UL error on
+ *    a per-address basis. As any recoverable or unrecoverable error leads to an
+ *    invalid digest and the ROM reporting an error to the PwrMfr and preventing
+ *    execution, this should not be a real issue for emulation.
  */
 
 #include "qemu/osdep.h"
@@ -151,6 +157,8 @@ struct OtRomCtrlState {
     unsigned se_pos;
     unsigned se_last_pos;
     uint64_t *se_buffer;
+    unsigned recovered_error_count;
+    unsigned unrecoverable_error_count;
     bool first_reset;
 
     char *ot_id;
@@ -321,9 +329,10 @@ static void ot_rom_ctrl_compare_and_notify(OtRomCtrlState *s)
             rom_good = false;
             error_setg(&error_fatal,
                        "ot_rom_ctrl: %s: Digest mismatch (expected 0x%08x got "
-                       "0x%08x) @ %u\n",
+                       "0x%08x) @ %u, errors: %u single-bit, %u double-bit\n",
                        s->ot_id, s->regs[R_EXP_DIGEST_0 + ix],
-                       s->regs[R_DIGEST_0 + ix], ix);
+                       s->regs[R_DIGEST_0 + ix], ix, s->recovered_error_count,
+                       s->unrecoverable_error_count);
         }
     }
 
@@ -386,8 +395,14 @@ ot_rom_ctrl_handle_kmac_response(void *opaque, const OtKMACAppRsp *rsp)
 
     g_assert(s->se_pos == s->se_last_pos);
 
-    /* switch to ROMD mode */
-    memory_region_rom_device_set_romd(&s->mem, true);
+    /*
+     * switch to ROMD mode if no unrecoverable ECC error has been detected.
+     * Note that real HW does this on a per 32-bit address basis, but as any
+     * error triggers an invalid digest and prevents the Ibex core from booting,
+     * this use case is mostly useless anyway.
+     */
+    memory_region_rom_device_set_romd(&s->mem,
+                                      s->unrecoverable_error_count == 0);
 
     /* retrieve digest */
     for (unsigned ix = 0; ix < 8; ix++) {
@@ -427,24 +442,120 @@ ot_rom_ctrl_unscramble_word(const OtRomCtrlState *s, unsigned addr, uint64_t in)
     return keystream ^ sp;
 }
 
+static uint32_t ot_rom_ctrl_verify_ecc_39_32_u32(
+    const OtRomCtrlState *s, uint64_t data_i, unsigned *err_o)
+{
+    unsigned syndrome = 0u;
+
+#define ECC_MASK 0x2a00000000ull
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x012606bd25ull) << 0u;
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x02deba8050ull) << 1u;
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x04413d89aaull) << 2u;
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x0831234ed1ull) << 3u;
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x10c2c1323bull) << 4u;
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x202dcc624cull) << 5u;
+    syndrome |= __builtin_parityl((data_i ^ ECC_MASK) & 0x4098505586ull) << 6u;
+#undef ECC_MASK
+
+    unsigned err = __builtin_parity(syndrome);
+
+    if (!(err & 0x1u) && syndrome) {
+        err = 2u;
+    }
+
+    *err_o = err;
+
+    if (!err) {
+        return data_i & UINT32_MAX;
+    }
+
+    uint32_t data_o = 0;
+
+#define ROM_CTRL_RECOVER(_sy_, _di_, _ix_) \
+    ((unsigned)((syndrome == (_sy_)) ^ (bool)((_di_) & (1ull << (_ix_)))) \
+     << (_ix_))
+
+    data_o |= ROM_CTRL_RECOVER(0x19u, data_i, 0u);
+    data_o |= ROM_CTRL_RECOVER(0x54u, data_i, 1u);
+    data_o |= ROM_CTRL_RECOVER(0x61u, data_i, 2u);
+    data_o |= ROM_CTRL_RECOVER(0x34u, data_i, 3u);
+    data_o |= ROM_CTRL_RECOVER(0x1au, data_i, 4u);
+    data_o |= ROM_CTRL_RECOVER(0x15u, data_i, 5u);
+    data_o |= ROM_CTRL_RECOVER(0x2au, data_i, 6u);
+    data_o |= ROM_CTRL_RECOVER(0x4cu, data_i, 7u);
+    data_o |= ROM_CTRL_RECOVER(0x45u, data_i, 8u);
+    data_o |= ROM_CTRL_RECOVER(0x38u, data_i, 9u);
+    data_o |= ROM_CTRL_RECOVER(0x49u, data_i, 10u);
+    data_o |= ROM_CTRL_RECOVER(0x0du, data_i, 11u);
+    data_o |= ROM_CTRL_RECOVER(0x51u, data_i, 12u);
+    data_o |= ROM_CTRL_RECOVER(0x31u, data_i, 13u);
+    data_o |= ROM_CTRL_RECOVER(0x68u, data_i, 14u);
+    data_o |= ROM_CTRL_RECOVER(0x07u, data_i, 15u);
+    data_o |= ROM_CTRL_RECOVER(0x1cu, data_i, 16u);
+    data_o |= ROM_CTRL_RECOVER(0x0bu, data_i, 17u);
+    data_o |= ROM_CTRL_RECOVER(0x25u, data_i, 18u);
+    data_o |= ROM_CTRL_RECOVER(0x26u, data_i, 19u);
+    data_o |= ROM_CTRL_RECOVER(0x46u, data_i, 20u);
+    data_o |= ROM_CTRL_RECOVER(0x0eu, data_i, 21u);
+    data_o |= ROM_CTRL_RECOVER(0x70u, data_i, 22u);
+    data_o |= ROM_CTRL_RECOVER(0x32u, data_i, 23u);
+    data_o |= ROM_CTRL_RECOVER(0x2cu, data_i, 24u);
+    data_o |= ROM_CTRL_RECOVER(0x13u, data_i, 25u);
+    data_o |= ROM_CTRL_RECOVER(0x23u, data_i, 26u);
+    data_o |= ROM_CTRL_RECOVER(0x62u, data_i, 27u);
+    data_o |= ROM_CTRL_RECOVER(0x4au, data_i, 28u);
+    data_o |= ROM_CTRL_RECOVER(0x29u, data_i, 29u);
+    data_o |= ROM_CTRL_RECOVER(0x16u, data_i, 30u);
+    data_o |= ROM_CTRL_RECOVER(0x52u, data_i, 31u);
+
+#undef OTP_ECC_RECOVER
+
+    if (err > 1u) {
+        trace_ot_rom_ctrl_unrecoverable_error(s->ot_id, (uint32_t)data_i);
+    } else {
+        if ((data_i & UINT32_MAX) != data_o) {
+            trace_ot_rom_ctrl_recovered_error(s->ot_id, (uint32_t)data_i,
+                                              (uint32_t)data_o);
+        } else {
+            /* ECC bit is corrupted */
+            trace_ot_rom_ctrl_parity_error(s->ot_id, (uint32_t)data_i,
+                                           (unsigned)(data_i >> 32u));
+        }
+    }
+
+    return data_o;
+}
+
 static void ot_rom_ctrl_unscramble(OtRomCtrlState *s, const uint64_t *src,
                                    uint32_t *dst, unsigned size)
 {
     unsigned scr_word_size = (size - ROM_DIGEST_BYTES) / sizeof(uint32_t);
     unsigned log_addr = 0;
     /* unscramble the whole ROM, except the trailing ROM digest bytes */
+    s->recovered_error_count = 0;
+    s->unrecoverable_error_count = 0;
     for (; log_addr < scr_word_size; log_addr++) {
         unsigned phy_addr = ot_rom_ctrl_addr_sp_enc(s, log_addr);
         g_assert(phy_addr < size);
         uint64_t srcdata = src[phy_addr];
         uint64_t clrdata = ot_rom_ctrl_unscramble_word(s, log_addr, srcdata);
         dst[log_addr] = (uint32_t)clrdata;
+        unsigned err;
+        uint32_t fixdata = ot_rom_ctrl_verify_ecc_39_32_u32(s, clrdata, &err);
+        if (err & 0x1u) {
+            s->recovered_error_count += 1u;
+            dst[log_addr] = fixdata;
+        }
+        if (err & 0x2u) {
+            s->unrecoverable_error_count += 1u;
+        }
     }
     /* recover the ROM digest bytes, which are not scrambled */
     for (unsigned wix = 0; wix < ROM_DIGEST_WORDS; wix++, log_addr++) {
         unsigned phy_addr = ot_rom_ctrl_addr_sp_enc(s, log_addr);
         g_assert(phy_addr < size);
         s->regs[R_EXP_DIGEST_0 + wix] = (uint32_t)src[phy_addr];
+        /* note: ECC is not used for DIGEST words */
     }
 }
 

@@ -428,7 +428,7 @@ static MemTxResult pulp_rv_dm_dmflag_write_with_attrs(
     switch (reg) {
     case R_FLAGS_0 ... R_FLAGS_LAST:
         if ((!attrs.unspecified) &&
-            (attrs.requester_id == JTAG_MEMTX_REQUESTER_ID)) {
+            (attrs.requester_id == PULP_RV_DM_REQUESTER_ID)) {
             /* dm_access */
             s->dmflag_regs[reg - R_FLAGS_0] = val32;
         } else {

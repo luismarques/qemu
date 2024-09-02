@@ -60,4 +60,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(PulpRVDMState, PULP_RV_DM)
 #define PULP_RV_DM_ROM_BASE  0x800u
 #define PULP_RV_DM_ROM_SIZE  0x800u
 
+/*
+ * Special MemTxAttrs requester identifier so that debug module can identified
+ * a debugger-initiated request (vs. a regular hart-initiated request).
+ */
+/* Not sure how to define this at system level */
+#define PULP_RV_DM_REQUESTER_ID UINT16_MAX
+
 #endif /* HW_PULP_RV_DM_H */

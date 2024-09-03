@@ -8,9 +8,9 @@
 usage: pyot.py [-h] [-D DELAY] [-i ICOUNT] [-L LOG_FILE] [-M VARIANT] [-N LOG]
                [-m MACHINE] [-Q OPTS] [-q QEMU] [-P VCP] [-p DEVICE]
                [-t TRACE] [-S FIRST_SOC] [-s] [-U] [-b file] [-c JSON] [-e]
-               [-f RAW] [-K] [-l file] [-O RAW] [-o VMEM] [-r ELF] [-w CSV]
-               [-x file] [-X] [-F TEST] [-k SECONDS] [-z] [-R] [-T FACTOR]
-               [-Z] [-v] [-V] [-d] [--log-time] [--debug LOGGER]
+               [-f RAW] [-g file] [-K] [-l file] [-O RAW] [-o VMEM] [-r ELF]
+               [-w CSV] [-x file] [-X] [-F TEST] [-k SECONDS] [-z] [-R]
+               [-T FACTOR] [-Z] [-v] [-V] [-d] [--log-time] [--debug LOGGER]
                [--info LOGGER] [--warn LOGGER]
 
 OpenTitan QEMU unit test sequencer.
@@ -52,6 +52,8 @@ Files:
                         path to configuration file
   -e, --embedded-flash  generate an embedded flash image file
   -f RAW, --flash RAW   SPI flash image file
+  -g file, --otcfg file
+                        configuration options for OpenTitan devices
   -K, --keep-tmp        Do not automatically remove temporary files and dirs
                         on exit
   -l file, --loader file
@@ -139,6 +141,8 @@ This tool may be used in two ways, which can be combined:
   application files as device options
 * `-f` / `--flash` specify a RAW image file that stores the embedded Flash content, which can be
    generated with the [`flashgen.py`](flashgen.md) tool. Alternatively, see the `-x` option.
+* `-g` / `--otcfg` specify a configuration file with OpenTitan configuration options, such as
+   cryptographic constants (seeds, keys, nonces, ...)
 * `-K` / `--keep-tmp` do not automatically remove temporary files and directories on exit. The user
   is in charge of discarding any generated files and directories after execution. The paths to the
   generated items are emitted as warning messages.

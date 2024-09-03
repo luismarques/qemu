@@ -1443,6 +1443,8 @@ class QEMUExecuter:
             raise ValueError('QEMU path is not defined')
         machine, xtype, fw_args = self._build_qemu_fw_args(args)
         qemu_args = [args.qemu, '-M', machine]
+        if args.otcfg:
+            qemu_args.extend(('-readconfig', self.abspath(args.otcfg)))
         qemu_args.extend(fw_args)
         temp_files = defaultdict(set)
         if all((args.otp, args.otp_raw)):
@@ -1753,6 +1755,8 @@ def main():
                            help='generate an embedded flash image file')
         files.add_argument('-f', '--flash', metavar='RAW',
                            help='SPI flash image file')
+        files.add_argument('-g', '--otcfg', metavar='file',
+                           help='configuration options for OpenTitan devices')
         files.add_argument('-K', '--keep-tmp', action='store_true',
                            help='Do not automatically remove temporary files '
                                 'and dirs on exit')
@@ -1826,6 +1830,7 @@ def main():
                                 info=args.info, warning=args.warn)[0]
 
         qfm = QEMUFileManager(args.keep_tmp)
+        qfm.set_qemu_src_dir(qemu_dir)
 
         # this is a bit circomvulted, as we need to parse the config filename
         # if any, and load the default values out of the configuration file,
@@ -1879,6 +1884,9 @@ def main():
             qopts = getattr(args, 'opts') or []
             qopts.extend(cli_opts)
             setattr(args, 'opts', qopts)
+        if args.otcfg and not isfile(args.otcfg):
+            argparser.error(f'Invalid OpenTitan configuration file '
+                            f'{basename(args.otcfg)}')
         # as the JSON configuration file may contain default value, the
         # argparser default method cannot be used to define default values, or
         # they would take precedence over the JSON defined ones
@@ -1891,7 +1899,6 @@ def main():
         for name, val in defaults.items():
             if getattr(args, name) is None:
                 setattr(args, name, val)
-        qfm.set_qemu_src_dir(qemu_dir)
         qfm.set_qemu_bin_dir(dirname(args.qemu))
         qexc = QEMUExecuter(qfm, json, args)
         if args.list:

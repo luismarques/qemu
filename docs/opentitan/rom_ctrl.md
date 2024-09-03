@@ -24,12 +24,12 @@ The ROM file digest can be provided on the QEMU command line using this option:
 -object ot-rom_img,id=<romid>,file=/path/to/rom
 ```
 
-### ELF ROM file
+#### ELF ROM file
 
 ELF32 RISC-V file can be used as a ROM controller image file. Such file format neither supports
 digest nor ECC. Digest is faked in this case.
 
-### VMEM ROM file
+#### VMEM ROM file
 
 Two kinds of VMEM files are supported:
 
@@ -39,7 +39,7 @@ Two kinds of VMEM files are supported:
 39-bit scrambled ECC VMEM files are only supported when the QEMU machine has instanciated the ROM
 controller with `key` and `nonce` arguments.
 
-### HEX ROM file
+#### HEX ROM file
 
 39-bit HEX files, _i.e._ HEX file with 7-bit ECC and scrambled data.
 
@@ -50,12 +50,12 @@ Note that HEX file format differs from IHEX file format. The former only contain
 encoded data, where the two first digits contain the 7-bit ECC value, and the remaining digits
 contains the 32-bit data value.
 
-### Binary ROM file
+#### Binary ROM file
 
 Flat, raw binary file can be used as a ROM controller image file. Such file format neither supports
 digest nor ECC. Digest is faked in this case.
 
-### ROM identifiers
+### ROM identifiers [#romid]
 
 The ROM image ID may depend on the SoC.
 
@@ -63,6 +63,17 @@ The ROM image ID may depend on the SoC.
 * for a SoC with two ROMs, the IDs would be expected to be `rom0` and `rom1`.
 * for a machine with multiple SoCs, the IDs would be additionnally prefixed with the SoC name and a
   full stop, _e.g._ `soc0.rom0`
+
+### ROM unscrambling constants
+
+Each machine and each ROM controller uses a different pair of (key, nonce) constants to unscramble
+the ROM content.
+
+These constants may be defined in the machine, or in an external configuration file so that these
+constants are present neither in the QEMU source code nor the QEMU binary. The standard QEMU
+`-readconfig <file.cfg>` may be used to load those constants.
+
+See [OpenTitan configuration file](otcfg.md) for details.
 
 ## Booting with and without ROM
 

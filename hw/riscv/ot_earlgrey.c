@@ -132,7 +132,6 @@ enum OtEGSocDevice {
     OT_EG_SOC_DEV_ROM_CTRL,
     OT_EG_SOC_DEV_RSTMGR,
     OT_EG_SOC_DEV_RV_DM,
-    OT_EG_SOC_DEV_RV_DM_MEM,
     OT_EG_SOC_DEV_SENSOR_CTRL,
     OT_EG_SOC_DEV_SPI_DEVICE,
     OT_EG_SOC_DEV_SPI_HOST0,
@@ -1237,9 +1236,9 @@ static void ot_eg_soc_realize(DeviceState *dev, Error **errp)
 
     /* Link, define properties and realize devices, then connect GPIOs */
     BusState *bus = sysbus_get_default();
-    ibex_configure_devices_with_id(s->devices, bus, "ot_id", "", false,
-                                   ot_eg_soc_devices,
-                                   ARRAY_SIZE(ot_eg_soc_devices));
+    ot_common_configure_devices_with_id(s->devices, bus, "", false,
+                                        ot_eg_soc_devices,
+                                        ARRAY_SIZE(ot_eg_soc_devices));
 
     MemoryRegion *mrs[] = { get_system_memory(), NULL, NULL, NULL };
     ibex_map_devices(s->devices, mrs, ot_eg_soc_devices,

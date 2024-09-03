@@ -150,7 +150,6 @@ enum OtDjSocDevice {
     OT_DJ_SOC_DEV_ROM1,
     OT_DJ_SOC_DEV_RSTMGR,
     OT_DJ_SOC_DEV_RV_DM,
-    OT_DJ_SOC_DEV_RV_DM_MEM,
     OT_DJ_SOC_DEV_SENSOR_CTRL,
     OT_DJ_SOC_DEV_SOC_PROXY,
     OT_DJ_SOC_DEV_SPI_DEVICE,
@@ -1595,9 +1594,9 @@ static void ot_dj_soc_realize(DeviceState *dev, Error **errp)
     cpu->cpu_index = 0;
 
     /* Link, define properties and realize devices, then connect GPIOs */
-    ibex_configure_devices_with_id(s->devices, dev->parent_bus, "ot_id", "",
-                                   false, ot_dj_soc_devices,
-                                   ARRAY_SIZE(ot_dj_soc_devices));
+    ot_common_configure_devices_with_id(s->devices, dev->parent_bus, "", false,
+                                        ot_dj_soc_devices,
+                                        ARRAY_SIZE(ot_dj_soc_devices));
 
     Object *oas;
 

@@ -30,6 +30,7 @@
 #include "qemu/osdep.h"
 #include "qemu/guest-random.h"
 #include "qemu/log.h"
+#include "qemu/main-loop.h"
 #include "qemu/queue.h"
 #include "qemu/timer.h"
 #include "qemu/typedefs.h"

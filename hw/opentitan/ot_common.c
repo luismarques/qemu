@@ -203,6 +203,7 @@ AddressSpace *ot_common_get_local_address_space(DeviceState *s)
 #ifndef _WIN32
 #include <termios.h>
 #include "chardev/char-fd.h"
+#include "chardev/char-fe.h"
 #include "io/channel-file.h"
 #endif
 

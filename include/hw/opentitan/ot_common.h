@@ -23,7 +23,7 @@
 #ifndef HW_OPENTITAN_OT_COMMON_H
 #define HW_OPENTITAN_OT_COMMON_H
 
-#include "chardev/char-fe.h"
+#include "chardev/char.h"
 #include "exec/memory.h"
 #include "hw/core/cpu.h"
 

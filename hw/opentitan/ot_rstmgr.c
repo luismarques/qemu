@@ -29,8 +29,8 @@
  */
 
 #include "qemu/osdep.h"
-#include <assert.h>
 #include "qemu/log.h"
+#include "qemu/main-loop.h"
 #include "qemu/typedefs.h"
 #include "qapi/error.h"
 #include "hw/opentitan/ot_alert.h"

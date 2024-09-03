@@ -38,6 +38,7 @@
 #include "qemu/bswap.h"
 #include "qemu/fifo8.h"
 #include "qemu/log.h"
+#include "qemu/main-loop.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
 #include "qapi/error.h"

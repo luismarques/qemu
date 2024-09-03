@@ -32,6 +32,7 @@
 #include "qemu/osdep.h"
 #include <zlib.h> /* for CRC-32 */
 #include "qemu/log.h"
+#include "qemu/main-loop.h"
 #include "qemu/timer.h"
 #include "qemu/typedefs.h"
 #include "hw/opentitan/ot_alert.h"

@@ -299,6 +299,9 @@ void ot_common_ignore_chr_status_lines(CharBackend *chr);
 
 int ot_common_string_ends_with(const char *str, const char *suffix);
 
+int ot_common_parse_hexa_str(uint8_t *out, const char *xstr, size_t olen,
+                             bool reverse, bool exact);
+
 /* ------------------------------------------------------------------------ */
 /* Configuration utilities */
 /* ------------------------------------------------------------------------ */

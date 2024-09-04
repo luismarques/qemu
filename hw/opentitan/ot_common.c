@@ -341,6 +341,33 @@ void ot_common_configure_devices_with_id(
     ibex_connect_devices(devices, defs, count);
 }
 
+int ot_common_string_ends_with(const char *str, const char *suffix)
+{
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+
+    return (str_len >= suffix_len) &&
+           (!memcmp(str + str_len - suffix_len, suffix, suffix_len));
+}
+
+int ot_common_parse_hexa_str(uint8_t *out, const char *xstr, size_t olen,
+                             bool reverse, bool exact)
+{
+    for (size_t ix = 0; ix < olen; ix++) {
+        gint hi = g_ascii_xdigit_value(xstr[ix * 2u]);
+        if (hi < 0) {
+            return hi;
+        }
+        gint lo = g_ascii_xdigit_value(xstr[ix * 2u + 1u]);
+        if (lo < 0) {
+            return lo;
+        }
+        out[reverse ? olen - ix - 1u : ix] = (uint8_t)(hi << 4) | (uint8_t)(lo);
+    }
+
+    return (!exact || !xstr[olen * 2u]) ? 0 : 1;
+}
+
 /*
  * Unfortunately, there is no QEMU API to properly disable serial control lines
  */
@@ -363,13 +390,4 @@ void ot_common_ignore_chr_status_lines(CharBackend *chr)
     tty.c_cflag |= CLOCAL; /* ignore modem status lines */
     tcsetattr(fioc->fd, TCSANOW, &tty);
 #endif
-}
-
-int ot_common_string_ends_with(const char *str, const char *suffix)
-{
-    size_t str_len = strlen(str);
-    size_t suffix_len = strlen(suffix);
-
-    return (str_len >= suffix_len) &&
-           (!memcmp(str + str_len - suffix_len, suffix, suffix_len));
 }

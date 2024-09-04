@@ -51,6 +51,12 @@ ot_clkmgr_get_clock_hints(uint32_t req, uint32_t status, uint32_t hint) "req:0x%
 ot_clkmgr_io_read_out(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 ot_clkmgr_io_write(uint32_t addr, const char * regname, uint32_t val, uint32_t pc) "addr=0x%02x (%s), val=0x%x, pc=0x%x"
 
+# ot_common.c
+
+ot_common_configure_device_bool(const char *objid, const char *key, bool val) "%s: %s= %u"
+ot_common_configure_device_str(const char *objid, const char *key, const char *val) "%s: %s= %s"
+ot_common_configure_device_uint(const char *objid, const char *key, uint64_t val) "%s: %s= %" PRIx64
+
 # ot_csrng.c
 
 ot_csrng_change_state(int line, const char *old, int nold, const char *new, int nnew) "@ %d [%s:%d] -> [%s:%d]"

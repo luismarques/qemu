@@ -26,12 +26,22 @@
  */
 
 #include "qemu/osdep.h"
+#include "qemu/config-file.h"
+#include "qemu/cutils.h"
 #include "qemu/error-report.h"
+#include "qemu/log.h"
+#include "qemu/option.h"
+#include "qemu/option_int.h"
 #include "qemu/queue.h"
+#include "qemu/typedefs.h"
+#include "qapi/error.h"
+#include "qapi/util.h"
 #include "qom/object.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_rom_ctrl.h"
 #include "hw/opentitan/ot_rom_ctrl_img.h"
+#include "hw/riscv/ibex_common.h"
+#include "trace.h"
 
 typedef struct OtCommonObjectNode {
     Object *obj;
@@ -46,6 +56,20 @@ typedef struct {
     unsigned count; /* how many object should be matched */
     OtCommonObjectList list; /* list of matched objects */
 } OtCommonObjectNodes;
+
+static const char *OT_COMMON_PROP_STRINGS[] = {
+    "str",
+    "string",
+};
+
+static const char *OT_COMMON_PROP_UINT[] = {
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+};
+
+static const char *OT_COMMON_PROP_BOOL[] = { "bool" };
 
 static int ot_common_node_child_walker(Object *child, void *opaque)
 {
@@ -195,6 +219,126 @@ AddressSpace *ot_common_get_local_address_space(DeviceState *s)
     CPUState *cpu = ot_common_get_local_cpu(s);
 
     return cpu ? cpu->as : NULL;
+}
+
+static void
+ot_common_configure_device_opts(DeviceState **devices, unsigned count)
+{
+    // TODO need to use qemu_find_opts_err if no config is ok
+    QemuOptsList *optlist = qemu_find_opts("ot_device");
+    if (!optlist) {
+        qemu_log("%s: no config\n", __func__);
+        return;
+    }
+
+    for (unsigned ix = 0; ix < count; ix++) {
+        Object *obj = OBJECT(devices[ix]);
+        if (!obj) {
+            continue;
+        }
+
+        QemuOpts *opts = NULL;
+
+        const char *typename = object_get_typename(obj);
+        char *ot_id = object_property_get_str(obj, OT_COMMON_DEV_ID, NULL);
+        char *obj_id = NULL;
+        if (ot_id && ot_id[0]) {
+            /* try to locate option with the <type>:<id> syntax */
+            obj_id = g_strdup_printf("%s.%s", typename, ot_id);
+            opts = qemu_opts_find(optlist, obj_id);
+        }
+        g_free(ot_id);
+
+        if (!opts) {
+            g_free(obj_id);
+            /*
+             * either there's no <type>:<id> option, or the device does not have
+             * a unique identifier
+             */
+            opts = qemu_opts_find(optlist, typename);
+            obj_id = opts ? g_strdup(typename) : NULL;
+        }
+
+        if (!opts) {
+            g_free(obj_id);
+            continue;
+        }
+
+        QemuOpt *opt = QTAILQ_FIRST(&opts->head);
+        while (opt) {
+            const char *type;
+            type = object_property_get_type(obj, opt->name, NULL);
+            if (!type) {
+                error_setg(&error_fatal, "%s: unknown property %s for %s",
+                           __func__, opt->name, obj_id);
+                goto next;
+            }
+            for (unsigned tx = 0; tx < ARRAY_SIZE(OT_COMMON_PROP_STRINGS);
+                 tx++) {
+                if (!strcmp(type, OT_COMMON_PROP_STRINGS[tx])) {
+                    object_property_set_str(obj, opt->name, opt->str,
+                                            &error_fatal);
+                    trace_ot_common_configure_device_str(obj_id, opt->name,
+                                                         opt->str);
+                    goto next;
+                }
+            }
+            for (unsigned tx = 0; tx < ARRAY_SIZE(OT_COMMON_PROP_UINT); tx++) {
+                if (!strcmp(type, OT_COMMON_PROP_UINT[tx])) {
+                    uint64_t value;
+                    if (qemu_strtou64(opt->str, NULL, 0, &value)) {
+                        error_setg(
+                            &error_fatal,
+                            "%s: invalid unsigned integer property %s for %s",
+                            __func__, opt->name, obj_id);
+                        goto next;
+                    }
+                    object_property_set_uint(obj, opt->name, value,
+                                             &error_fatal);
+                    trace_ot_common_configure_device_uint(obj_id, opt->name,
+                                                          opt->value.uint);
+                    goto next;
+                }
+            }
+            for (unsigned tx = 0; tx < ARRAY_SIZE(OT_COMMON_PROP_BOOL); tx++) {
+                if (!strcmp(type, OT_COMMON_PROP_BOOL[tx])) {
+                    bool value;
+                    qapi_bool_parse(opt->name, opt->str, &value, &error_fatal);
+                    object_property_set_bool(obj, opt->name, value,
+                                             &error_fatal);
+                    trace_ot_common_configure_device_bool(obj_id, opt->name,
+                                                          opt->value.boolean);
+                    goto next;
+                }
+            }
+
+            g_free(obj_id);
+            error_setg(&error_fatal,
+                       "unsupported type %s for property %s of %s", type,
+                       opt->name, obj_id);
+            return;
+
+        next:
+            opt = QTAILQ_NEXT(opt, next);
+        }
+
+        g_free(obj_id);
+    }
+}
+
+void ot_common_configure_devices_with_id(
+    DeviceState **devices, BusState *bus, const char *id_value, bool id_prepend,
+    const IbexDeviceDef *defs, size_t count)
+{
+    ibex_link_devices(devices, defs, count);
+    ibex_define_device_props(devices, defs, count);
+    if (id_value) {
+        ibex_identify_devices(devices, OT_COMMON_DEV_ID, id_value, id_prepend,
+                              count);
+    }
+    ot_common_configure_device_opts(devices, count);
+    ibex_realize_devices(devices, bus, defs, count);
+    ibex_connect_devices(devices, defs, count);
 }
 
 /*

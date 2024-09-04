@@ -26,6 +26,7 @@
 #include "chardev/char.h"
 #include "exec/memory.h"
 #include "hw/core/cpu.h"
+#include "hw/riscv/ibex_common.h"
 
 /* ------------------------------------------------------------------------ */
 /* Timer */
@@ -297,5 +298,15 @@ void ot_common_ignore_chr_status_lines(CharBackend *chr);
 /* ------------------------------------------------------------------------ */
 
 int ot_common_string_ends_with(const char *str, const char *suffix);
+
+/* ------------------------------------------------------------------------ */
+/* Configuration utilities */
+/* ------------------------------------------------------------------------ */
+
+#define OT_COMMON_DEV_ID "ot_id"
+
+void ot_common_configure_devices_with_id(
+    DeviceState **devices, BusState *bus, const char *id_value, bool id_prepend,
+    const IbexDeviceDef *defs, size_t count);
 
 #endif /* HW_OPENTITAN_OT_COMMON_H */

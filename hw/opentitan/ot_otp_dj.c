@@ -24,9 +24,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
- *
- * Constants are based on what can be extracted from
- *    https://github.com/lowRISC/opentitan-integrated/commit/eaf699f001
  */
 
 #include "qemu/osdep.h"
@@ -51,6 +48,7 @@
 #include "hw/riscv/ibex_common.h"
 #include "hw/riscv/ibex_irq.h"
 #include "hw/sysbus.h"
+#include "ot_lc_defs.h"
 #include "sysemu/block-backend.h"
 #include "trace.h"
 
@@ -529,6 +527,7 @@ REG32(LC_STATE, 16344u)
 #define SECRET2_CREATOR_ROOT_KEY_SHARE1_SIZE                 32u
 #define SECRET2_CREATOR_SEED_SIZE                            32u
 #define SECRET3_OWNER_SEED_SIZE                              32u
+#define LC_TRANSITION_COUNT                                  25u
 #define LC_TRANSITION_CNT_SIZE                               48u
 #define LC_STATE_SIZE                                        40u
 
@@ -562,6 +561,10 @@ REG32(LC_STATE, 16344u)
 #define OTBN_KEY_WIDTH      128u
 #define OTBN_NONCE_WIDTH    64u
 
+#define SRAM_KEY_BYTES   ((SRAM_KEY_WIDTH) / 8u)
+#define SRAM_NONCE_BYTES ((SRAM_NONCE_WIDTH) / 8u)
+#define OTBN_KEY_BYTES   ((OTBN_KEY_WIDTH) / 8u)
+#define OTBN_NONCE_BYTES ((OTBN_NONCE_WIDTH) / 8u)
 #define SRAM_KEY_WORDS   ((SRAM_KEY_WIDTH) / 32u)
 #define SRAM_NONCE_WORDS ((SRAM_NONCE_WIDTH) / 32u)
 
@@ -574,6 +577,10 @@ REG32(LC_STATE, 16344u)
 #define OTP_ENTROPY_NONCE_WORDS (OTP_ENTROPY_NONCE_BITS / 32u)
 #define OTP_ENTROPY_BUF_COUNT \
     (OTP_ENTROPY_PRESENT_WORDS + OTP_ENTROPY_NONCE_WORDS)
+
+#define LC_STATE_SLOT_COUNT (LC_STATE_SIZE / sizeof(uint16_t))
+#define LC_STATE_TRANSITION_SLOT_COUNT \
+    ((LC_TRANSITION_CNT_SIZE) / sizeof(uint16_t))
 
 typedef enum {
     OTP_PART_VENDOR_TEST,
@@ -702,8 +709,6 @@ typedef struct {
 
 /* NOLINTNEXTLINE */
 #include "ot_otp_dj_parts.c"
-/* NOLINTNEXTLINE */
-#include "ot_otp_dj_lcvalues.c"
 
 static_assert(OTP_PART_COUNT == NUM_PART, "Invalid partition definitions");
 static_assert(OTP_PART_COUNT == OTP_PART_COUNT,
@@ -761,8 +766,6 @@ typedef struct {
     unsigned ecc_size; /* ecc buffer size in bytes */
     unsigned ecc_bit_count; /* count of ECC bit for each data granule */
     unsigned ecc_granule; /* size of a granule in bytes */
-    uint64_t digest_iv; /* Present digest IV */
-    uint8_t digest_constant[16u]; /* Present digest finalization constant */
 } OtOTPStorage;
 
 typedef struct {
@@ -781,6 +784,14 @@ typedef struct {
     OtFifo32 entropy_buf;
     bool edn_sched;
 } OtOTPKeyGen;
+
+typedef struct {
+    uint8_t key[SRAM_KEY_BYTES];
+    uint8_t nonce[SRAM_NONCE_BYTES];
+} OtOTPScrmblKeyInit;
+
+typedef uint16_t OtOTPStateValue[LC_STATE_SLOT_COUNT];
+typedef uint16_t OtOTPTransitionValue[LC_STATE_TRANSITION_SLOT_COUNT];
 
 struct OtOTPDjState {
     OtOTPState parent_obj;
@@ -805,41 +816,33 @@ struct OtOTPDjState {
     OtOTPLCIController *lci;
     OtOTPPartController *partctrls;
     OtOTPKeyGen *keygen;
+    OtOTPScrmblKeyInit *scrmbl_key_init;
+    uint64_t digest_iv;
+    uint8_t digest_const[16u];
+    uint64_t sram_iv;
+    uint8_t sram_const[16u];
 
     OtOTPStorage *otp;
     OtOTPHWCfg *hw_cfg;
     OtOTPTokens *tokens;
+    OtOTPStateValue *lc_states; /* LC_STATE_VALID_COUNT array */
+    OtOTPTransitionValue *lc_transitions; /*LC_TRANSITION_COUNT array */
 
     char *ot_id;
     BlockBackend *blk; /* OTP host backend */
     OtOtpBeIf *otp_backend; /* may be NULL */
     OtEDNState *edn;
+    char *scrmbl_key_xstr;
+    char *digest_const_xstr;
+    char *digest_iv_xstr;
+    char *sram_const_xstr;
+    char *sram_iv_xstr;
+    char *lc_state_first_xstr;
+    char *lc_state_last_xstr;
+    char *lc_trscnt_first_xstr;
+    char *lc_trscnt_last_xstr;
     uint8_t edn_ep;
 };
-
-typedef struct {
-    uint8_t key[SRAM_KEY_WIDTH / 8u];
-    uint8_t nonce[SRAM_NONCE_WIDTH / 8u];
-} OtOTPScrmblKeyInit;
-
-static const OtOTPScrmblKeyInit RND_CNST_SCRMBL_KEY_INIT = {
-    .key = {
-        0xceu, 0xbeu, 0xb9u, 0x6fu, 0xfeu, 0x0eu, 0xceu, 0xd7u,
-        0x95u, 0xf8u, 0xb2u, 0xcfu, 0xe2u, 0x3cu, 0x1eu, 0x51u,
-    },
-    .nonce = {
-        0x9eu, 0x4fu, 0xa0u, 0x80u, 0x47u, 0xa6u, 0xbcu, 0xfbu,
-        0x81u, 0x1bu, 0x04u, 0xf0u, 0xa4u, 0x79u, 0x00u, 0x6eu,
-    },
-};
-
-/* TODO: need to find real values from the RTL spaghetti */
-static const uint8_t RND_CNST_DIGEST_CONST[SRAM_KEY_WIDTH / 8u] = {
-    0xe0, 0x48, 0xb6, 0x57, 0x39, 0x6b, 0x4b, 0x83,
-    0x27, 0x71, 0x95, 0xfc, 0x47, 0x1e, 0x4b, 0x26
-};
-
-static const uint64_t RND_CNST_DIGEST_IV = 0x4d5a89aa9109294aull;
 
 #define REG_NAME_ENTRY(_reg_) [R_##_reg_] = stringify(_reg_)
 static const char *REG_NAMES[REGS_COUNT] = {
@@ -1033,6 +1036,119 @@ static const char *ERR_CODE_NAMES[] = {
     (((unsigned)(_err_)) < ARRAY_SIZE(ERR_CODE_NAMES) ? \
          ERR_CODE_NAMES[(_err_)] : \
          "?")
+
+#define LC_STATE_A (1u << 6u)
+#define LC_STATE_B (1u << 7u)
+
+#define ZRO 0
+#undef A
+#undef B
+#define A(_n_) ((LC_STATE_A) | (_n_))
+#define B(_n_) ((LC_STATE_B) | (_n_))
+
+/* clang-format off */
+
+/*
+ * note: this array follows RTL definitions, which means everything is inverted
+ * end should be read the other way around, i.e. first element is the last
+ * one for each state
+ */
+static const uint8_t
+LC_STATES_TPL[LC_STATE_VALID_COUNT][LC_STATE_SLOT_COUNT] = {
+    [LC_STATE_RAW] = {
+        ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO,
+        ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO, ZRO
+    },
+    [LC_STATE_TESTUNLOCKED0] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), A(6), A(5), A(4), A(3), A(2), A(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED0] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), A(6), A(5), A(4), A(3), A(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED1] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), A(6), A(5), A(4), A(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED1] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), A(6), A(5), A(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED2] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), A(6), A(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED2] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), A(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED3] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), A(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED3] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), A(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED4] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        A(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED4] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),A(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED5] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),A(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED5] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),A(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED6] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),A(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTLOCKED6] = {
+        A(19),A(18),A(17),A(16),A(15),A(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_TESTUNLOCKED7] = {
+        A(19),A(18),A(17),A(16),A(15),B(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_DEV] = {
+        A(19),A(18),A(17),A(16),B(15),B(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_PROD] = {
+        A(19),A(18),A(17),B(16),A(15),B(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_PRODEND] = {
+        A(19),A(18),B(17),A(16),A(15),B(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_RMA] = {
+        B(19),B(18),A(17),B(16),B(15),B(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+    [LC_STATE_SCRAP] = {
+        B(19),B(18),B(17),B(16),B(15),B(14),B(13),B(12),B(11),B(10),
+        B(9), B(8), B(7), B(6), B(5), B(4), B(3), B(2), B(1), B(0)
+    },
+};
+/* clang-format on */
+
+#define LC_STATE_A_SLOT(_x_)    ((bool)((_x_) & LC_STATE_A))
+#define LC_STATE_B_SLOT(_x_)    ((bool)((_x_) & LC_STATE_B))
+#define LC_STATE_ZERO_SLOT(_x_) ((_x_) == 0u)
+#define LC_STATE_SLOT(_x_)      ((_x_) & ~(LC_STATE_A | LC_STATE_B))
+#undef ZRO
+#undef A
+#undef B
 
 static void ot_otp_dj_dai_set_error(OtOTPDjState *s, OtOTPError err);
 
@@ -1685,7 +1801,7 @@ static uint64_t ot_otp_dj_compute_partition_digest(
     OtPresentState *ps = ot_present_new();
 
     uint8_t buf[sizeof(uint64_t) * 2u];
-    uint64_t state = s->otp->digest_iv;
+    uint64_t state = s->digest_iv;
     uint64_t out;
     for (unsigned off = 0; off < size; off += sizeof(buf)) {
         const uint8_t *chunk;
@@ -1703,7 +1819,7 @@ static uint64_t ot_otp_dj_compute_partition_digest(
         state ^= out;
     }
 
-    ot_present_init(ps, s->otp->digest_constant);
+    ot_present_init(ps, s->digest_const);
     ot_present_encrypt(ps, state, &out);
     state ^= out;
 
@@ -1779,7 +1895,7 @@ static void ot_otp_dj_check_partition_integrity(OtOTPDjState *s, unsigned ix)
         trace_ot_otp_mismatch_digest(s->ot_id, PART_NAME(ix), ix, digest,
                                      pctrl->buffer.digest);
 
-        TRACE_OTP("%s: compute digest %016llx from %s\n", __func__, digest,
+        TRACE_OTP("compute digest %016llx from %s\n", digest,
                   ot_otp_hexdump(pctrl->buffer.data, part_size));
 
         pctrl->failed = true;
@@ -3064,16 +3180,17 @@ static void ot_otp_dj_decode_lc_partition(OtOTPDjState *s)
     lci->lc.state = LC_ENCODE_STATE(LC_STATE_INVALID);
     lci->lc.tcount = LC_TRANSITION_COUNT_MAX + 1u;
 
-    for (unsigned ix = 0; ix < ARRAY_SIZE(lc_transition_cnts); ix++) {
-        if (!memcmp(&otp->data[R_LC_TRANSITION_CNT], lc_transition_cnts[ix],
-                    LC_TRANSITION_CNT_SIZE)) {
+    for (unsigned ix = 0; ix < LC_TRANSITION_COUNT; ix++) {
+        if (!memcmp(&otp->data[R_LC_TRANSITION_CNT], s->lc_transitions[ix],
+                    sizeof(OtOTPTransitionValue))) {
             lci->lc.tcount = ix;
             break;
         }
     }
 
-    for (unsigned ix = 0; ix < ARRAY_SIZE(lc_states); ix++) {
-        if (!memcmp(&otp->data[R_LC_STATE], lc_states[ix], LC_STATE_SIZE)) {
+    for (unsigned ix = 0; ix < LC_STATE_VALID_COUNT; ix++) {
+        if (!memcmp(&otp->data[R_LC_STATE], s->lc_states[ix],
+                    sizeof(OtOTPStateValue))) {
             lci->lc.state = LC_ENCODE_STATE(ix);
             break;
         }
@@ -3250,7 +3367,7 @@ static void ot_otp_dj_generate_otp_sram_key(OtOTPDjState *s, OtOTPKey *key)
                    OtOTPPartDescs[OTP_PART_SECRET1].offset / sizeof(uint32_t)];
     uint32_t tmpkey[SRAM_KEY_WORDS];
     for (unsigned rix = 0; rix < SRAM_KEY_WIDTH / 64u; rix++) {
-        uint64_t data = RND_CNST_DIGEST_IV;
+        uint64_t data = s->sram_iv;
 
         ot_present_init(ps, (const uint8_t *)sram_data_key_seed);
         ot_present_encrypt(ps, data, &data);
@@ -3262,14 +3379,14 @@ static void ot_otp_dj_generate_otp_sram_key(OtOTPDjState *s, OtOTPKey *key)
         ot_present_init(ps, (uint8_t *)&tmpkey[0]);
         ot_present_encrypt(ps, data, &data);
 
-        ot_present_init(ps, RND_CNST_DIGEST_CONST);
+        ot_present_init(ps, s->sram_const);
         ot_present_encrypt(ps, data, &data);
 
         key->seed[rix] = data;
     }
 
     key->seed_valid = valid;
-    key->seed_size = SRAM_KEY_WIDTH / 8u;
+    key->seed_size = SRAM_KEY_BYTES;
 
     /* some entropy bits have been used, refill the buffer */
     qemu_bh_schedule(s->keygen->entropy_bh);
@@ -3313,12 +3430,10 @@ static void ot_otp_dj_get_otp_key(OtOTPState *s, OtOTPKeyType type,
         memset(key, 0, sizeof(*key));
         break;
     case OTP_KEY_SRAM:
-        memcpy(key->seed, RND_CNST_SCRMBL_KEY_INIT.key,
-               sizeof(RND_CNST_SCRMBL_KEY_INIT.key));
-        memcpy(key->nonce, RND_CNST_SCRMBL_KEY_INIT.nonce,
-               sizeof(RND_CNST_SCRMBL_KEY_INIT.nonce));
-        key->seed_size = sizeof(RND_CNST_SCRMBL_KEY_INIT.key);
-        key->nonce_size = sizeof(RND_CNST_SCRMBL_KEY_INIT.nonce);
+        memcpy(key->seed, ds->scrmbl_key_init->key, SRAM_KEY_BYTES);
+        memcpy(key->nonce, ds->scrmbl_key_init->nonce, SRAM_NONCE_BYTES);
+        key->seed_size = SRAM_KEY_BYTES;
+        key->nonce_size = SRAM_NONCE_BYTES;
         key->seed_valid = false;
         need_entropy = (SRAM_KEY_WIDTH * 2u + SRAM_NONCE_WIDTH) / 32u;
         if (avail_entropy < need_entropy) {
@@ -3335,10 +3450,10 @@ static void ot_otp_dj_get_otp_key(OtOTPState *s, OtOTPKeyType type,
     }
 }
 
-static void ot_otp_dj_create_lc_data(OtOTPLCIController *lci, uint32_t lc_state,
-                                     unsigned tcount)
+static void ot_otp_dj_create_lc_data(OtOTPDjState *s, OtOTPLCIController *lci,
+                                     uint32_t lc_state, unsigned tcount)
 {
-    if (tcount >= ARRAY_SIZE(lc_transition_cnts)) {
+    if (tcount >= LC_TRANSITION_COUNT) {
         error_setg(&error_fatal, "%s: Invalid tcount: 0x%08x", __func__,
                    lc_state);
         /* linter does not know error_setg never returns */
@@ -3346,7 +3461,7 @@ static void ot_otp_dj_create_lc_data(OtOTPLCIController *lci, uint32_t lc_state,
     }
 
     unsigned lcix = LC_STATE_BITS(lc_state);
-    if (LC_ENCODE_STATE(lcix) != lc_state || lcix >= ARRAY_SIZE(lc_states)) {
+    if (LC_ENCODE_STATE(lcix) != lc_state || lcix >= LC_STATE_VALID_COUNT) {
         error_setg(&error_fatal, "%s: Invalid lc_state: 0x%08x", __func__,
                    lc_state);
         /* linter does not know error_setg never returns */
@@ -3354,11 +3469,11 @@ static void ot_otp_dj_create_lc_data(OtOTPLCIController *lci, uint32_t lc_state,
     }
 
     unsigned hpos = 0;
-    memcpy(&lci->data[hpos], lc_transition_cnts[tcount],
-           sizeof(lc_transition_cnts[tcount]));
-    hpos += sizeof(lc_transition_cnts[lcix]) / sizeof(uint16_t);
-    memcpy(&lci->data[hpos], lc_states[lcix], sizeof(lc_states[lcix]));
-    hpos += sizeof(lc_states[lcix]) / sizeof(uint16_t);
+    memcpy(&lci->data[hpos], s->lc_transitions[tcount],
+           sizeof(OtOTPTransitionValue));
+    hpos += sizeof(OtOTPTransitionValue) / sizeof(uint16_t);
+    memcpy(&lci->data[hpos], s->lc_states[lcix], sizeof(OtOTPStateValue));
+    hpos += sizeof(OtOTPStateValue) / sizeof(uint16_t);
     g_assert(hpos ==
              OtOTPPartDescs[OTP_PART_LIFE_CYCLE].size / sizeof(uint16_t));
 
@@ -3394,7 +3509,7 @@ static bool ot_otp_dj_program_req(OtOTPState *s, uint32_t lc_state,
     lci->ack_data = opaque;
 
     if (lci->state == OTP_LCI_IDLE) {
-        ot_otp_dj_create_lc_data(lci, lc_state, tcount);
+        ot_otp_dj_create_lc_data(ds, lci, lc_state, tcount);
     }
 
     /*
@@ -3581,6 +3696,274 @@ static void ot_otp_dj_pwr_otp_bh(void *opaque)
     ibex_irq_set(&s->pwc_otp_rsp, 0);
 }
 
+static void ot_otp_dj_configure_scrmbl_key(OtOTPDjState *s, Error **errp)
+{
+    if (!s->scrmbl_key_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "scrmbl_key");
+        return;
+    }
+
+    size_t len = strlen(s->scrmbl_key_xstr);
+    if (len != (size_t)(SRAM_KEY_BYTES + SRAM_NONCE_BYTES) * 2u) {
+        error_setg(errp, "%s: %s invalid scrmbl_key length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(s->scrmbl_key_init->key,
+                                 &s->scrmbl_key_xstr[0], SRAM_KEY_BYTES, false,
+                                 false)) {
+        error_setg(errp, "%s: %s unable to parse scrmbl_key\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(s->scrmbl_key_init->nonce,
+                                 &s->scrmbl_key_xstr[SRAM_KEY_BYTES * 2u],
+                                 SRAM_NONCE_BYTES, false, true)) {
+        error_setg(errp, "%s: %s unable to parse scrmbl_key\n", __func__,
+                   s->ot_id);
+        return;
+    }
+}
+
+static void ot_otp_dj_configure_digest(OtOTPDjState *s, Error **errp)
+{
+    memset(s->digest_const, 0, sizeof(s->digest_const));
+    s->digest_iv = 0ull;
+
+    if (!s->digest_const_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "digest_const");
+        return;
+    }
+
+    if (!s->digest_iv_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "digest_iv");
+        return;
+    }
+
+    size_t len;
+
+    len = strlen(s->digest_const_xstr);
+    if (len != sizeof(s->digest_const) * 2u) {
+        error_setg(errp, "%s: %s invalid digest_const length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(s->digest_const, s->digest_const_xstr,
+                                 sizeof(s->digest_const), true, true)) {
+        error_setg(errp, "%s: %s unable to parse digest_const\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    uint8_t digest_iv[sizeof(uint64_t)];
+
+    len = strlen(s->digest_iv_xstr);
+    if (len != sizeof(digest_iv) * 2u) {
+        error_setg(errp, "%s: %s invalid digest_iv length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(digest_iv, s->digest_iv_xstr,
+                                 sizeof(digest_iv), true, true)) {
+        error_setg(errp, "%s: %s unable to parse digest_iv\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    s->digest_iv = ldq_le_p(digest_iv);
+}
+
+static void ot_otp_dj_configure_sram(OtOTPDjState *s, Error **errp)
+{
+    memset(s->sram_const, 0, sizeof(s->sram_const));
+    s->sram_iv = 0ull;
+
+    if (!s->sram_const_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "sram_const");
+        return;
+    }
+
+    if (!s->sram_iv_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "sram_iv");
+        return;
+    }
+
+    size_t len;
+
+    len = strlen(s->sram_const_xstr);
+    if (len != sizeof(s->sram_const) * 2u) {
+        error_setg(errp, "%s: %s invalid sram_const length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(s->sram_const, s->sram_const_xstr,
+                                 sizeof(s->sram_const), true, true)) {
+        error_setg(errp, "%s: %s unable to parse sram_const\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    uint8_t sram_iv[sizeof(uint64_t)];
+
+    len = strlen(s->sram_iv_xstr);
+    if (len != sizeof(sram_iv) * 2u) {
+        error_setg(errp, "%s: %s invalid sram_iv length\n", __func__, s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(sram_iv, s->sram_iv_xstr, sizeof(sram_iv),
+                                 true, true)) {
+        error_setg(errp, "%s: %s unable to parse sram_iv\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    s->sram_iv = ldq_le_p(sram_iv);
+}
+
+static void ot_otp_dj_configure_lc_states(OtOTPDjState *s, Error **errp)
+{
+    if (!s->lc_state_first_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "lc_state_first_xstr");
+        return;
+    }
+
+    if (!s->lc_state_last_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "lc_state_last_xstr");
+        return;
+    }
+
+    size_t len;
+
+    len = strlen(s->lc_state_first_xstr);
+    if (len != sizeof(OtOTPStateValue) * 2u) {
+        error_setg(errp, "%s: %s invalid lc_state_first length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    len = strlen(s->lc_state_last_xstr);
+    if (len != sizeof(OtOTPStateValue) * 2u) {
+        error_setg(errp, "%s: %s invalid lc_state_last length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    uint16_t first[sizeof(OtOTPStateValue) / sizeof(uint16_t)];
+    uint16_t last[sizeof(OtOTPStateValue) / sizeof(uint16_t)];
+
+    if (ot_common_parse_hexa_str((uint8_t *)first, s->lc_state_first_xstr,
+                                 sizeof(first), false, true)) {
+        error_setg(errp, "%s: %s unable to parse lc_state_first\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str((uint8_t *)last, s->lc_state_last_xstr,
+                                 sizeof(last), false, true)) {
+        error_setg(errp, "%s: %s unable to parse lc_state_first\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    for (unsigned lcix = 0; lcix < LC_STATE_VALID_COUNT; lcix++) {
+        uint16_t *lcval = &s->lc_states[lcix][0];
+        const uint8_t *tpl = LC_STATES_TPL[lcix];
+        for (unsigned pos = 0; pos < LC_STATE_SLOT_COUNT; pos++) {
+            // @todo redefine macros to avoid runtime computation
+            unsigned rpos = LC_STATE_SLOT_COUNT - 1u - pos;
+            unsigned slot = LC_STATE_SLOT(tpl[rpos]);
+            g_assert(slot < LC_STATE_SLOT_COUNT);
+            if (LC_STATE_A_SLOT(tpl[rpos])) {
+                lcval[pos] = first[slot];
+            } else if (LC_STATE_B_SLOT(tpl[rpos])) {
+                lcval[pos] = last[slot];
+            } else if (LC_STATE_ZERO_SLOT(tpl[rpos])) {
+                lcval[pos] = 0u;
+            } else {
+                g_assert_not_reached();
+            }
+        }
+    }
+
+#ifdef OT_OTP_DEBUG
+    qemu_log("%s: %s\n", __func__, s->ot_id);
+    for (unsigned lcix = 0; lcix < LC_STATE_VALID_COUNT; lcix++) {
+        qemu_log("%s\n",
+                 ot_otp_hexdump(s->lc_states[lcix], sizeof(OtOTPStateValue)));
+    }
+#endif /* OT_OTP_DEBUG */
+}
+
+static void ot_otp_dj_configure_lc_transitions(OtOTPDjState *s, Error **errp)
+{
+    if (!s->lc_trscnt_first_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "lc_trscnt_first_xstr");
+        return;
+    }
+
+    if (!s->lc_trscnt_last_xstr) {
+        trace_ot_otp_configure_missing(s->ot_id, "lc_trscnt_last_xstr");
+        return;
+    }
+
+    size_t len;
+
+    len = strlen(s->lc_trscnt_first_xstr);
+    if (len != LC_TRANSITION_CNT_SIZE * 2u) {
+        error_setg(errp, "%s: %s invalid lc_trscnt_first length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    len = strlen(s->lc_trscnt_last_xstr);
+    if (len != LC_TRANSITION_CNT_SIZE * 2u) {
+        error_setg(errp, "%s: %s invalid lc_trscnt_last length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    uint16_t first[LC_TRANSITION_CNT_SIZE / sizeof(uint16_t)];
+    uint16_t last[LC_TRANSITION_CNT_SIZE / sizeof(uint16_t)];
+
+    if (ot_common_parse_hexa_str((uint8_t *)first, s->lc_trscnt_first_xstr,
+                                 sizeof(first), false, true)) {
+        error_setg(errp, "%s: %s unable to parse lc_trscnt_first\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str((uint8_t *)last, s->lc_trscnt_last_xstr,
+                                 sizeof(last), false, true)) {
+        error_setg(errp, "%s: %s unable to parse lc_trscnt_last\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    unsigned tix = 0;
+
+    memset(s->lc_transitions[tix++], 0, sizeof(OtOTPTransitionValue));
+    for (; tix < LC_TRANSITION_COUNT; tix++) {
+        uint16_t *lcval = s->lc_transitions[tix];
+        memcpy(&lcval[0u], &last[0], tix * sizeof(uint16_t));
+        memcpy(&lcval[tix], &first[tix],
+               sizeof(OtOTPTransitionValue) - tix * sizeof(uint16_t));
+    }
+
+#ifdef OT_OTP_DEBUG
+    qemu_log("%s: NEW %s\n", __func__, s->ot_id);
+    for (unsigned tix = 0; tix < LC_TRANSITION_COUNT; tix++) {
+        qemu_log("%s\n", ot_otp_hexdump(s->lc_transitions[tix],
+                                        LC_TRANSITION_CNT_SIZE));
+    }
+#endif /* OT_OTP_DEBUG */
+}
+
 static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
 {
     /*
@@ -3643,8 +4026,6 @@ static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
     otp->ecc = (uint32_t *)(base + sizeof(struct otp_header) + data_size);
     otp->ecc_bit_count = 0u;
     otp->ecc_granule = 0u;
-    memset(&otp->digest_iv, 0, sizeof(otp->digest_iv));
-    memset(otp->digest_constant, 0, sizeof(otp->digest_constant));
 
     if (s->blk) {
         bool write = blk_supports_write_perm(s->blk);
@@ -3690,10 +4071,20 @@ static void ot_otp_dj_load(OtOTPDjState *s, Error **errp)
                                   write ? "R/W" : "R/O", otp->ecc_bit_count,
                                   otp->ecc_granule);
 
-        if (otp_hdr->version > 1u) {
-            otp->digest_iv = ldq_le_p(otp_hdr->digest_iv);
-            memcpy(otp->digest_constant, otp_hdr->digest_constant,
-                   sizeof(otp->digest_constant));
+        if (otp_hdr->version == 2u) {
+            /*
+             * Version 2 is deprecated and digest const/IV are now ignored.
+             * Nonetheless, keep checking for inconsistencies.
+             */
+            if (s->digest_iv != ldq_le_p(otp_hdr->digest_iv)) {
+                error_report("%s: %s: OTP file digest IV mismatch", __func__,
+                             s->ot_id);
+            }
+            if (memcmp(s->digest_const, otp_hdr->digest_constant,
+                       sizeof(s->digest_const)) != 0) {
+                error_report("%s: %s: OTP file digest const mismatch", __func__,
+                             s->ot_id);
+            }
         }
     }
 
@@ -3708,6 +4099,15 @@ static Property ot_otp_dj_properties[] = {
                      OtOtpBeIf *),
     DEFINE_PROP_LINK("edn", OtOTPDjState, edn, TYPE_OT_EDN, OtEDNState *),
     DEFINE_PROP_UINT8("edn-ep", OtOTPDjState, edn_ep, UINT8_MAX),
+    DEFINE_PROP_STRING("scrmbl_key", OtOTPDjState, scrmbl_key_xstr),
+    DEFINE_PROP_STRING("digest_const", OtOTPDjState, digest_const_xstr),
+    DEFINE_PROP_STRING("digest_iv", OtOTPDjState, digest_iv_xstr),
+    DEFINE_PROP_STRING("sram_const", OtOTPDjState, sram_const_xstr),
+    DEFINE_PROP_STRING("sram_iv", OtOTPDjState, sram_iv_xstr),
+    DEFINE_PROP_STRING("lc_state_first", OtOTPDjState, lc_state_first_xstr),
+    DEFINE_PROP_STRING("lc_state_last", OtOTPDjState, lc_state_last_xstr),
+    DEFINE_PROP_STRING("lc_trscnt_first", OtOTPDjState, lc_trscnt_first_xstr),
+    DEFINE_PROP_STRING("lc_trscnt_last", OtOTPDjState, lc_trscnt_last_xstr),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -3799,9 +4199,15 @@ static void ot_otp_dj_realize(DeviceState *dev, Error **errp)
     OtOTPDjState *s = OT_OTP_DJ(dev);
 
     if (!s->ot_id) {
-        s->ot_id = g_strdup("otp");
+        s->ot_id =
+            g_strdup(object_get_canonical_path_component(OBJECT(s)->parent));
     }
 
+    ot_otp_dj_configure_scrmbl_key(s, &error_fatal);
+    ot_otp_dj_configure_digest(s, &error_fatal);
+    ot_otp_dj_configure_sram(s, &error_fatal);
+    ot_otp_dj_configure_lc_states(s, &error_fatal);
+    ot_otp_dj_configure_lc_transitions(s, &error_fatal);
     ot_otp_dj_load(s, &error_fatal);
 }
 
@@ -3853,6 +4259,9 @@ static void ot_otp_dj_init(Object *obj)
     s->partctrls = g_new0(OtOTPPartController, OTP_PART_COUNT);
     s->keygen = g_new0(OtOTPKeyGen, 1u);
     s->otp = g_new0(OtOTPStorage, 1u);
+    s->scrmbl_key_init = g_new0(OtOTPScrmblKeyInit, 1u);
+    s->lc_states = g_new0(OtOTPStateValue, LC_STATE_VALID_COUNT);
+    s->lc_transitions = g_new0(OtOTPTransitionValue, LC_TRANSITION_COUNT);
 
     for (unsigned ix = 0; ix < OTP_PART_COUNT; ix++) {
         if (!OtOTPPartDescs[ix].buffered) {

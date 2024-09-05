@@ -1189,7 +1189,9 @@ static const IbexDeviceDef ot_dj_soc_devices[] = {
             IBEX_DEV_UINT_PROP("product_id", 0x4000u),
             IBEX_DEV_UINT_PROP("revision_id", 0x1u),
             IBEX_DEV_BOOL_PROP("volatile_raw_unlock", true),
-            IBEX_DEV_UINT_PROP("kmac-app", 1u)
+            IBEX_DEV_UINT_PROP("kmac-app", 1u),
+            IBEX_DEV_STRING_PROP("raw_unlock_token",
+                                 "ea2b3f32cbe77554e43c8ea7ebf197c2")
         )
     },
     [OT_DJ_SOC_DEV_ALERT_HANDLER] = {

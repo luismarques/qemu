@@ -1355,7 +1355,7 @@ class QEMUExecuter:
                 if multi_rom:
                     rom_ids.append(f'{rom_count}')
                 rom_id = ''.join(rom_ids)
-                rom_opt = f'ot-rom-img,id={rom_id},file={rom_path}'
+                rom_opt = f'ot-rom_img,id={rom_id},file={rom_path}'
                 fw_args.extend(('-object', rom_opt))
                 rom_count += 1
         xtype = None
@@ -1381,7 +1381,7 @@ class QEMUExecuter:
                     if multi_rom:
                         rom_ids.append(f'{rom_count}')
                     rom_id = ''.join(rom_ids)
-                    rom_opt = f'ot-rom-img,id={rom_id},file={exec_path}'
+                    rom_opt = f'ot-rom_img,id={rom_id},file={exec_path}'
                     fw_args.extend(('-object', rom_opt))
                     rom_count += 1
                 else:

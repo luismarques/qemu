@@ -28,7 +28,7 @@
 #ifndef HW_OPENTITAN_OT_PRNG_H
 #define HW_OPENTITAN_OT_PRNG_H
 
-#define TYPE_OT_PRNG "ot_prng"
+#define TYPE_OT_PRNG "ot-prng"
 
 typedef struct OtPrngState OtPrngState;
 

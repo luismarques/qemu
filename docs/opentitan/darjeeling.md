@@ -112,7 +112,7 @@ See the section "Useful execution options" for documentation about the `no_epmp_
 
 ````sh
 qemu-system-riscv32 -M ot-darjeeling -display none -serial mon:stdio \
-  -object ot-rom-img,id=rom,file=rom_with_fake_keys_fpga_cw310.elf \
+  -object ot-rom_img,id=rom,file=rom_with_fake_keys_fpga_cw310.elf \
   -drive if=pflash,file=otp-rma.raw,format=raw \
   -drive if=mtd,bus=1,file=flash.raw,format=raw
 ````

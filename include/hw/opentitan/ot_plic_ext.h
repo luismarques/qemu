@@ -30,7 +30,7 @@
 
 #include "qom/object.h"
 
-#define TYPE_OT_PLIC_EXT "ot-plic-ext"
+#define TYPE_OT_PLIC_EXT "ot-plic_ext"
 OBJECT_DECLARE_SIMPLE_TYPE(OtPlicExtState, OT_PLIC_EXT)
 
 #endif /* HW_OPENTITAN_OT_PLIC_EXT_H */

@@ -30,7 +30,7 @@
 
 #include "qom/object.h"
 
-#define TYPE_OT_RANDOM_SRC_IF "ot-random_src-interface"
+#define TYPE_OT_RANDOM_SRC_IF "ot-random_src_if"
 typedef struct OtRandomSrcIfClass OtRandomSrcIfClass;
 DECLARE_CLASS_CHECKERS(OtRandomSrcIfClass, OT_RANDOM_SRC_IF,
                        TYPE_OT_RANDOM_SRC_IF)

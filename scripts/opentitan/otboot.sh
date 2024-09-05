@@ -176,7 +176,7 @@ fi
 # ROM. This is useful to get debugging symbols
 OT_ROM_ELF="${OT_ROM_BIN%.*}.elf"
 [ -f "${OT_ROM_ELF}" ] || die "Unable to find ROM ELF file for $(basename ${OT_ROM_BIN})"
-QEMU_GUEST_OPT="-object ot-rom-img,id=rom,file=${OT_ROM_ELF}"
+QEMU_GUEST_OPT="-object ot-rom_img,id=rom,file=${OT_ROM_ELF}"
 
 if [ ${VERBOSE} -gt 0 ];then
     set -x

@@ -21,7 +21,7 @@ The type of a ROM image file format is automatically detected from its content.
 The ROM file digest can be provided on the QEMU command line using this option:
 
 ```
--object ot-rom-img,id=<romid>,file=/path/to/rom
+-object ot-rom_img,id=<romid>,file=/path/to/rom
 ```
 
 ### ELF ROM file

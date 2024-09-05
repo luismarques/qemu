@@ -31,7 +31,7 @@
 
 #include "qom/object.h"
 
-#define TYPE_OT_ROM_IMG "ot-rom-img"
+#define TYPE_OT_ROM_IMG "ot-rom_img"
 OBJECT_DECLARE_SIMPLE_TYPE(OtRomImg, OT_ROM_IMG)
 
 typedef enum {

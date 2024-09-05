@@ -30,7 +30,7 @@
 
 #include "qom/object.h"
 
-#define TYPE_OT_ROM_CTRL "ot-rom-ctrl"
+#define TYPE_OT_ROM_CTRL "ot-rom_ctrl"
 OBJECT_DECLARE_TYPE(OtRomCtrlState, OtRomCtrlClass, OT_ROM_CTRL)
 
 #define OT_ROM_CTRL_GOOD TYPE_OT_ROM_CTRL "-good"

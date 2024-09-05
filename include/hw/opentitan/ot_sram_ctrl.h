@@ -30,7 +30,7 @@
 
 #include "qom/object.h"
 
-#define TYPE_OT_SRAM_CTRL "ot-sram-ctrl"
+#define TYPE_OT_SRAM_CTRL "ot-sram_ctrl"
 OBJECT_DECLARE_SIMPLE_TYPE(OtSramCtrlState, OT_SRAM_CTRL)
 
 #endif /* HW_OPENTITAN_OT_SRAM_CTRL */

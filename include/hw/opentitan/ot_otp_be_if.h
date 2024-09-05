@@ -31,7 +31,7 @@
 #include "qom/object.h"
 #include "memory.h"
 
-#define TYPE_OT_OTP_BE_IF "ot-otp-be-interface"
+#define TYPE_OT_OTP_BE_IF "ot-otp_be_if"
 typedef struct OtOtpBeIfClass OtOtpBeIfClass;
 DECLARE_CLASS_CHECKERS(OtOtpBeIfClass, OT_OTP_BE_IF, TYPE_OT_OTP_BE_IF)
 #define OT_OTP_BE_IF(_obj_) \

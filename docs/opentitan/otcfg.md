@@ -7,6 +7,7 @@ Such configuration parameters are - but not limited to -:
 * Keys
 * Nonces
 * Seeds
+* Tokens
 * ...
 
 It is possible to load a selected list of configuration parameters from a QEMU configuration file
@@ -88,3 +89,11 @@ where `<romid>` is the ROM identifier as documented [here](rom_ctrl.md#romid)
 Here, `digest_const` is expected to match the `--constant` argument of the [otptool.py](otptool.md)
 tool, whereas `digest_iv` is expected to match its `--iv` argument. Should those values differ,
 OpenTitan OTP controller would fail to verify the OTP partition digests.
+
+### Life-Cycle controller [lifecyle]
+
+```ini
+[ot_device "ot-lc_ctrl"]
+  # 128-bit token
+  raw_unlock_token = "ffeeddccbbaa99887766554433221100"
+```

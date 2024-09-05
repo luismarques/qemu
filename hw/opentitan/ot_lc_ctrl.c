@@ -45,6 +45,7 @@
 #include "hw/riscv/ibex_irq.h"
 #include "hw/sysbus.h"
 #include "ot_lc_defs.h"
+#include "tomcrypt.h"
 #include "trace.h"
 #include "trace/trace-hw_opentitan.h"
 
@@ -302,8 +303,10 @@ struct OtLcCtrlState {
     uint8_t state_invalid_error_bm; /* error bitmap */
 
     /* properties */
+    char *ot_id;
     OtOTPState *otp_ctrl;
     OtKMACState *kmac;
+    char *raw_unlock_token_xstr;
     uint16_t silicon_creator_id;
     uint16_t product_id;
     uint8_t revision_id;
@@ -314,30 +317,11 @@ struct OtLcCtrlState {
 static_assert(sizeof(OtOTPTokenValue) == LC_TOKEN_WIDTH,
               "Unexpected LC TOLEN WIDTH");
 
-static const OtKMACAppCfg ot_lc_ctrl_kmac_config =
+#define KECCAK_STATE_BITS  1600u
+#define KECCAK_STATE_BYTES (KECCAK_STATE_BITS / 8u)
+
+static const OtKMACAppCfg OT_LC_CTRL_KMAC_CONFIG =
     OT_KMAC_CONFIG(CSHAKE, 128u, "", "LC_CTRL");
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-const-variable"
-
-static const OtOTPTokenValue LC_ALL_ZERO_TOKEN = {
-    .hi = 0,
-    .lo = 0,
-};
-
-static const OtOTPTokenValue LC_ALL_ZERO_TOKEN_HASHED = {
-    .hi = 0x3852305baecf5ff1u, .lo = 0xd5c1d25f6db9058du
-};
-
-static const OtOTPTokenValue LC_RND_CNST_RAW_UNLOCK_TOKEN = {
-    .hi = 0xea2b3f32cbe77554u, .lo = 0xe43c8ea7ebf197c2u
-};
-
-static const OtOTPTokenValue LC_RND_CNST_RAW_UNLOCK_TOKEN_HASHED = {
-    .hi = 0xf8fe11b88c36c814u, .lo = 0x0252f036d23804db
-};
-
-#pragma GCC diagnostic pop
 
 /* transition matrix */
 static const OtLcCtrlToken
@@ -480,8 +464,8 @@ static void ot_lc_ctrl_resume_transition(OtLcCtrlState *s);
 static void
 ot_lc_ctrl_change_state_line(OtLcCtrlState *s, OtLcCtrlFsmState state, int line)
 {
-    trace_ot_lc_ctrl_change_state(line, LC_FSM_STATE_NAME(s->state), s->state,
-                                  LC_FSM_STATE_NAME(state), state);
+    trace_ot_lc_ctrl_change_state(s->ot_id, line, LC_FSM_STATE_NAME(s->state),
+                                  s->state, LC_FSM_STATE_NAME(state), state);
 
     s->state = state;
 }
@@ -590,7 +574,7 @@ static void ot_lc_ctrl_update_broadcast(OtLcCtrlState *s)
             break;
         case LC_STATE_SCRAP:
         default:
-            trace_ot_lc_ctrl_escalate(LC_FSM_STATE_NAME(s->state),
+            trace_ot_lc_ctrl_escalate(s->ot_id, LC_FSM_STATE_NAME(s->state),
                                       LC_STATE_NAME(s->lc_state));
             sigbm = LC_BCAST_BIT(ESCALATE_EN);
             break;
@@ -602,7 +586,7 @@ static void ot_lc_ctrl_update_broadcast(OtLcCtrlState *s)
     case ST_ESCALATE:
     case ST_INVALID:
     default:
-        trace_ot_lc_ctrl_escalate(LC_FSM_STATE_NAME(s->state),
+        trace_ot_lc_ctrl_escalate(s->ot_id, LC_FSM_STATE_NAME(s->state),
                                   LC_STATE_NAME(s->lc_state));
         sigbm = LC_BCAST_BIT(ESCALATE_EN);
         break;
@@ -614,7 +598,8 @@ static void ot_lc_ctrl_update_broadcast(OtLcCtrlState *s)
         bool level = (bool)(sigbm & (1u << ix));
         bool curlvl = (bool)ibex_irq_get_level(&s->broadcasts[ix]);
         if (level != curlvl) {
-            trace_ot_lc_ctrl_update_broadcast(LC_FSM_STATE_NAME(s->state),
+            trace_ot_lc_ctrl_update_broadcast(s->ot_id,
+                                              LC_FSM_STATE_NAME(s->state),
                                               LC_BCAST_NAME(ix), curlvl, level);
         }
         ibex_irq_set(&s->broadcasts[ix], (int)level);
@@ -630,7 +615,8 @@ static bool ot_lc_ctrl_match_token(const OtLcCtrlState *s, OtLcCtrlToken tok)
                  (s->hash_token.hi == s->hashed_tokens[tok].hi);
 
     if (!match) {
-        trace_ot_lc_ctrl_mismatch_token(s->hashed_token_bm & (1u << tok) ?
+        trace_ot_lc_ctrl_mismatch_token(s->ot_id,
+                                        s->hashed_token_bm & (1u << tok) ?
                                             "hashed" :
                                             "zero",
                                         LC_TOKEN_NAME(tok), tok,
@@ -925,7 +911,7 @@ static uint32_t ot_lc_ctrl_load_lc_info(OtLcCtrlState *s)
             s->hashed_tokens[ltix] = (OtOTPTokenValue){ 0, 0 };
             s->hashed_token_bm &= ~(1u << ltix);
         }
-        trace_ot_lc_ctrl_load_otp_token(LC_TOKEN_NAME(ltix), ltix,
+        trace_ot_lc_ctrl_load_otp_token(s->ot_id, LC_TOKEN_NAME(ltix), ltix,
                                         valid ? "" : "in",
                                         s->hashed_tokens[ltix].hi,
                                         s->hashed_tokens[ltix].lo);
@@ -952,7 +938,7 @@ static void ot_lc_ctrl_handle_otp_ack(void *opaque, bool ack)
 
     switch (s->state) {
     case ST_IDLE:
-        trace_ot_lc_ctrl_info("Ignore OTP completion in IDLE");
+        trace_ot_lc_ctrl_info(s->ot_id, "Ignore OTP completion in IDLE");
         break;
     case ST_CNT_PROG:
         LC_FSM_CHANGE_STATE(s, ST_TRANS_CHECK);
@@ -961,7 +947,7 @@ static void ot_lc_ctrl_handle_otp_ack(void *opaque, bool ack)
          *  - FLASH RMA is not implemented (not available on Darjeeling)
          *  - Perform a unique Token Check (vs. 3 successive ones on real HW)
          */
-        trace_ot_lc_ctrl_info("Request KMAC hashing");
+        trace_ot_lc_ctrl_info(s->ot_id, "Request KMAC hashing");
         g_assert(s->kmac_state == ST_KMAC_IDLE);
         s->kmac_state = ST_KMAC_FIRST;
         LC_FSM_CHANGE_STATE(s, ST_TOKEN_HASH);
@@ -969,10 +955,11 @@ static void ot_lc_ctrl_handle_otp_ack(void *opaque, bool ack)
         break;
     case ST_TRANS_PROG:
         if (ack) {
-            trace_ot_lc_ctrl_info("Succesful transition programmation");
+            trace_ot_lc_ctrl_info(s->ot_id,
+                                  "Succesful transition programmation");
             s->regs[R_STATUS] |= R_STATUS_TRANSITION_SUCCESSFUL_MASK;
         } else {
-            trace_ot_lc_ctrl_info("Failed to program transition");
+            trace_ot_lc_ctrl_info(s->ot_id, "Failed to program transition");
             s->regs[R_STATUS] |= R_STATUS_OTP_ERROR_MASK;
         }
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
@@ -1001,7 +988,7 @@ static void ot_lc_ctrl_program_otp(OtLcCtrlState *s, OtLcState lc_state)
 
     if (!oc->program_req(s->otp_ctrl, enc_state, s->lc_tcount,
                          &ot_lc_ctrl_handle_otp_ack, s)) {
-        trace_ot_lc_ctrl_error("OTP program request rejected");
+        trace_ot_lc_ctrl_error(s->ot_id, "OTP program request rejected");
         s->regs[R_STATUS] |= R_STATUS_STATE_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
         return;
@@ -1020,7 +1007,8 @@ static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
     uint32_t target_code = ot_lc_ctrl_get_target_state(s);
     OtLcState target = ot_lc_ctrl_safe_convert_code_to_state(target_code);
 
-    trace_ot_lc_ctrl_start_transition(s->owner == LC_IF_SW ? "SW" : "DMI",
+    trace_ot_lc_ctrl_start_transition(s->ot_id,
+                                      s->owner == LC_IF_SW ? "SW" : "DMI",
                                       !tvolatile ? "OTP" :
                                       s->volatile_raw_unlock ?
                                                    "unlocked volatile" :
@@ -1041,16 +1029,18 @@ static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
                 // TODO change FSM behavior once this is selected
                 s->volatile_unlocked = true;
                 s->regs[R_STATUS] |= R_STATUS_TRANSITION_SUCCESSFUL_MASK;
-                trace_ot_lc_ctrl_info("Successful volatile unlock");
+                trace_ot_lc_ctrl_info(s->ot_id, "Successful volatile unlock");
                 s->regs[R_STATUS] |= R_STATUS_READY_MASK;
                 /* FSM state is kept in IDLE */
             } else {
-                trace_ot_lc_ctrl_error("Invalid volatile unlock token");
+                trace_ot_lc_ctrl_error(s->ot_id,
+                                       "Invalid volatile unlock token");
                 s->regs[R_STATUS] |= R_STATUS_TOKEN_ERROR_MASK;
                 LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
             }
         } else {
-            trace_ot_lc_ctrl_error("Invalid state(s) for volatile unlock");
+            trace_ot_lc_ctrl_error(s->ot_id,
+                                   "Invalid state(s) for volatile unlock");
             s->regs[R_STATUS] |= R_STATUS_TRANSITION_ERROR_MASK;
             LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
         }
@@ -1076,7 +1066,7 @@ static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
     case LC_STATE_TESTLOCKED6:
     case LC_STATE_TESTUNLOCKED7:
     case LC_STATE_RMA:
-        trace_ot_lc_ctrl_info("External clock enabled");
+        trace_ot_lc_ctrl_info(s->ot_id, "External clock enabled");
         s->regs[R_STATUS] |= R_STATUS_EXT_CLOCK_SWITCHED_MASK;
         break;
     default:
@@ -1085,7 +1075,7 @@ static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
 
     LC_FSM_CHANGE_STATE(s, ST_CNT_INCR);
     if (s->lc_tcount >= LC_TRANSITION_COUNT_MAX) {
-        trace_ot_lc_ctrl_error("Max transition count reached");
+        trace_ot_lc_ctrl_error(s->ot_id, "Max transition count reached");
         s->regs[R_STATUS] |= R_STATUS_TRANSITION_COUNT_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
         return;
@@ -1125,25 +1115,86 @@ static void ot_lc_ctrl_resume_transition(OtLcCtrlState *s)
         token = LC_TK_INVALID;
     }
 
-    trace_ot_lc_ctrl_transit_request(s->owner == LC_IF_SW ? "SW" : "DMI",
+    trace_ot_lc_ctrl_transit_request(s->ot_id,
+                                     s->owner == LC_IF_SW ? "SW" : "DMI",
                                      LC_STATE_NAME(s->lc_state), s->lc_state,
                                      LC_STATE_NAME(target_state), target_state,
                                      LC_TOKEN_NAME(token), token);
 
     if (token == LC_TK_INVALID) {
-        trace_ot_lc_ctrl_error("Invalid transition");
+        trace_ot_lc_ctrl_error(s->ot_id, "Invalid transition");
         s->regs[R_STATUS] |= R_STATUS_TRANSITION_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
     } else if (!ot_lc_ctrl_match_token(s, token)) {
-        trace_ot_lc_ctrl_error("Invalid OTP token");
+        trace_ot_lc_ctrl_error(s->ot_id, "Invalid OTP token");
         s->regs[R_STATUS] |= R_STATUS_TOKEN_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
     } else {
-        trace_ot_lc_ctrl_info("Valid token");
+        trace_ot_lc_ctrl_info(s->ot_id, "Valid token");
 
         LC_FSM_CHANGE_STATE(s, ST_TRANS_PROG);
 
         ot_lc_ctrl_program_otp(s, target_state);
+    }
+}
+
+static inline size_t ot_lc_ctrl_get_keccak_rate_bytes(size_t kstrength)
+{
+    /*
+     * Rate is calculated with:
+     * rate = (1600 - 2*x) where x is the security strength (i.e. half the
+     * capacity).
+     */
+    return (KECCAK_STATE_BITS - 2u * kstrength) / 8u;
+}
+
+static void ot_lc_ctrl_compute_predefined_tokens(OtLcCtrlState *s, Error **errp)
+{
+    if (!s->raw_unlock_token_xstr) {
+        trace_ot_lc_ctrl_token_missing(s->ot_id, "raw_unlock_token");
+        return;
+    }
+
+    uint8_t all_zero_token[sizeof(OtOTPTokenValue)];
+    uint8_t raw_unlock_token[sizeof(OtOTPTokenValue)];
+
+    size_t len = strlen(s->raw_unlock_token_xstr);
+    if (len != sizeof(OtOTPTokenValue) * 2u) {
+        error_setg(errp, "%s: %s invalid raw_unlock_token length\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    if (ot_common_parse_hexa_str(raw_unlock_token, s->raw_unlock_token_xstr,
+                                 sizeof(OtOTPTokenValue), true, false)) {
+        error_setg(errp, "%s: %s unable to parse raw_unlock_token\n", __func__,
+                   s->ot_id);
+        return;
+    }
+
+    memset(all_zero_token, 0, sizeof(all_zero_token));
+
+    const uint8_t *srcs[] = {
+        [LC_TK_INVALID] = NULL,
+        [LC_TK_ZERO] = all_zero_token,
+        [LC_TK_RAW_UNLOCK] = raw_unlock_token,
+    };
+    hash_state ltc_state;
+    uint8_t keccak_state[KECCAK_STATE_BYTES];
+
+    for (OtLcCtrlToken tk = LC_TK_RAW_UNLOCK; tk > LC_TK_INVALID; tk--) {
+        sha3_cshake_init(&ltc_state, (int)OT_LC_CTRL_KMAC_CONFIG.strength,
+                         OT_LC_CTRL_KMAC_CONFIG.prefix.funcname,
+                         OT_LC_CTRL_KMAC_CONFIG.prefix.funcname_len,
+                         OT_LC_CTRL_KMAC_CONFIG.prefix.customstr,
+                         OT_LC_CTRL_KMAC_CONFIG.prefix.customstr_len);
+        sha3_process(&ltc_state, srcs[tk], sizeof(OtOTPTokenValue));
+        sha3_cshake_done(&ltc_state, keccak_state,
+                         ot_lc_ctrl_get_keccak_rate_bytes(
+                             OT_LC_CTRL_KMAC_CONFIG.strength));
+        s->hashed_tokens[tk].lo = ldq_le_p(&keccak_state[0u]);
+        s->hashed_tokens[tk].hi = ldq_le_p(&keccak_state[sizeof(uint64_t)]);
+        s->hashed_token_bm |= 1u << tk;
     }
 }
 
@@ -1153,40 +1204,37 @@ static void ot_lc_ctrl_initialize(OtLcCtrlState *s)
         (((uint32_t)s->silicon_creator_id) << 16u) | ((uint32_t)s->product_id);
     s->regs[R_HW_REVISION1] = (uint32_t)s->revision_id;
 
-    ot_kmac_connect_app(s->kmac, s->kmac_app, &ot_lc_ctrl_kmac_config,
+    ot_kmac_connect_app(s->kmac, s->kmac_app, &OT_LC_CTRL_KMAC_CONFIG,
                         &ot_lc_ctrl_kmac_handle_resp, s);
-
-    s->hashed_tokens[LC_TK_ZERO] = LC_ALL_ZERO_TOKEN_HASHED;
-    s->hashed_tokens[LC_TK_RAW_UNLOCK] = LC_RND_CNST_RAW_UNLOCK_TOKEN_HASHED;
-    s->hashed_token_bm = (1u << LC_TK_ZERO) | (1u << LC_TK_RAW_UNLOCK);
 
     uint32_t enc_state = ot_lc_ctrl_load_lc_info(s);
     if (enc_state == UINT32_MAX) {
-        trace_ot_lc_ctrl_error("LC invalid state");
+        trace_ot_lc_ctrl_error(s->ot_id, "LC invalid state");
         s->state_invalid_error_bm |= 1u << 0u;
     } else {
         s->regs[R_STATUS] |= R_STATUS_INITIALIZED_MASK;
     }
 
     if (!ot_lc_ctrl_is_known_state(enc_state)) {
-        trace_ot_lc_ctrl_error("LC unknown state");
+        trace_ot_lc_ctrl_error(s->ot_id, "LC unknown state");
         s->state_invalid_error_bm |= 1u << 1u;
     } else {
         s->lc_state = ot_lc_ctrl_convert_code_to_state(enc_state);
     }
 
     if (s->lc_tcount > LC_TRANSITION_COUNT_MAX) {
-        trace_ot_lc_ctrl_error("LC max transition count reached");
+        trace_ot_lc_ctrl_error(s->ot_id, "LC max transition count reached");
         s->state_invalid_error_bm |= 1u << 2u;
     }
 
     if (s->regs[R_LC_ID_STATE] == LC_ID_STATE_INVALID) {
-        trace_ot_lc_ctrl_error("LC corrupted secret valid info");
+        trace_ot_lc_ctrl_error(s->ot_id, "LC corrupted secret valid info");
         s->state_invalid_error_bm |= 1u << 3u;
     }
 
     if (s->lc_state != LC_STATE_RAW && s->lc_tcount == 0) {
-        trace_ot_lc_ctrl_error("LC state non-RAW with zero transition count");
+        trace_ot_lc_ctrl_error(s->ot_id,
+                               "LC state non-RAW with zero transition count");
         s->state_invalid_error_bm |= 1u << 4u;
     }
 
@@ -1199,7 +1247,8 @@ static void ot_lc_ctrl_initialize(OtLcCtrlState *s)
         case LC_STATE_SCRAP:
             break;
         default:
-            trace_ot_lc_ctrl_error("Personalized ID state w/ no secrets");
+            trace_ot_lc_ctrl_error(s->ot_id,
+                                   "Personalized ID state w/ no secrets");
             s->state_invalid_error_bm |= 1u << 5u;
         }
     }
@@ -1218,9 +1267,9 @@ static void ot_lc_ctrl_initialize(OtLcCtrlState *s)
         LC_FSM_CHANGE_STATE(s, ST_INVALID);
     }
 
-    trace_ot_lc_ctrl_initialize(LC_STATE_NAME(s->lc_state), s->lc_state,
-                                s->lc_tcount, LC_FSM_STATE_NAME(s->state),
-                                s->state);
+    trace_ot_lc_ctrl_initialize(s->ot_id, LC_STATE_NAME(s->lc_state),
+                                s->lc_state, s->lc_tcount,
+                                LC_FSM_STATE_NAME(s->state), s->state);
 }
 
 static void ot_lc_ctrl_pwr_lc_req(void *opaque, int n, int level)
@@ -1230,7 +1279,7 @@ static void ot_lc_ctrl_pwr_lc_req(void *opaque, int n, int level)
     g_assert(n == 0);
 
     if (level) {
-        trace_ot_lc_ctrl_pwr_lc_req("signaled");
+        trace_ot_lc_ctrl_pwr_lc_req(s->ot_id, "signaled");
         qemu_bh_schedule(s->pwc_lc_bh);
     }
 }
@@ -1241,7 +1290,7 @@ static void ot_lc_ctrl_escalate_rx(void *opaque, int n, int level)
 
     g_assert((unsigned)n < 2u);
 
-    trace_ot_lc_ctrl_escalate_rx((unsigned)n, (bool)level);
+    trace_ot_lc_ctrl_escalate_rx(s->ot_id, (unsigned)n, (bool)level);
 
     if (level) {
         qemu_bh_schedule(s->escalate_bh);
@@ -1261,13 +1310,13 @@ static void ot_lc_ctrl_pwr_lc_bh(void *opaque)
 {
     OtLcCtrlState *s = opaque;
 
-    trace_ot_lc_ctrl_pwr_lc_req("initialize");
+    trace_ot_lc_ctrl_pwr_lc_req(s->ot_id, "initialize");
 
     ot_lc_ctrl_initialize(s);
 
     ot_lc_ctrl_update_broadcast(s);
 
-    trace_ot_lc_ctrl_pwr_lc_req("done");
+    trace_ot_lc_ctrl_pwr_lc_req(s->ot_id, "done");
 
     ibex_irq_set(&s->pwc_lc_rsp, 1);
     ibex_irq_set(&s->pwc_lc_rsp, 0);
@@ -1373,7 +1422,8 @@ static uint32_t ot_lc_ctrl_regs_read(OtLcCtrlState *s, hwaddr addr,
 
     uint32_t pc = ibex_get_current_pc();
     if (reg != R_STATUS) {
-        trace_ot_lc_ctrl_io_read_out((uint32_t)addr, REG_NAME(reg), val32, pc);
+        trace_ot_lc_ctrl_io_read_out(s->ot_id, (uint32_t)addr, REG_NAME(reg),
+                                     val32, pc);
         s->status_cache.count = 0;
     } else {
         /*
@@ -1387,15 +1437,15 @@ static uint32_t ot_lc_ctrl_regs_read(OtLcCtrlState *s, hwaddr addr,
             s->status_cache.count += 1;
         } else {
             if (s->status_cache.count) {
-                trace_ot_lc_ctrl_io_read_out_repeat((uint32_t)addr,
+                trace_ot_lc_ctrl_io_read_out_repeat(s->ot_id, (uint32_t)addr,
                                                     REG_NAME(reg),
                                                     s->status_cache.count,
                                                     s->status_cache.value);
             }
             s->status_cache.value = val32;
             s->status_cache.count = 1;
-            trace_ot_lc_ctrl_io_read_out((uint32_t)addr, REG_NAME(reg), val32,
-                                         pc);
+            trace_ot_lc_ctrl_io_read_out(s->ot_id, (uint32_t)addr,
+                                         REG_NAME(reg), val32, pc);
         }
     }
 
@@ -1408,7 +1458,8 @@ static void ot_lc_ctrl_regs_write(OtLcCtrlState *s, hwaddr addr, uint32_t val32,
     hwaddr reg = R32_OFF(addr);
 
     uint32_t pc = ibex_get_current_pc();
-    trace_ot_lc_ctrl_io_write((uint32_t)addr, REG_NAME(reg), val32, pc);
+    trace_ot_lc_ctrl_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32,
+                              pc);
 
     switch (reg) {
     case R_ALERT_TEST:
@@ -1566,6 +1617,7 @@ static void ot_lc_ctrl_dmi_regs_write(void *opaque, hwaddr addr, uint64_t val64,
 }
 
 static Property ot_lc_ctrl_properties[] = {
+    DEFINE_PROP_STRING("ot_id", OtLcCtrlState, ot_id),
     DEFINE_PROP_LINK("otp_ctrl", OtLcCtrlState, otp_ctrl, TYPE_OT_OTP,
                      OtOTPState *),
     DEFINE_PROP_LINK("kmac", OtLcCtrlState, kmac, TYPE_OT_KMAC, OtKMACState *),
@@ -1576,6 +1628,8 @@ static Property ot_lc_ctrl_properties[] = {
     DEFINE_PROP_BOOL("volatile_raw_unlock", OtLcCtrlState, volatile_raw_unlock,
                      true),
     DEFINE_PROP_UINT8("kmac-app", OtLcCtrlState, kmac_app, UINT8_MAX),
+    DEFINE_PROP_STRING("raw_unlock_token", OtLcCtrlState,
+                       raw_unlock_token_xstr),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -1599,7 +1653,7 @@ static void ot_lc_ctrl_reset(DeviceState *dev)
 {
     OtLcCtrlState *s = OT_LC_CTRL(dev);
 
-    trace_ot_lc_ctrl_reset();
+    trace_ot_lc_ctrl_reset(s->ot_id);
 
     g_assert(s->otp_ctrl);
     g_assert(s->kmac);
@@ -1669,6 +1723,19 @@ static void ot_lc_ctrl_reset(DeviceState *dev)
      */
 }
 
+static void ot_lc_ctrl_realize(DeviceState *dev, Error **errp)
+{
+    (void)errp;
+    OtLcCtrlState *s = OT_LC_CTRL(dev);
+
+    if (!s->ot_id) {
+        s->ot_id =
+            g_strdup(object_get_canonical_path_component(OBJECT(s)->parent));
+    }
+
+    ot_lc_ctrl_compute_predefined_tokens(s, &error_fatal);
+}
+
 static void ot_lc_ctrl_init(Object *obj)
 {
     OtLcCtrlState *s = OT_LC_CTRL(obj);
@@ -1708,6 +1775,7 @@ static void ot_lc_ctrl_class_init(ObjectClass *klass, void *data)
     (void)data;
 
     dc->reset = &ot_lc_ctrl_reset;
+    dc->realize = &ot_lc_ctrl_realize;
     device_class_set_props(dc, ot_lc_ctrl_properties);
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }

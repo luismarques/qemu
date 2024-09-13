@@ -6,13 +6,12 @@
    :author: Emmanuel Blot <eblot@rivosinc.com>
 """
 
-from binascii import hexlify, unhexlify
-from io import BytesIO, StringIO
+from binascii import hexlify
+from io import BytesIO
 from logging import getLogger
-from os.path import basename
-from re import match as re_match
-from textwrap import fill
 from typing import BinaryIO, Optional, TextIO
+
+from .lifecycle import OtpLifecycle
 
 try:
     # try to load Present if available
@@ -45,7 +44,7 @@ class OtpPartition:
     def __init__(self, params):
         self.__dict__.update(params)
         self._decoder = None
-        self._log = getLogger('otptool.part')
+        self._log = getLogger('otp.part')
         self._data = b''
         self._digest_bytes: Optional[bytes] = None
 
@@ -181,108 +180,12 @@ class OtpPartition:
                  hexlify(self._digest_bytes).decode())
 
 
-class OtpLifecycleExtension(OtpPartitionDecoder):
+class OtpLifecycleExtension(OtpLifecycle, OtpPartitionDecoder):
     """Decoder for Lifecyle bytes sequences.
     """
 
-    EXTRA_SLOTS = {
-        'lc_state': {
-            'post_transition': None,
-            'escalate': None,
-            'invalid': None,
-        }
-    }
-
-    def __init__(self):
-        self._log = getLogger('otptool.lc')
-        self._tables: dict[str, dict[str, str]] = {}
-
     def decode(self, category: str, seq: str) -> Optional[str | int]:
         return self._tables.get(category, {}).get(seq, None)
-
-    def load(self, svp: TextIO):
-        """Decode LifeCycle information.
-
-           :param svp: System Verilog stream with OTP definitions.
-        """
-        ab_re = (r"\s*parameter\s+logic\s+\[\d+:\d+\]\s+"
-                 r"([ABCD]\d+|ZRO)\s+=\s+\d+'(b(?:[01]+)|h(?:[0-9a-fA-F]+));")
-        tbl_re = r"\s*Lc(St|Cnt)(\w+)\s+=\s+\{([^\}]+)\}\s*,?"
-        codes: dict[str, int] = {}
-        sequences: dict[str, list[str]] = {}
-        for line in svp:
-            cmt = line.find('//')
-            if cmt >= 0:
-                line = line[:cmt]
-            line = line.strip()
-            abmo = re_match(ab_re, line)
-            if not sequences and abmo:
-                name = abmo.group(1)
-                sval = abmo.group(2)
-                val = int(sval[1:], 2 if sval.startswith('b') else 16)
-                if name in codes:
-                    self._log.error('Redefinition of %s', name)
-                    continue
-                codes[name] = val
-                continue
-            smo = re_match(tbl_re, line)
-            if smo:
-                kind = smo.group(1).lower()
-                name = smo.group(2)
-                seq = smo.group(3)
-                items = [x.strip() for x in seq.split(',')]
-                inv = [it for it in items if it not in codes]
-                if inv:
-                    self._log.error('Unknown state seq: %s', ', '.join(inv))
-                if kind not in sequences:
-                    sequences[kind] = {}
-                sequences[kind][name] = items
-                continue
-        for kind, seqs in sequences.items():
-            mkind, conv = {'st': ('LC_STATE', str),
-                           'cnt': ('LC_TRANSITION_CNT', int)}[kind]
-            self._tables[mkind] = {}
-            for ref, seq in seqs.items():
-                seq = ''.join((f'{x:04x}'for x in map(codes.get, seq)))
-                self._tables[mkind][seq] = conv(ref)
-
-    def save(self, cfp: TextIO):
-        """Save OTP life cycle definitions as a C file.
-
-           :param cfp: output text stream
-        """
-        print(f'/* Section auto-generated with {basename(__file__)} '
-              f'script */', file=cfp)
-        for kind, table in self._tables.items():
-            enum_io = StringIO()
-            array_io = StringIO()
-            count = len(table)
-            length = max(len(x) for x in table.keys())//2
-            print(f'static const char {kind.lower()}s[{count}u][{length}u]'
-                  f' = {{', file=array_io)
-            pad = ' ' * 8
-            for seq, ref in table.items():
-                if isinstance(ref, str):
-                    slot = f'{kind}_{ref}'.upper()
-                    print(f'    {slot},', file=enum_io)
-                else:
-                    slot = f'{ref}u'
-                seqstr = ', '.join((f'0x{b:02x}u' for b in
-                                    reversed(unhexlify(seq))))
-                defstr = fill(seqstr, width=80, initial_indent=pad,
-                              subsequent_indent=pad)
-                print(f'    [{slot}] = {{\n{defstr}\n    }},',
-                      file=array_io)
-            print('};', file=array_io)
-            for extra in self.EXTRA_SLOTS.get(kind.lower(), {}):
-                slot = f'{kind}_{extra}'.upper()
-                print(f'    {slot},', file=enum_io)
-            enum_str = enum_io.getvalue()
-            if enum_str:
-                # likely to be moved to a header file
-                print(f'enum {kind.lower()} {{\n{enum_str}}};\n', file=cfp)
-            print(f'{array_io.getvalue()}', file=cfp)
-        print('/* End of auto-generated section */', file=cfp)
 
 
 # imported here to avoid Python circular dependency issue

@@ -38,7 +38,7 @@ class OtpMap:
     }
 
     def __init__(self):
-        self._log = getLogger('otptool.map')
+        self._log = getLogger('otp.map')
         self._map: dict = {}
         self._otp_size = 0
         self._partitions: list[OtpPartition] = []

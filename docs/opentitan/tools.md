@@ -17,6 +17,8 @@ directory to help with these tasks.
 
 ## Companion file management
 
+* [`cfggen.py`](cfggen.md) can be used to generate an OpenTitan [configuration file](otcfg.md) from
+  an existing OpenTitan repository.
 * [`otpdm.py`](otpdm.md) can be used to access the OTP Controller over a JTAG/DTM/DM link. It reads
   out partition's item values and can update those items.
 * [`otptool.py`](otptool.md) can be used to generate an OTP image from a OTP VMEM file and can be

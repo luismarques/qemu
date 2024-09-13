@@ -34,7 +34,7 @@ class OTPPartitionDesc:
     }
 
     def __init__(self, otpmap: 'OtpMap'):
-        self._log = getLogger('otptool.partdesc')
+        self._log = getLogger('otp.partdesc')
         self._otpmap = otpmap
 
     def save(self, hjname: str, scriptname: str, cfp: TextIO) -> None:
@@ -115,7 +115,7 @@ class OTPRegisterDef:
     """OTP Partition register generator."""
 
     def __init__(self, otpmap: 'OtpMap'):
-        self._log = getLogger('otptool.reg')
+        self._log = getLogger('otp.reg')
         self._otpmap = otpmap
 
     def save(self, hjname: str, scriptname: str, cfp: TextIO) -> None:

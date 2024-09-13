@@ -53,7 +53,7 @@ class OtpImage:
     )
 
     def __init__(self, ecc_bits: Optional[int] = None):
-        self._log = getLogger('otptool.img')
+        self._log = getLogger('otp.img')
         self._header: dict[str, Any] = {}
         self._magic = b''
         self._data = bytearray()

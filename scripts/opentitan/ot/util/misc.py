@@ -7,6 +7,7 @@
 """
 
 from io import BytesIO
+from re import sub
 from sys import stdout
 from typing import Any, Iterable, Optional, TextIO
 
@@ -101,3 +102,9 @@ def dump_buffer(buffer: Buffer, addr: int = 0, file: Optional[TextIO] = None) \
 def round_up(value: int, rnd: int) -> int:
     """Round up a integer value."""
     return (value + rnd - 1) & -rnd
+
+
+def camel_to_snake_case(camel: str) -> str:
+    """Convert CamelString string into snake_case lower string."""
+    pattern = r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])'
+    return sub(pattern, '_', camel).lower()

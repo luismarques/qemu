@@ -94,7 +94,7 @@ def main():
         args = argparser.parse_args()
         debug = args.debug
 
-        configure_loggers(args.verbose, 'otptool')
+        configure_loggers(args.verbose, 'otptool', 'otp')
 
         otp = OtpImage(args.ecc)
 

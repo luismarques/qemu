@@ -65,6 +65,8 @@ static bool trans_ebreak(DisasContext *ctx, arg_ebreak *a)
 #ifndef CONFIG_USER_ONLY
         riscv_cpu_store_debug_cause(ctx->cs, DCSR_CAUSE_EBREAK);
 #endif
+        tcg_gen_st_tl(tcg_constant_tl(ebreak_addr), tcg_env,
+                      offsetof(CPURISCVState, badaddr));
         generate_exception(ctx, RISCV_EXCP_BREAKPOINT);
     }
     return true;

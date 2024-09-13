@@ -2184,7 +2184,7 @@ static void ot_spi_device_chr_handle_header(OtSPIDeviceState *s)
 
     uint32_t size = 0;
     const uint8_t *hdr =
-        fifo8_pop_buf(&bus->chr_fifo, SPI_BUS_HEADER_SIZE, &size);
+        fifo8_pop_bufptr(&bus->chr_fifo, SPI_BUS_HEADER_SIZE, &size);
 
     if (size != SPI_BUS_HEADER_SIZE) {
         trace_ot_spi_device_chr_error("invalid header size");

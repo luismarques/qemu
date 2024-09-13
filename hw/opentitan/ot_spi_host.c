@@ -1242,7 +1242,7 @@ static void ot_spi_host_reset_enter(Object *obj, ResetType type)
     ot_spi_host_reset(s);
 }
 
-static void ot_spi_host_reset_exit(Object *obj)
+static void ot_spi_host_reset_exit(Object *obj, ResetType type)
 {
     OtSPIHostState *s = OT_SPI_HOST(obj);
     s->on_reset = false;

@@ -502,7 +502,7 @@ static const MemoryRegionOps ot_rom_ctrl_regs_ops = {
     .impl.max_access_size = 4u,
 };
 
-static void ot_rom_ctrl_reset_hold(Object *obj)
+static void ot_rom_ctrl_reset_hold(Object *obj, ResetType type)
 {
     OtRomCtrlClass *c = OT_ROM_CTRL_GET_CLASS(obj);
     OtRomCtrlState *s = OT_ROM_CTRL(obj);
@@ -510,7 +510,7 @@ static void ot_rom_ctrl_reset_hold(Object *obj)
     trace_ot_rom_ctrl_reset(s->ot_id, "hold");
 
     if (c->parent_phases.hold) {
-        c->parent_phases.hold(obj);
+        c->parent_phases.hold(obj, type);
     }
 
     /* reset all registers on first reset, otherwise keep digests */
@@ -529,14 +529,14 @@ static void ot_rom_ctrl_reset_hold(Object *obj)
                         ot_rom_ctrl_handle_kmac_response, s);
 }
 
-static void ot_rom_ctrl_reset_exit(Object *obj)
+static void ot_rom_ctrl_reset_exit(Object *obj, ResetType type)
 {
     OtRomCtrlClass *c = OT_ROM_CTRL_GET_CLASS(obj);
     OtRomCtrlState *s = OT_ROM_CTRL(obj);
     uint8_t *rom_ptr = (uint8_t *)memory_region_get_ram_ptr(&s->mem);
 
     if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+        c->parent_phases.exit(obj, type);
     }
 
     /* on initial reset, load ROM then set it read-only */

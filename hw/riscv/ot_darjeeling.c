@@ -1525,13 +1525,13 @@ static void ot_dj_soc_hw_reset(void *opaque, int irq, int level)
     }
 }
 
-static void ot_dj_soc_reset_hold(Object *obj)
+static void ot_dj_soc_reset_hold(Object *obj, ResetType type)
 {
     OtDjSoCClass *c = RISCV_OT_DJ_SOC_GET_CLASS(obj);
     OtDjSoCState *s = RISCV_OT_DJ_SOC(obj);
 
     if (c->parent_phases.hold) {
-        c->parent_phases.hold(obj);
+        c->parent_phases.hold(obj, type);
     }
 
     Object *dmi = OBJECT(s->devices[OT_DJ_SOC_DEV_DTM]);
@@ -1564,13 +1564,13 @@ static void ot_dj_soc_reset_hold(Object *obj)
     resettable_assert_reset(OBJECT(cs), RESET_TYPE_COLD);
 }
 
-static void ot_dj_soc_reset_exit(Object *obj)
+static void ot_dj_soc_reset_exit(Object *obj, ResetType type)
 {
     OtDjSoCClass *c = RISCV_OT_DJ_SOC_GET_CLASS(obj);
     OtDjSoCState *s = RISCV_OT_DJ_SOC(obj);
 
     if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+        c->parent_phases.exit(obj, type);
     }
 
     /* let ROM_CTRLs get out of reset now */

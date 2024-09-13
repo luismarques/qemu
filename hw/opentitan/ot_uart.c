@@ -290,7 +290,7 @@ static void ot_uart_xmit(OtUARTState *s)
     if (ot_uart_is_sys_loopack_enabled(s)) {
         /* system loopback mode, just forward to RX FIFO */
         uint32_t count = fifo8_num_used(&s->tx_fifo);
-        buf = fifo8_pop_buf(&s->tx_fifo, count, &size);
+        buf = fifo8_pop_bufptr(&s->tx_fifo, count, &size);
         ot_uart_receive(s, buf, (int)size);
         count -= size;
         /*
@@ -298,7 +298,7 @@ static void ot_uart_xmit(OtUARTState *s)
          * FIFO
          */
         if (count) {
-            buf = fifo8_pop_buf(&s->tx_fifo, count, &size);
+            buf = fifo8_pop_bufptr(&s->tx_fifo, count, &size);
             ot_uart_receive(s, buf, (int)size);
         }
     } else {

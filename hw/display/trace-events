@@ -184,4 +184,16 @@ st7735_set(const char *msg, bool enable) "%s: %u"
 st7735_gpio(const char *line, bool enable) "%s: %u"
 st7735_cursor(const char *axis, uint16_t start, uint16_t end) "%s: %hu..%hu"
 
-
+# dm163.c
+dm163_redraw(uint8_t redraw) "0x%02x"
+dm163_dck(unsigned new_state) "dck : %u"
+dm163_en_b(unsigned new_state) "en_b : %u"
+dm163_rst_b(unsigned new_state) "rst_b : %u"
+dm163_lat_b(unsigned new_state) "lat_b : %u"
+dm163_sin(unsigned new_state) "sin : %u"
+dm163_selbk(unsigned new_state) "selbk : %u"
+dm163_activated_rows(int new_state) "Activated rows : 0x%" PRIx32 ""
+dm163_bits_ppi(unsigned dest_width) "dest_width : %u"
+dm163_leds(int led, uint32_t value) "led %d: 0x%x"
+dm163_channels(int channel, uint8_t value) "channel %d: 0x%x"
+dm163_refresh_rate(uint32_t rr) "refresh rate %d"

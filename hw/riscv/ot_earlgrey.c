@@ -1177,13 +1177,13 @@ static void ot_eg_soc_hw_reset(void *opaque, int irq, int level)
     }
 }
 
-static void ot_eg_soc_reset_hold(Object *obj)
+static void ot_eg_soc_reset_hold(Object *obj, ResetType type)
 {
     OtEGSoCClass *c = RISCV_OT_EG_SOC_GET_CLASS(obj);
     OtEGSoCState *s = RISCV_OT_EG_SOC(obj);
 
     if (c->parent_phases.hold) {
-        c->parent_phases.hold(obj);
+        c->parent_phases.hold(obj, type);
     }
 
     Object *dtm = OBJECT(s->devices[OT_EG_SOC_DEV_DTM]);
@@ -1208,13 +1208,13 @@ static void ot_eg_soc_reset_hold(Object *obj)
     resettable_assert_reset(OBJECT(cs), RESET_TYPE_COLD);
 }
 
-static void ot_eg_soc_reset_exit(Object *obj)
+static void ot_eg_soc_reset_exit(Object *obj, ResetType type)
 {
     OtEGSoCClass *c = RISCV_OT_EG_SOC_GET_CLASS(obj);
     OtEGSoCState *s = RISCV_OT_EG_SOC(obj);
 
     if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+        c->parent_phases.exit(obj, type);
     }
 
     /* let ROM_CTRL get out of reset now */

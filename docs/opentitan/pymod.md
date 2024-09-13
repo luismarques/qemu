@@ -5,7 +5,7 @@ to access the devices from the local host (or also from a remote host when the C
 using a TCP socket).
 
 * `scripts/jtag`: JTAG / TAP controller client, using the _Remote BitBang Protocol_
-* `scripts/opentitan/ot`: OpenTitan tools (common to OpenTitan and Rivos SCS machines)
+* `scripts/opentitan/ot`: OpenTitan tools
   * `dtm`: Debug Transport Module support,
   * `dm`: RISC-V Debug Module support,
   * `lc_ctrl`: [Life Cycle controller](lc_ctrl_dmi.md) over JTAG/DMI support,
@@ -16,5 +16,5 @@ using a TCP socket).
   * `util`: miscellaneous utililies such as ELF format tools and logging utilities
   * `devproxy`: implementation of the communication channel with the QEMU devproxy device.
 
-Please check the [Python tools](tools,md) documentation for details and scripts that rely
+Please check the [Python tools](tools.md) documentation for details and scripts that rely
 on these APIs.

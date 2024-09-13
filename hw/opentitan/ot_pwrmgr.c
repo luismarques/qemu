@@ -938,7 +938,7 @@ static void ot_pwrmgr_reset_enter(Object *obj, ResetType type)
     ibex_irq_set(&s->reset_req, 0);
 }
 
-static void ot_pwrmgr_reset_exit(Object *obj)
+static void ot_pwrmgr_reset_exit(Object *obj, ResetType type)
 {
     OtPwrMgrClass *c = OT_PWRMGR_GET_CLASS(obj);
     OtPwrMgrState *s = OT_PWRMGR(obj);
@@ -946,7 +946,7 @@ static void ot_pwrmgr_reset_exit(Object *obj)
     trace_ot_pwrmgr_reset(s->ot_id, "exit");
 
     if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+        c->parent_phases.exit(obj, type);
     }
 
     ot_pwrmgr_schedule_fsm(s);

@@ -22,6 +22,8 @@
 #ifndef RISCV_DEBUG_H
 #define RISCV_DEBUG_H
 
+#include "exec/breakpoint.h"
+
 #define RV_MAX_TRIGGERS         4
 #define RV_MAX_DSCRATCH         2
 

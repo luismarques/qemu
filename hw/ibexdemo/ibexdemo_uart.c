@@ -104,7 +104,7 @@ static void ibexdemo_uart_xmit(IbexDemoUARTState *s)
     uint32_t size;
     int ret;
 
-    buf = fifo8_peek_buf(&s->tx_fifo, fifo8_num_used(&s->tx_fifo), &size);
+    buf = fifo8_peek_bufptr(&s->tx_fifo, fifo8_num_used(&s->tx_fifo), &size);
     ret = qemu_chr_fe_write(&s->chr, buf, size);
 
     if (ret > 0) {

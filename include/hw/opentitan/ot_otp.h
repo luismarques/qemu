@@ -66,8 +66,6 @@ typedef struct {
 typedef struct {
     /* the following values are stored as OT_MULTIBITBOOL8 */
     uint8_t en_csrng_sw_app_read;
-    uint8_t en_entropy_src_fw_read;
-    uint8_t en_entropy_src_fw_over;
 } OtOTPEntropyCfg;
 
 typedef enum {

@@ -1,8 +1,5 @@
 /* Generated from otp_ctrl_mmap.hjson with otptool.py */
 
-/* this prevents linters from checking this file without its parent file */
-#ifdef OT_OTP_EG_PARTS
-
 /* clang-format off */
 /* NOLINTBEGIN */
 static const OtOTPPartDesc OtOTPPartDescs[] = {
@@ -17,11 +14,12 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .write_lock = false,
         .read_lock_csr = true,
         .read_lock = true,
+        .integrity = false,
     },
     [OTP_PART_CREATOR_SW_CFG] = {
-        .size = 800u,
+        .size = 368u,
         .offset = 64u,
-        .digest_offset = 856u,
+        .digest_offset = 424u,
         .hw_digest = false,
         .sw_digest = true,
         .secret = false,
@@ -29,10 +27,37 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .write_lock = false,
         .read_lock_csr = true,
         .read_lock = true,
+        .integrity = true,
     },
     [OTP_PART_OWNER_SW_CFG] = {
-        .size = 792u,
-        .offset = 864u,
+        .size = 712u,
+        .offset = 432u,
+        .digest_offset = 1136u,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .write_lock = false,
+        .read_lock_csr = true,
+        .read_lock = true,
+        .integrity = true,
+    },
+    [OTP_PART_ROT_CREATOR_AUTH_CODESIGN] = {
+        .size = 472u,
+        .offset = 1144u,
+        .digest_offset = 1608u,
+        .hw_digest = false,
+        .sw_digest = true,
+        .secret = false,
+        .buffered = false,
+        .write_lock = false,
+        .read_lock_csr = true,
+        .read_lock = true,
+        .integrity = true,
+    },
+    [OTP_PART_ROT_CREATOR_AUTH_STATE] = {
+        .size = 40u,
+        .offset = 1616u,
         .digest_offset = 1648u,
         .hw_digest = false,
         .sw_digest = true,
@@ -41,10 +66,23 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .write_lock = false,
         .read_lock_csr = true,
         .read_lock = true,
+        .integrity = true,
     },
-    [OTP_PART_HW_CFG] = {
-        .size = 88u,
+    [OTP_PART_HW_CFG0] = {
+        .size = 72u,
         .offset = 1656u,
+        .digest_offset = 1720u,
+        .hw_digest = true,
+        .sw_digest = false,
+        .secret = false,
+        .buffered = true,
+        .write_lock = false,
+        .read_lock = false,
+        .integrity = true,
+    },
+    [OTP_PART_HW_CFG1] = {
+        .size = 16u,
+        .offset = 1728u,
         .digest_offset = 1736u,
         .hw_digest = true,
         .sw_digest = false,
@@ -52,6 +90,7 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .buffered = true,
         .write_lock = false,
         .read_lock = false,
+        .integrity = true,
     },
     [OTP_PART_SECRET0] = {
         .size = 40u,
@@ -63,6 +102,7 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .buffered = true,
         .write_lock = false,
         .read_lock = true,
+        .integrity = true,
     },
     [OTP_PART_SECRET1] = {
         .size = 88u,
@@ -74,6 +114,7 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .buffered = true,
         .write_lock = false,
         .read_lock = true,
+        .integrity = true,
     },
     [OTP_PART_SECRET2] = {
         .size = 88u,
@@ -85,6 +126,8 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .buffered = true,
         .write_lock = false,
         .read_lock = true,
+        .integrity = true,
+        // .iskeymgr_creator = true,
     },
     [OTP_PART_LIFE_CYCLE] = {
         .size = 88u,
@@ -96,6 +139,7 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
         .buffered = true,
         .write_lock = false,
         .read_lock = false,
+        .integrity = true,
     },
 };
 
@@ -103,5 +147,3 @@ static const OtOTPPartDesc OtOTPPartDescs[] = {
 
 /* NOLINTEND */
 /* clang-format on */
-
-#endif /* OT_OTP_EG_PARTS */

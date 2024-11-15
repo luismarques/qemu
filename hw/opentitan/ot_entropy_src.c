@@ -382,8 +382,6 @@ struct OtEntropySrcState {
     unsigned noise_count; /* count of consumed noise words since enabled */
     unsigned packet_count; /* count of output packets since enabled */
     bool obs_fifo_en; /* observe FIFO accept incoming data */
-    bool otp_fw_read;
-    bool otp_fw_over;
 
     OtASTEgState *ast;
     OtOTPState *otp_ctrl;
@@ -636,7 +634,7 @@ static bool ot_entropy_src_is_bypass_mode(OtEntropySrcState *s)
 
 static bool ot_entropy_src_is_fw_ov_mode(OtEntropySrcState *s)
 {
-    return s->otp_fw_over && REG_MB4_IS_TRUE(s, FW_OV_CONTROL, FW_OV_MODE);
+    return REG_MB4_IS_TRUE(s, FW_OV_CONTROL, FW_OV_MODE);
 }
 
 static bool ot_entropy_src_is_fw_ov_entropy_insert(OtEntropySrcState *s)
@@ -1181,7 +1179,7 @@ ot_entropy_src_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_ENTROPY_DATA:
         if (ot_entropy_src_is_module_enabled(s) &&
             REG_MB4_IS_TRUE(s, CONF, ENTROPY_DATA_REG_ENABLE) &&
-            ot_entropy_src_is_fw_route(s) && s->otp_fw_read) {
+            ot_entropy_src_is_fw_route(s)) {
             if (!ot_fifo32_is_empty(&s->swread_fifo)) {
                 val32 = ot_fifo32_pop(&s->swread_fifo);
             } else {
@@ -1599,12 +1597,6 @@ static void ot_entropy_src_reset(DeviceState *dev)
     g_assert(entropy_cfg);
 
     s->obs_fifo_en = false;
-    s->otp_fw_read =
-        entropy_cfg->en_entropy_src_fw_read == OT_MULTIBITBOOL8_TRUE;
-    s->otp_fw_over =
-        entropy_cfg->en_entropy_src_fw_over == OT_MULTIBITBOOL8_TRUE;
-
-    trace_ot_entropy_src_otp_conf(s->otp_fw_read, s->otp_fw_over);
 
     ot_entropy_src_change_state(s, ENTROPY_SRC_IDLE);
 }

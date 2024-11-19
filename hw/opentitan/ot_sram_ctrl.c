@@ -69,14 +69,18 @@ REG32(CTRL_REGWEN, 0x10u)
 REG32(CTRL, 0x14u)
     FIELD(CTRL, RENEW_SCR_KEY, 0u, 1u)
     FIELD(CTRL, INIT, 1u, 1u)
-REG32(SCR_KEY_ROTATED, 0x1cu)
+REG32(SCR_KEY_ROTATED, 0x18u)
     FIELD(SCR_KEY_ROTATED, SUCCESS, 0u, 4u)
+REG32(READBACK_REGWEN, 0x1cu)
+    FIELD(READBACK_REGWEN, READBACK_REGWEN, 0u, 1u)
+REG32(READBACK, 0x20u)
+    FIELD(READBACK, EN, 0u, 4u)
 
 /* clang-format on */
 
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
-#define R_LAST_REG (R_SCR_KEY_ROTATED)
+#define R_LAST_REG (R_READBACK)
 #define REGS_COUNT (R_LAST_REG + 1u)
 #define REGS_SIZE  (REGS_COUNT * sizeof(uint32_t))
 #define REG_NAME(_reg_) \
@@ -95,6 +99,8 @@ static const char *REG_NAMES[REGS_COUNT] = {
     REG_NAME_ENTRY(CTRL_REGWEN),
     REG_NAME_ENTRY(CTRL),
     REG_NAME_ENTRY(SCR_KEY_ROTATED),
+    REG_NAME_ENTRY(READBACK_REGWEN),
+    REG_NAME_ENTRY(READBACK),
 };
 #undef REG_NAME_ENTRY
 /* clang-format on */
@@ -660,6 +666,8 @@ static void ot_sram_ctrl_reset(DeviceState *dev)
     s->regs[R_EXEC] = OT_MULTIBITBOOL4_FALSE;
     s->regs[R_CTRL_REGWEN] = 0x1u;
     s->regs[R_SCR_KEY_ROTATED] = OT_MULTIBITBOOL4_FALSE;
+    s->regs[R_READBACK_REGWEN] = 0x1u;
+    s->regs[R_READBACK] = OT_MULTIBITBOOL4_FALSE;
 
     if (s->otp_ctrl) {
         OtOTPStateClass *oc =

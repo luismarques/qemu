@@ -66,13 +66,19 @@ REG32(CFG, 0x10u)
     FIELD(CFG, SHA_EN, 1u, 1u)
     FIELD(CFG, ENDIAN_SWAP, 2u, 1u)
     FIELD(CFG, DIGEST_SWAP, 3u, 1u)
+    FIELD(CFG, KEY_SWAP, 4u, 1u)
+    FIELD(CFG, DIGEST_SIZE, 5u, 4u)
+    FIELD(CFG, KEY_LENGTH, 9u, 6u)
 REG32(CMD, 0x14u)
     FIELD(CMD, HASH_START, 0u, 1u)
     FIELD(CMD, HASH_PROCESS, 1u, 1u)
+    FIELD(CMD, HASH_STOP, 2u, 1u)
+    FIELD(CMD, HASH_CONTINUE, 3u, 1u)
 REG32(STATUS, 0x18u)
-    FIELD(STATUS, FIFO_EMPTY, 0u, 1u)
-    FIELD(STATUS, FIFO_FULL, 1u, 1u)
-    FIELD(STATUS, FIFO_DEPTH, 4u, 5u)
+    FIELD(STATUS, HMAC_IDLE, 0u, 1u)
+    FIELD(STATUS, FIFO_EMPTY, 1u, 1u)
+    FIELD(STATUS, FIFO_FULL, 2u, 1u)
+    FIELD(STATUS, FIFO_DEPTH, 4u, 6u)
 REG32(ERR_CODE, 0x1cu)
 #define R_ERR_CODE_PUSH_MSG_WHEN_SHA_DISABLED   0x00000001u
 #define R_ERR_CODE_HASH_START_WHEN_SHA_DISABLED 0x00000002u
@@ -88,16 +94,48 @@ REG32(KEY_4, 0x34u)
 REG32(KEY_5, 0x38u)
 REG32(KEY_6, 0x3cu)
 REG32(KEY_7, 0x40u)
-REG32(DIGEST_0, 0x44u)
-REG32(DIGEST_1, 0x48u)
-REG32(DIGEST_2, 0x4cu)
-REG32(DIGEST_3, 0x50u)
-REG32(DIGEST_4, 0x54u)
-REG32(DIGEST_5, 0x58u)
-REG32(DIGEST_6, 0x5cu)
-REG32(DIGEST_7, 0x60u)
-REG32(MSG_LENGTH_LOWER, 0x64u)
-REG32(MSG_LENGTH_UPPER, 0x68u)
+REG32(KEY_8, 0x44u)
+REG32(KEY_9, 0x48u)
+REG32(KEY_10, 0x4cu)
+REG32(KEY_11, 0x50u)
+REG32(KEY_12, 0x54u)
+REG32(KEY_13, 0x58u)
+REG32(KEY_14, 0x5cu)
+REG32(KEY_15, 0x60u)
+REG32(KEY_16, 0x64u)
+REG32(KEY_17, 0x68u)
+REG32(KEY_18, 0x6cu)
+REG32(KEY_19, 0x70u)
+REG32(KEY_20, 0x74u)
+REG32(KEY_21, 0x78u)
+REG32(KEY_22, 0x7cu)
+REG32(KEY_23, 0x80u)
+REG32(KEY_24, 0x84u)
+REG32(KEY_25, 0x88u)
+REG32(KEY_26, 0x8cu)
+REG32(KEY_27, 0x90u)
+REG32(KEY_28, 0x94u)
+REG32(KEY_29, 0x98u)
+REG32(KEY_30, 0x9cu)
+REG32(KEY_31, 0xa0u)
+REG32(DIGEST_0, 0xa4u)
+REG32(DIGEST_1, 0xa8u)
+REG32(DIGEST_2, 0xacu)
+REG32(DIGEST_3, 0xb0u)
+REG32(DIGEST_4, 0xb4u)
+REG32(DIGEST_5, 0xb8u)
+REG32(DIGEST_6, 0xbcu)
+REG32(DIGEST_7, 0xc0u)
+REG32(DIGEST_8, 0xc4u)
+REG32(DIGEST_9, 0xc8u)
+REG32(DIGEST_10, 0xccu)
+REG32(DIGEST_11, 0xd0u)
+REG32(DIGEST_12, 0xd4u)
+REG32(DIGEST_13, 0xd8u)
+REG32(DIGEST_14, 0xdcu)
+REG32(DIGEST_15, 0xe0u)
+REG32(MSG_LENGTH_LOWER, 0xe4u)
+REG32(MSG_LENGTH_UPPER, 0xe8u)
 /* clang-format on */
 
 #define INTR_MASK \
@@ -106,9 +144,9 @@ REG32(MSG_LENGTH_UPPER, 0x68u)
 /* base offset for MMIO registers */
 #define OT_HMAC_REGS_BASE 0x00000000u
 /* base offset for MMIO FIFO */
-#define OT_HMAC_FIFO_BASE 0x00000800u
+#define OT_HMAC_FIFO_BASE 0x00001000u
 /* length of MMIO FIFO */
-#define OT_HMAC_FIFO_SIZE 0x00000800u
+#define OT_HMAC_FIFO_SIZE 0x00001000u
 /* length of the whole device MMIO region */
 #define OT_HMAC_WHOLE_SIZE (OT_HMAC_FIFO_BASE + OT_HMAC_FIFO_SIZE)
 
@@ -139,6 +177,30 @@ static const char *REG_NAMES[REGS_COUNT] = {
     REG_NAME_ENTRY(KEY_5),
     REG_NAME_ENTRY(KEY_6),
     REG_NAME_ENTRY(KEY_7),
+    REG_NAME_ENTRY(KEY_8),
+    REG_NAME_ENTRY(KEY_9),
+    REG_NAME_ENTRY(KEY_10),
+    REG_NAME_ENTRY(KEY_11),
+    REG_NAME_ENTRY(KEY_12),
+    REG_NAME_ENTRY(KEY_13),
+    REG_NAME_ENTRY(KEY_14),
+    REG_NAME_ENTRY(KEY_15),
+    REG_NAME_ENTRY(KEY_16),
+    REG_NAME_ENTRY(KEY_17),
+    REG_NAME_ENTRY(KEY_18),
+    REG_NAME_ENTRY(KEY_19),
+    REG_NAME_ENTRY(KEY_20),
+    REG_NAME_ENTRY(KEY_21),
+    REG_NAME_ENTRY(KEY_22),
+    REG_NAME_ENTRY(KEY_23),
+    REG_NAME_ENTRY(KEY_24),
+    REG_NAME_ENTRY(KEY_25),
+    REG_NAME_ENTRY(KEY_26),
+    REG_NAME_ENTRY(KEY_27),
+    REG_NAME_ENTRY(KEY_28),
+    REG_NAME_ENTRY(KEY_29),
+    REG_NAME_ENTRY(KEY_30),
+    REG_NAME_ENTRY(KEY_31),
     REG_NAME_ENTRY(DIGEST_0),
     REG_NAME_ENTRY(DIGEST_1),
     REG_NAME_ENTRY(DIGEST_2),
@@ -147,6 +209,14 @@ static const char *REG_NAMES[REGS_COUNT] = {
     REG_NAME_ENTRY(DIGEST_5),
     REG_NAME_ENTRY(DIGEST_6),
     REG_NAME_ENTRY(DIGEST_7),
+    REG_NAME_ENTRY(DIGEST_8),
+    REG_NAME_ENTRY(DIGEST_9),
+    REG_NAME_ENTRY(DIGEST_10),
+    REG_NAME_ENTRY(DIGEST_11),
+    REG_NAME_ENTRY(DIGEST_12),
+    REG_NAME_ENTRY(DIGEST_13),
+    REG_NAME_ENTRY(DIGEST_14),
+    REG_NAME_ENTRY(DIGEST_15),
     REG_NAME_ENTRY(MSG_LENGTH_LOWER),
     REG_NAME_ENTRY(MSG_LENGTH_UPPER),
 };
@@ -269,6 +339,70 @@ static inline void ot_hmac_wipe_buffer(OtHMACState *s, uint32_t *buffer,
     }
 }
 
+static uint64_t ot_hmac_fifo_read(void *opaque, hwaddr addr, unsigned size)
+{
+    (void)opaque;
+    (void)addr;
+    (void)size;
+    qemu_log_mask(LOG_GUEST_ERROR, "%s: MSG_FIFO is write only\n", __func__);
+
+    return 0;
+}
+
+static void ot_hmac_fifo_write(void *opaque, hwaddr addr, uint64_t value,
+                               unsigned size)
+{
+    OtHMACState *s = OT_HMAC(opaque);
+
+    uint32_t pc = ibex_get_current_pc();
+    trace_ot_hmac_fifo_write(s->ot_id, (uint32_t)addr, (uint32_t)value, size,
+                             pc);
+
+    if (!s->regs->cmd) {
+        ot_hmac_report_error(s, R_ERR_CODE_PUSH_MSG_WHEN_DISALLOWED);
+        return;
+    }
+
+    if (!(s->regs->cfg & R_CFG_SHA_EN_MASK)) {
+        ot_hmac_report_error(s, R_ERR_CODE_PUSH_MSG_WHEN_SHA_DISABLED);
+        return;
+    }
+
+    if (s->regs->cfg & R_CFG_ENDIAN_SWAP_MASK) {
+        if (size == 4u) {
+            value = bswap32((uint32_t)value);
+        } else if (size == 2u) {
+            value = bswap16((uint16_t)value);
+        }
+    }
+
+    ibex_irq_set(&s->clkmgr, true);
+
+    for (unsigned i = 0; i < size; i++) {
+        uint8_t b = value;
+        g_assert(!fifo8_is_full(&s->input_fifo));
+        fifo8_push(&s->input_fifo, b);
+        value >>= 8u;
+    }
+
+    s->regs->msg_length += (uint64_t)size * 8u;
+
+    /*
+     * Note: real HW may stall the bus till some room is available in the input
+     * FIFO. In QEMU, we do not want to stall the I/O thread to emulate this
+     * feature. The workaround is to let the FIFO fill up with an arbitrary
+     * length, always smaller than the FIFO capacity, here half the size of the
+     * FIFO then process the whole FIFO content in one step. This let the FIFO
+     * depth register to update on each call as the real HW. However the FIFO
+     * can never be full, which is not supposed to occur on the real HW anyway
+     * since the HMAC is reportedly faster than the Ibex capability to fill in
+     * the FIFO. Could be different with DMA access though.
+     */
+    if (fifo8_num_used(&s->input_fifo) >= OT_HMAC_FIFO_LENGTH / 2u) {
+        ot_hmac_process_fifo(s);
+    }
+}
+
 static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
 {
     OtHMACState *s = OT_HMAC(opaque);
@@ -313,6 +447,14 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_DIGEST_5:
     case R_DIGEST_6:
     case R_DIGEST_7:
+    case R_DIGEST_8:
+    case R_DIGEST_9:
+    case R_DIGEST_10:
+    case R_DIGEST_11:
+    case R_DIGEST_12:
+    case R_DIGEST_13:
+    case R_DIGEST_14:
+    case R_DIGEST_15:
         if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
             val32 = s->regs->digest[reg - R_DIGEST_0];
         } else {
@@ -336,6 +478,30 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_KEY_5:
     case R_KEY_6:
     case R_KEY_7:
+    case R_KEY_8:
+    case R_KEY_9:
+    case R_KEY_10:
+    case R_KEY_11:
+    case R_KEY_12:
+    case R_KEY_13:
+    case R_KEY_14:
+    case R_KEY_15:
+    case R_KEY_16:
+    case R_KEY_17:
+    case R_KEY_18:
+    case R_KEY_19:
+    case R_KEY_20:
+    case R_KEY_21:
+    case R_KEY_22:
+    case R_KEY_23:
+    case R_KEY_24:
+    case R_KEY_25:
+    case R_KEY_26:
+    case R_KEY_27:
+    case R_KEY_28:
+    case R_KEY_29:
+    case R_KEY_30:
+    case R_KEY_31:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: W/O register 0x%02" HWADDR_PRIx " (%s)\n", __func__,
                       addr, REG_NAME(reg));
@@ -467,6 +633,30 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
     case R_KEY_5:
     case R_KEY_6:
     case R_KEY_7:
+    case R_KEY_8:
+    case R_KEY_9:
+    case R_KEY_10:
+    case R_KEY_11:
+    case R_KEY_12:
+    case R_KEY_13:
+    case R_KEY_14:
+    case R_KEY_15:
+    case R_KEY_16:
+    case R_KEY_17:
+    case R_KEY_18:
+    case R_KEY_19:
+    case R_KEY_20:
+    case R_KEY_21:
+    case R_KEY_22:
+    case R_KEY_23:
+    case R_KEY_24:
+    case R_KEY_25:
+    case R_KEY_26:
+    case R_KEY_27:
+    case R_KEY_28:
+    case R_KEY_29:
+    case R_KEY_30:
+    case R_KEY_31:
         /* ignore write and report error if engine is not idle */
         if (s->regs->cmd) {
             ot_hmac_report_error(s, R_ERR_CODE_UPDATE_SECRET_KEY_INPROCESS);
@@ -484,6 +674,14 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
     case R_DIGEST_5:
     case R_DIGEST_6:
     case R_DIGEST_7:
+    case R_DIGEST_8:
+    case R_DIGEST_9:
+    case R_DIGEST_10:
+    case R_DIGEST_11:
+    case R_DIGEST_12:
+    case R_DIGEST_13:
+    case R_DIGEST_14:
+    case R_DIGEST_15:
     case R_MSG_LENGTH_LOWER:
     case R_MSG_LENGTH_UPPER:
         qemu_log_mask(LOG_GUEST_ERROR,
@@ -494,70 +692,6 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x%" HWADDR_PRIx "\n",
                       __func__, addr);
         break;
-    }
-}
-
-static uint64_t ot_hmac_fifo_read(void *opaque, hwaddr addr, unsigned size)
-{
-    (void)opaque;
-    (void)addr;
-    (void)size;
-    qemu_log_mask(LOG_GUEST_ERROR, "%s: MSG_FIFO is write only\n", __func__);
-
-    return 0;
-}
-
-static void ot_hmac_fifo_write(void *opaque, hwaddr addr, uint64_t value,
-                               unsigned size)
-{
-    OtHMACState *s = OT_HMAC(opaque);
-
-    uint32_t pc = ibex_get_current_pc();
-    trace_ot_hmac_fifo_write(s->ot_id, (uint32_t)addr, (uint32_t)value, size,
-                             pc);
-
-    if (!s->regs->cmd) {
-        ot_hmac_report_error(s, R_ERR_CODE_PUSH_MSG_WHEN_DISALLOWED);
-        return;
-    }
-
-    if (!(s->regs->cfg & R_CFG_SHA_EN_MASK)) {
-        ot_hmac_report_error(s, R_ERR_CODE_PUSH_MSG_WHEN_SHA_DISABLED);
-        return;
-    }
-
-    if (s->regs->cfg & R_CFG_ENDIAN_SWAP_MASK) {
-        if (size == 4u) {
-            value = bswap32((uint32_t)value);
-        } else if (size == 2u) {
-            value = bswap16((uint16_t)value);
-        }
-    }
-
-    ibex_irq_set(&s->clkmgr, true);
-
-    for (unsigned i = 0; i < size; i++) {
-        uint8_t b = value;
-        g_assert(!fifo8_is_full(&s->input_fifo));
-        fifo8_push(&s->input_fifo, b);
-        value >>= 8u;
-    }
-
-    s->regs->msg_length += (uint64_t)size * 8u;
-
-    /*
-     * Note: real HW may stall the bus till some room is available in the input
-     * FIFO. In QEMU, we do not want to stall the I/O thread to emulate this
-     * feature. The workaround is to let the FIFO fill up with an arbitrary
-     * length, always smaller than the FIFO capacity, here half the size of the
-     * FIFO then process the whole FIFO content in one step. This let the FIFO
-     * depth register to update on each call as the real HW. However the FIFO
-     * can never be full, which is not supposed to occur on the real HW anyway
-     * since the HMAC is reportedly faster than the Ibex capability to fill in
-     * the FIFO. Could be different with DMA access though.
-     */
-    if (fifo8_num_used(&s->input_fifo) >= OT_HMAC_FIFO_LENGTH / 2u) {
-        ot_hmac_process_fifo(s);
     }
 }
 

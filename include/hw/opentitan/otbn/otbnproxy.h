@@ -57,7 +57,7 @@ enum OtOTBNRandomSource {
     OT_OTBN_RND_COUNT
 };
 
-#define OT_OTBN_IMEM_SIZE (4U << 10U)
+#define OT_OTBN_IMEM_SIZE (8U << 10U)
 #define OT_OTBN_DMEM_SIZE (3U << 10U)
 
 #define OT_OTBN_RANDOM_BIT_WIDTH 256u

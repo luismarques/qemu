@@ -27,7 +27,7 @@ use super::Memory;
 use crate::{ExceptionCause, PRNG};
 
 /// Instruction memory size
-pub const IMEM_SIZE: usize = 4 << 10;
+pub const IMEM_SIZE: usize = 8 << 10;
 /// Data memory size
 pub const DMEM_SIZE: usize = 4 << 10;
 /// Data public memory size
@@ -457,27 +457,35 @@ impl Executer {
             if !wide_reg {
                 let csr = hart_state.csr_set.get_csr(reg_addr);
                 match csr.unwrap().read() {
-                    Ok(val) => writeln!(log_file,
-                                        "\t\t\tcsr:{} = 0x{:08x}",
-                                        csrs::CSRAddr::string_name(reg_addr),
-                                        val),
-                    Err(exc) => writeln!(log_file,
-                                        "\t\t\tcsr:{} => {:?}",
-                                        csrs::CSRAddr::string_name(reg_addr),
-                                        exc),
+                    Ok(val) => writeln!(
+                        log_file,
+                        "\t\t\tcsr:{} = 0x{:08x}",
+                        csrs::CSRAddr::string_name(reg_addr),
+                        val
+                    ),
+                    Err(exc) => writeln!(
+                        log_file,
+                        "\t\t\tcsr:{} => {:?}",
+                        csrs::CSRAddr::string_name(reg_addr),
+                        exc
+                    ),
                 }
                 .expect("Log file write failed");
             } else {
                 let wsr = hart_state.csr_set.get_wsr(reg_addr);
                 match wsr.unwrap().read() {
-                    Ok(val) => writeln!(log_file,
-                                        "\t\t\tcsr:{} = 0x{:064x}",
-                                        csrs::WSRAddr::string_name(reg_addr),
-                                        val),
-                    Err(exc) => writeln!(log_file,
-                                        "\t\t\tcsr:{} => {:?}",
-                                        csrs::WSRAddr::string_name(reg_addr),
-                                        exc),
+                    Ok(val) => writeln!(
+                        log_file,
+                        "\t\t\tcsr:{} = 0x{:064x}",
+                        csrs::WSRAddr::string_name(reg_addr),
+                        val
+                    ),
+                    Err(exc) => writeln!(
+                        log_file,
+                        "\t\t\tcsr:{} => {:?}",
+                        csrs::WSRAddr::string_name(reg_addr),
+                        exc
+                    ),
                 }
                 .expect("Log file write failed");
             }

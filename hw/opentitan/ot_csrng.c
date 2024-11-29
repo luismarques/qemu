@@ -908,6 +908,7 @@ static void ot_csrng_handle_enable(OtCSRNGState *s)
             xtrace_ot_csrng_info("enable: no ES gen tracking", gennum);
         }
         s->enabled = true;
+        s->regs[R_SW_CMD_STS] |= R_SW_CMD_STS_CMD_RDY_MASK;
         s->es_retry_count = ENTROPY_SRC_INITIAL_REQUEST_COUNT;
         s->entropy_gennum = gennum;
     }
@@ -934,6 +935,7 @@ static void ot_csrng_handle_enable(OtCSRNGState *s)
             }
         }
         s->enabled = false;
+        s->regs[R_SW_CMD_STS] &= ~R_SW_CMD_STS_CMD_RDY_MASK;
         s->es_retry_count = 0;
         s->entropy_gennum = cls->get_random_generation(randif);
         xtrace_ot_csrng_info("disable: last RS generation", s->entropy_gennum);

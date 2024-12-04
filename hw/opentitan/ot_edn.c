@@ -197,8 +197,17 @@ typedef enum {
     EDN_ERROR, /* illegal state reached and hang */
 } OtEDNFsmState;
 
+typedef enum {
+    CSRNG_STATUS_SUCCESS,
+    CSRNG_STATUS_INVALID_ACMD,
+    CSRNG_STATUS_INVALID_GEN_CMD,
+    CSRNG_STATUS_INVALID_CMD_SEQ,
+    CSRNG_STATUS_RESEED_CNT_EXCEEDED,
+} OtCSRNGCmdStatus;
+
 typedef struct {
     OtCSRNGState *device; /* CSRNG instance */
+    OtCSRNGCmdStatus last_cmd_status; /* status of the last CSRNG command */
     qemu_irq genbits_ready; /* Set when ready to receive entropy */
     uint32_t appid; /* unique HW application id to identify on CSRNG */
     bool instantiated; /* instantiated state, not yet uninstantiated */
@@ -234,7 +243,6 @@ struct OtEDNState {
     uint32_t *regs;
 
     unsigned reseed_counter; /* track remaining requests before reseeding */
-    bool last_cmd_failed; /* status of the last CSRNG command */
     bool sw_cmd_ready; /* ready to receive command in SW port mode */
     OtEDNFsmState state; /* Main FSM state */
     OtEDNCSRNG rng;
@@ -440,12 +448,12 @@ static OtCsrngCmd ot_edn_get_last_csrng_command(OtEDNState *s)
     }
 }
 
-static bool ot_edn_is_cmd_rdy(OtEDNState *s)
+static bool ot_edn_is_cmd_rdy(OtEDNState *s, bool check_fifo)
 {
     if (!ot_edn_is_enabled(s)) {
         return false;
     }
-    if (ot_fifo32_is_full(&s->rng.sw_cmd_fifo)) {
+    if (check_fifo && ot_fifo32_is_full(&s->rng.sw_cmd_fifo)) {
         return false;
     }
     switch (s->state) {
@@ -508,6 +516,7 @@ static int ot_edn_push_csrng_request(OtEDNState *s)
                                                    &ot_edn_fill_bits, s);
         g_assert(c->genbits_ready);
     }
+    s->regs[R_SW_CMD_STS] |= R_SW_CMD_STS_CMD_ACK_MASK;
     int res = ot_csrng_push_command(c->device, c->appid, c->buffer);
     if (res) {
         xtrace_ot_edn_error(c->appid, "CSRNG rejected command");
@@ -834,7 +843,7 @@ static void ot_edn_clean_up(OtEDNState *s, bool discard_requests)
 
     c->instantiated = false;
     s->sw_cmd_ready = false;
-    s->last_cmd_failed = false;
+    s->rng.last_cmd_status = CSRNG_STATUS_SUCCESS;
     s->reseed_counter = 0;
     memset(c->buffer, 0, sizeof(*c->buffer));
     ot_fifo32_reset(&c->bits_fifo);
@@ -994,7 +1003,8 @@ static void ot_edn_csrng_ack_irq(void *opaque, int n, int level)
      */
     memset(c->buffer, 0, sizeof(*c->buffer));
 
-    s->last_cmd_failed = level != 0;
+    c->last_cmd_status =
+        level != 0 ? CSRNG_STATUS_INVALID_ACMD : CSRNG_STATUS_SUCCESS;
 
     if (level) {
         xtrace_ot_edn_error(c->appid, "last command failed");
@@ -1074,12 +1084,15 @@ static uint64_t ot_edn_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_ERR_CODE_TEST:
         val32 = s->regs[reg];
         break;
-    case R_SW_CMD_STS:
-        val32 =
-            FIELD_DP32(0, SW_CMD_STS, CMD_STS, (uint32_t)s->last_cmd_failed);
-        val32 = FIELD_DP32(val32, SW_CMD_STS, CMD_RDY,
-                           (uint32_t)ot_edn_is_cmd_rdy(s));
+    case R_SW_CMD_STS: {
+        uint32_t rdy = (uint32_t) ot_edn_is_cmd_rdy(s, false);
+        uint32_t reg_rdy = (uint32_t) ot_edn_is_cmd_rdy(s, true);
+        val32 = s->regs[R_SW_CMD_STS];
+        val32 = FIELD_DP32(val32, SW_CMD_STS, CMD_STS, s->rng.last_cmd_status);
+        val32 = FIELD_DP32(val32, SW_CMD_STS, CMD_RDY, rdy);
+        val32 = FIELD_DP32(val32, SW_CMD_STS, CMD_REG_RDY, reg_rdy);
         break;
+    }
     case R_MAIN_SM_STATE:
         switch (s->state) {
         case EDN_IDLE ... EDN_ERROR:
@@ -1205,6 +1218,7 @@ static void ot_edn_regs_write(void *opaque, hwaddr addr, uint64_t val64,
         s->regs[reg] = val32;
         break;
     case R_SW_CMD_REQ:
+        s->regs[R_SW_CMD_STS] &= ~R_SW_CMD_STS_CMD_ACK_MASK;
         /* ignore all sw commands in auto req mode once instantiated */
         if (ot_edn_is_auto_req_mode(s) && c->instantiated) {
             xtrace_ot_edn_dinfo(c->appid, "ignore SW REQ", c->appid);

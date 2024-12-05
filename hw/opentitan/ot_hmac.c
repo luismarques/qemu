@@ -762,11 +762,14 @@ static void ot_hmac_realize(DeviceState *dev, Error **errp)
 static void ot_hmac_reset(DeviceState *dev)
 {
     OtHMACState *s = OT_HMAC(dev);
+    OtHMACRegisters *r = s->regs;
 
     ibex_irq_set(&s->clkmgr, false);
 
     memset(s->ctx, 0, sizeof(*(s->ctx)));
     memset(s->regs, 0, sizeof(*(s->regs)));
+
+    r->cfg = 0x4100u;
 
     ot_hmac_update_irqs(s);
     ot_hmac_update_alert(s);

@@ -282,13 +282,49 @@ static void ot_hmac_report_error(OtHMACState *s, uint32_t error)
     ot_hmac_update_irqs(s);
 }
 
+static void ot_hmac_writeback_digest_state(OtHMACState *s)
+{
+    /* copy intermediary digest to mock HMAC operation for stop/continue
+    behaviour. */
+    /* TODO: add support for SHA2-384 and SHA2-512 */
+    unsigned digest_length = OT_HMAC_DIGEST_LENGTH / sizeof(uint32_t);
+    for (unsigned i = 0; i < digest_length; i++) {
+        STORE32H(s->ctx->state.sha256.state[i], s->regs->digest + i);
+    }
+}
+
+static void ot_hmac_sha_init(OtHMACState *s, bool write_back)
+{
+    /* TODO: add support for SHA2-384 and SHA2-512 */
+    sha256_init(&s->ctx->state);
+    if (write_back) {
+        ot_hmac_writeback_digest_state(s);
+    }
+}
+
+static void ot_hmac_sha_process(OtHMACState *s, const uint8_t *in, size_t inlen,
+                                bool write_back)
+{
+    /* TODO: add support for SHA2-384 and SHA2-512 */
+    sha256_process(&s->ctx->state, in, inlen);
+    if (write_back) {
+        ot_hmac_writeback_digest_state(s);
+    }
+}
+
+static void ot_hmac_sha_done(OtHMACState *s)
+{
+    /* TODO: add support for SHA2-384 and SHA2-512 */
+    sha256_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+}
+
 static void ot_hmac_compute_digest(OtHMACState *s)
 {
     trace_ot_hmac_debug(s->ot_id, __func__);
 
     /* HMAC mode, perform outer hash */
     if (s->regs->cfg & R_CFG_HMAC_EN_MASK) {
-        sha256_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+        ot_hmac_sha_done(s);
 
         uint64_t opad[8u];
         memset(opad, 0, sizeof(opad));
@@ -296,13 +332,12 @@ static void ot_hmac_compute_digest(OtHMACState *s)
         for (unsigned i = 0; i < ARRAY_SIZE(opad); i++) {
             opad[i] ^= 0x5c5c5c5c5c5c5c5cull;
         }
-        sha256_init(&s->ctx->state);
-        sha256_process(&s->ctx->state, (const uint8_t *)opad, sizeof(opad));
-        sha256_process(&s->ctx->state, (const uint8_t *)s->regs->digest,
-                       sizeof(s->regs->digest));
+        ot_hmac_sha_init(s, false);
+        ot_hmac_sha_process(s, (const uint8_t *)opad, sizeof(opad), false);
+        ot_hmac_sha_process(s, (const uint8_t *)s->regs->digest,
+                            sizeof(s->regs->digest), true);
     }
-
-    sha256_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+    ot_hmac_sha_done(s);
 }
 
 static void ot_hmac_process_fifo(OtHMACState *s)
@@ -312,7 +347,7 @@ static void ot_hmac_process_fifo(OtHMACState *s)
     if (!fifo8_is_empty(&s->input_fifo)) {
         while (!fifo8_is_empty(&s->input_fifo)) {
             uint8_t value = fifo8_pop(&s->input_fifo);
-            sha256_process(&s->ctx->state, &value, 1);
+            ot_hmac_sha_process(s, &value, 1u, false);
         }
 
         /* assert FIFO Empty IRQ */
@@ -582,7 +617,7 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
             ibex_irq_set(&s->clkmgr, true);
 
-            sha256_init(&s->ctx->state);
+            ot_hmac_sha_init(s, true);
 
             /* HMAC mode, process input padding */
             if (s->regs->cfg & R_CFG_HMAC_EN_MASK) {
@@ -592,8 +627,8 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
                 for (unsigned i = 0; i < ARRAY_SIZE(ipad); i++) {
                     ipad[i] ^= 0x3636363636363636u;
                 }
-                sha256_process(&s->ctx->state, (const uint8_t *)ipad,
-                               sizeof(ipad));
+                ot_hmac_sha_process(s, (const uint8_t *)ipad, sizeof(ipad),
+                                    true);
             }
         }
 

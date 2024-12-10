@@ -506,6 +506,8 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_DIGEST_13:
     case R_DIGEST_14:
     case R_DIGEST_15:
+        /* We use a sha library in little endian by default, so we only need to
+        swap if the swap config is 1 (big endian digest). */
         if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
             val32 = s->regs->digest[reg - R_DIGEST_0];
         } else {
@@ -749,10 +751,21 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
             ot_hmac_report_error(s, R_ERR_CODE_UPDATE_SECRET_KEY_INPROCESS);
             break;
         }
-        s->regs->key[reg - R_KEY_0] = bswap32(val32);
+
+        /* We use a sha library in little endian by default, so we only need to
+        swap if the swap config is 0 (i.e. use big endian key). */
+        if (s->regs->cfg & R_CFG_KEY_SWAP_MASK) {
+            s->regs->key[reg - R_KEY_0] = val32;
+        } else {
+            s->regs->key[reg - R_KEY_0] = bswap32(val32);
+        }
         break;
     case R_STATUS:
     case R_ERR_CODE:
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: R/O register 0x%02" HWADDR_PRIx " (%s)\n", __func__,
+                      addr, REG_NAME(reg));
+        break;
     case R_DIGEST_0:
     case R_DIGEST_1:
     case R_DIGEST_2:
@@ -769,11 +782,61 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
     case R_DIGEST_13:
     case R_DIGEST_14:
     case R_DIGEST_15:
+        /* ignore write and report error if engine is not idle */
+        if (s->regs->cmd) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Cannot W register 0x%02" HWADDR_PRIx
+                          " (%s) whilst non-idle\n",
+                          __func__, addr, REG_NAME(reg));
+            break;
+        } else if (s->regs->cfg & R_CFG_SHA_EN_MASK) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Cannot W register 0x%02" HWADDR_PRIx
+                          " (%s) whilst SHA Engine is enabled\n",
+                          __func__, addr, REG_NAME(reg));
+        }
+
+        /* We use a sha library in little endian by default, so we only need to
+        swap if the swap config is 1 (big endian digest). */
+        if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
+            s->regs->digest[reg - R_DIGEST_0] = bswap32(val32);
+        } else {
+            s->regs->digest[reg - R_DIGEST_0] = val32;
+        }
+        break;
     case R_MSG_LENGTH_LOWER:
+        /* ignore write and report error if engine is not idle */
+        if (s->regs->cmd) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Cannot W register 0x%02" HWADDR_PRIx
+                          " (%s) whilst non-idle\n",
+                          __func__, addr, REG_NAME(reg));
+            break;
+        } else if (s->regs->cfg & R_CFG_SHA_EN_MASK) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Cannot W register 0x%02" HWADDR_PRIx
+                          " (%s) whilst SHA Engine is enabled\n",
+                          __func__, addr, REG_NAME(reg));
+        }
+        s->regs->msg_length =
+            (s->regs->msg_length & (0xFFFFFFFFull << 32u)) | val32;
+        break;
     case R_MSG_LENGTH_UPPER:
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: R/O register 0x%02" HWADDR_PRIx " (%s)\n", __func__,
-                      addr, REG_NAME(reg));
+        /* ignore write and report error if engine is not idle */
+        if (s->regs->cmd) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Cannot W register 0x%02" HWADDR_PRIx
+                          " (%s) whilst non-idle\n",
+                          __func__, addr, REG_NAME(reg));
+            break;
+        } else if (s->regs->cfg & R_CFG_SHA_EN_MASK) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: Cannot W register 0x%02" HWADDR_PRIx
+                          " (%s) whilst SHA Engine is enabled\n",
+                          __func__, addr, REG_NAME(reg));
+        }
+        s->regs->msg_length =
+            ((uint64_t)val32 << 32u) | (s->regs->msg_length & 0xFFFFFFFFull);
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x%" HWADDR_PRIx "\n",

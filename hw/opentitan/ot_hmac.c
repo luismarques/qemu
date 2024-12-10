@@ -486,6 +486,9 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
                 val32 |= R_STATUS_FIFO_FULL_MASK;
             }
         }
+        if (!(s->regs->cmd)) {
+            val32 |= R_STATUS_HMAC_IDLE_MASK;
+        }
     } break;
     case R_ERR_CODE:
         val32 = s->regs->err_code;
@@ -610,8 +613,10 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         }
 
         s->regs->cfg =
-            val32 & (R_CFG_HMAC_EN_MASK | R_CFG_SHA_EN_MASK |
-                     R_CFG_ENDIAN_SWAP_MASK | R_CFG_DIGEST_SWAP_MASK);
+            val32 &
+            (R_CFG_HMAC_EN_MASK | R_CFG_SHA_EN_MASK | R_CFG_ENDIAN_SWAP_MASK |
+             R_CFG_DIGEST_SWAP_MASK | R_CFG_KEY_SWAP_MASK |
+             R_CFG_DIGEST_SIZE_MASK | R_CFG_KEY_LENGTH_MASK);
 
         /* clear digest when SHA is disabled */
         if (!(s->regs->cfg & R_CFG_SHA_EN_MASK)) {

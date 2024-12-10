@@ -344,14 +344,30 @@ static void ot_hmac_process_fifo(OtHMACState *s)
 {
     trace_ot_hmac_debug(s->ot_id, __func__);
 
-    if (!fifo8_is_empty(&s->input_fifo)) {
-        while (!fifo8_is_empty(&s->input_fifo)) {
+    bool stop = s->regs->cmd & R_CMD_HASH_STOP_MASK;
+
+    if (!fifo8_is_empty(&s->input_fifo) &&
+        (!stop || s->ctx->state.sha256.curlen != 0)) {
+        while (!fifo8_is_empty(&s->input_fifo) &&
+               (!stop || s->ctx->state.sha256.curlen != 0)) {
             uint8_t value = fifo8_pop(&s->input_fifo);
             ot_hmac_sha_process(s, &value, 1u, false);
         }
 
+        /* write back updated digest state */
+        if (fifo8_is_empty(&s->input_fifo) || stop) {
+            ot_hmac_writeback_digest_state(s);
+        }
+
         /* assert FIFO Empty IRQ */
-        s->regs->intr_state |= INTR_FIFO_EMPTY_MASK;
+        if (fifo8_is_empty(&s->input_fifo)) {
+            s->regs->intr_state |= INTR_FIFO_EMPTY_MASK;
+        }
+    }
+
+    if (stop && s->ctx->state.sha256.curlen == 0) {
+        s->regs->intr_state |= INTR_HMAC_DONE_MASK;
+        s->regs->cmd = 0;
     }
 
     if (s->regs->cmd & R_CMD_HASH_PROCESS_MASK) {
@@ -633,7 +649,8 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         }
 
         if (val32 & R_CMD_HASH_PROCESS_MASK) {
-            if (!(s->regs->cmd & R_CMD_HASH_START_MASK)) {
+            if (!(s->regs->cmd &
+                  (R_CMD_HASH_START_MASK | R_CMD_HASH_CONTINUE_MASK))) {
                 qemu_log_mask(
                     LOG_GUEST_ERROR,
                     "%s: CMD.PROCESS requested but hash not started yet\n",
@@ -653,6 +670,41 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
             ibex_irq_set(&s->clkmgr, true);
             ot_hmac_process_fifo(s);
         }
+
+        if (val32 & R_CMD_HASH_STOP_MASK) {
+            s->regs->cmd = R_CMD_HASH_STOP_MASK;
+
+            /* trigger delayed processing of FIFO until the next block is processed. */
+            ibex_irq_set(&s->clkmgr, true);
+            ot_hmac_process_fifo(s);
+        }
+
+        if (val32 & R_CMD_HASH_CONTINUE_MASK) {
+            if (!(s->regs->cfg & R_CFG_SHA_EN_MASK)) {
+                ot_hmac_report_error(s,
+                                     R_ERR_CODE_HASH_START_WHEN_SHA_DISABLED);
+                break;
+            }
+            if (s->regs->cmd) {
+                ot_hmac_report_error(s, R_ERR_CODE_HASH_START_WHEN_ACTIVE);
+                break;
+            }
+
+            s->regs->cmd = R_CMD_HASH_CONTINUE_MASK;
+
+            /* Restore SHA256 context */
+            s->ctx->state.sha256.curlen = 0;
+            s->ctx->state.sha256.length = s->regs->msg_length;
+            unsigned digest_length = OT_HMAC_DIGEST_LENGTH / sizeof(uint32_t);
+            for (unsigned i = 0; i < digest_length; i++) {
+                s->ctx->state.sha256.state[i] = s->regs->digest[i];
+            }
+
+            /* trigger delayed processing of FIFO */
+            ibex_irq_set(&s->clkmgr, true);
+            ot_hmac_process_fifo(s);
+        }
+
         break;
     case R_WIPE_SECRET:
         /* TODO ignore write if engine is not idle? */

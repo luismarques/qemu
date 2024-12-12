@@ -683,7 +683,10 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         if (val32 & R_CMD_HASH_STOP_MASK) {
             s->regs->cmd = R_CMD_HASH_STOP_MASK;
 
-            /* trigger delayed processing of FIFO until the next block is processed. */
+            /*
+             * trigger delayed processing of FIFO until the next block is
+             * processed.
+             */
             ibex_irq_set(&s->clkmgr, true);
             ot_hmac_process_fifo(s);
         }
@@ -716,7 +719,6 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
         break;
     case R_WIPE_SECRET:
-        /* TODO ignore write if engine is not idle? */
         s->regs->wipe_secret = val32;
         ot_hmac_wipe_buffer(s, s->regs->key, ARRAY_SIZE(s->regs->key));
         ot_hmac_wipe_buffer(s, s->regs->digest, ARRAY_SIZE(s->regs->digest));

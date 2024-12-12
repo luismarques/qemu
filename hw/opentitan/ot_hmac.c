@@ -46,11 +46,11 @@
 /* Input FIFO length is 64 bytes (16 x 32 bits) */
 #define OT_HMAC_FIFO_LENGTH 64u
 
-/* Digest length is 32 bytes (256 bits) */
-#define OT_HMAC_DIGEST_LENGTH 32u
+/* Maximum digest length is 64 bytes (512 bits) */
+#define OT_HMAC_MAX_DIGEST_LENGTH 64u
 
-/* HMAC key length is 32 bytes (256 bits) */
-#define OT_HMAC_KEY_LENGTH 32u
+/* Maximum key length is 128 bytes (1024 bits) */
+#define OT_HMAC_MAX_KEY_LENGTH 128u
 
 #define PARAM_NUM_IRQS 3u
 
@@ -238,8 +238,8 @@ struct OtHMACRegisters {
     uint32_t cmd;
     uint32_t err_code;
     uint32_t wipe_secret;
-    uint32_t key[OT_HMAC_KEY_LENGTH / sizeof(uint32_t)];
-    uint32_t digest[OT_HMAC_DIGEST_LENGTH / sizeof(uint32_t)];
+    uint32_t key[OT_HMAC_MAX_KEY_LENGTH / sizeof(uint32_t)];
+    uint32_t digest[OT_HMAC_MAX_DIGEST_LENGTH / sizeof(uint32_t)];
     uint64_t msg_length;
 };
 typedef struct OtHMACRegisters OtHMACRegisters;
@@ -298,6 +298,45 @@ static inline OtHMACDigestSize ot_hmac_get_digest_size(uint32_t cfg_reg)
     }
 }
 
+static size_t ot_hmac_get_digest_bytes(OtHMACState *s)
+{
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        return 32u;
+    case HMAC_SHA2_384:
+        return 48u;
+    case HMAC_SHA2_512:
+        return 64u;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+        return 0u;
+    }
+}
+
+static size_t ot_hmac_get_block_size_bytes(OtHMACState *s)
+{
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        return 64u;
+    case HMAC_SHA2_384:
+    case HMAC_SHA2_512:
+        return 128u;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+        return 0u;
+    }
+}
+
 static inline OtHMACKeyLength ot_hmac_get_key_length(uint32_t cfg_reg)
 {
     switch ((cfg_reg & R_CFG_KEY_LENGTH_MASK) >> R_CFG_KEY_LENGTH_SHIFT) {
@@ -314,6 +353,31 @@ static inline OtHMACKeyLength ot_hmac_get_key_length(uint32_t cfg_reg)
     case 0x20u:
     default:
         return HMAC_KEY_NONE;
+    }
+}
+
+static size_t ot_hmac_get_key_bytes(OtHMACState *s)
+{
+    switch (ot_hmac_get_key_length(s->regs->cfg)) {
+    case HMAC_KEY_128:
+        return 16u;
+    case HMAC_KEY_256:
+        return 32u;
+    case HMAC_KEY_384:
+        return 48u;
+    case HMAC_KEY_512:
+        return 64u;
+    case HMAC_KEY_1024:
+        return 128u;
+    case HMAC_KEY_NONE:
+    default:
+        /*
+         * Should never happen: key length was validated when calling start /
+         * continue to begin operation if HMAC was enabled, and HMAC cannot be
+         * enabled while the SHA engine is in operation.
+         */
+        g_assert_not_reached();
+        return 0u;
     }
 }
 
@@ -350,8 +414,7 @@ static void ot_hmac_writeback_digest_state(OtHMACState *s)
 {
     /* copy intermediary digest to mock HMAC's stop/continue behaviour. */
     /* TODO: add support for SHA2-384 and SHA2-512 */
-    unsigned digest_length = OT_HMAC_DIGEST_LENGTH / sizeof(uint32_t);
-    for (unsigned i = 0; i < digest_length; i++) {
+    for (unsigned i = 0; i < 8u; i++) {
         STORE32H(s->ctx->state.sha256.state[i], s->regs->digest + i);
     }
 }
@@ -389,16 +452,21 @@ static void ot_hmac_compute_digest(OtHMACState *s)
     if (s->regs->cfg & R_CFG_HMAC_EN_MASK) {
         ot_hmac_sha_done(s);
 
-        uint64_t opad[8u];
+        size_t key_length_b = ot_hmac_get_key_bytes(s);
+        size_t block_size_b = ot_hmac_get_block_size_bytes(s);
+        /* pad key to right with 0s when it is smaller than the block size. */
+        size_t pad_length_b = MAX(key_length_b, block_size_b);
+        size_t pad_length_w = pad_length_b / sizeof(uint64_t);
+        uint64_t opad[OT_HMAC_MAX_KEY_LENGTH / sizeof(uint64_t)];
         memset(opad, 0, sizeof(opad));
-        memcpy(opad, s->regs->key, sizeof(s->regs->key));
-        for (unsigned i = 0; i < ARRAY_SIZE(opad); i++) {
-            opad[i] ^= 0x5c5c5c5c5c5c5c5cull;
+        memcpy(opad, s->regs->key, key_length_b);
+        for (size_t idx = 0; idx < pad_length_w; idx++) {
+            opad[idx] ^= 0x5c5c5c5c5c5c5c5cull;
         }
         ot_hmac_sha_init(s, false);
-        ot_hmac_sha_process(s, (const uint8_t *)opad, sizeof(opad), false);
+        ot_hmac_sha_process(s, (const uint8_t *)opad, pad_length_b, false);
         ot_hmac_sha_process(s, (const uint8_t *)s->regs->digest,
-                            sizeof(s->regs->digest), true);
+                            ot_hmac_get_digest_bytes(s), true);
     }
     ot_hmac_sha_done(s);
 }
@@ -744,13 +812,18 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
             /* HMAC mode, process input padding */
             if (s->regs->cfg & R_CFG_HMAC_EN_MASK) {
-                uint64_t ipad[8u];
+                size_t key_length_b = ot_hmac_get_key_bytes(s);
+                size_t block_size_b = ot_hmac_get_block_size_bytes(s);
+                /* pad key to right with 0s if smaller than the block size. */
+                size_t pad_length_b = MAX(key_length_b, block_size_b);
+                size_t pad_length_w = pad_length_b / sizeof(uint64_t);
+                uint64_t ipad[OT_HMAC_MAX_KEY_LENGTH / sizeof(uint64_t)];
                 memset(ipad, 0, sizeof(ipad));
-                memcpy(ipad, s->regs->key, sizeof(s->regs->key));
-                for (unsigned i = 0; i < ARRAY_SIZE(ipad); i++) {
-                    ipad[i] ^= 0x3636363636363636u;
+                memcpy(ipad, s->regs->key, key_length_b);
+                for (size_t idx = 0; idx < pad_length_w; idx++) {
+                    ipad[idx] ^= 0x3636363636363636ull;
                 }
-                ot_hmac_sha_process(s, (const uint8_t *)ipad, sizeof(ipad),
+                ot_hmac_sha_process(s, (const uint8_t *)ipad, pad_length_b,
                                     true);
             }
         }
@@ -805,8 +878,7 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
             /* Restore SHA256 context */
             s->ctx->state.sha256.curlen = 0;
             s->ctx->state.sha256.length = s->regs->msg_length;
-            unsigned digest_length = OT_HMAC_DIGEST_LENGTH / sizeof(uint32_t);
-            for (unsigned i = 0; i < digest_length; i++) {
+            for (unsigned i = 0; i < 8u; i++) {
                 s->ctx->state.sha256.state[i] = s->regs->digest[i];
             }
 

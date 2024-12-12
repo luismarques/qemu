@@ -87,6 +87,7 @@ REG32(ERR_CODE, 0x1cu)
 #define R_ERR_CODE_UPDATE_SECRET_KEY_INPROCESS  0x00000003u
 #define R_ERR_CODE_HASH_START_WHEN_ACTIVE       0x00000004u
 #define R_ERR_CODE_PUSH_MSG_WHEN_DISALLOWED     0x00000005u
+#define R_ERR_CODE_INVALID_CONFIG               0x00000006u
 REG32(WIPE_SECRET, 0x20u)
 REG32(KEY_0, 0x24u)
 REG32(KEY_1, 0x28u)
@@ -151,6 +152,11 @@ REG32(MSG_LENGTH_UPPER, 0xe8u)
 #define OT_HMAC_FIFO_SIZE 0x00001000u
 /* length of the whole device MMIO region */
 #define OT_HMAC_WHOLE_SIZE (OT_HMAC_FIFO_BASE + OT_HMAC_FIFO_SIZE)
+
+/* value representing 'SHA2_NONE' in the config digest size field */
+#define OT_HMAC_CFG_DIGEST_SHA2_NONE 0x8u
+/* value representing 'KEY_NONE' in the config key length field */
+#define OT_HMAC_CFG_KEY_LENGTH_NONE 0x20u
 
 #define R32_OFF(_r_) ((_r_) / sizeof(uint32_t))
 
@@ -261,6 +267,62 @@ struct OtHMACState {
     char *ot_id;
 };
 
+typedef enum OtHMACDigestSize {
+    HMAC_SHA2_NONE,
+    HMAC_SHA2_256,
+    HMAC_SHA2_384,
+    HMAC_SHA2_512,
+} OtHMACDigestSize;
+
+typedef enum OtHMACKeyLength {
+    HMAC_KEY_NONE,
+    HMAC_KEY_128,
+    HMAC_KEY_256,
+    HMAC_KEY_384,
+    HMAC_KEY_512,
+    HMAC_KEY_1024,
+} OtHMACKeyLength;
+
+static inline OtHMACDigestSize ot_hmac_get_digest_size(uint32_t cfg_reg)
+{
+    switch ((cfg_reg & R_CFG_DIGEST_SIZE_MASK) >> R_CFG_DIGEST_SIZE_SHIFT) {
+    case 0x1u:
+        return HMAC_SHA2_256;
+    case 0x2u:
+        return HMAC_SHA2_384;
+    case 0x4u:
+        return HMAC_SHA2_512;
+    case 0x8u:
+    default:
+        return HMAC_SHA2_NONE;
+    }
+}
+
+static inline OtHMACKeyLength ot_hmac_get_key_length(uint32_t cfg_reg)
+{
+    switch ((cfg_reg & R_CFG_KEY_LENGTH_MASK) >> R_CFG_KEY_LENGTH_SHIFT) {
+    case 0x01u:
+        return HMAC_KEY_128;
+    case 0x02u:
+        return HMAC_KEY_256;
+    case 0x04u:
+        return HMAC_KEY_384;
+    case 0x08u:
+        return HMAC_KEY_512;
+    case 0x10u:
+        return HMAC_KEY_1024;
+    case 0x20u:
+    default:
+        return HMAC_KEY_NONE;
+    }
+}
+
+static inline bool ot_hmac_key_length_supported(OtHMACDigestSize digest_size,
+                                                OtHMACKeyLength key_length)
+{
+    return !(digest_size == HMAC_SHA2_256 && key_length == HMAC_KEY_1024);
+}
+
 static void ot_hmac_update_irqs(OtHMACState *s)
 {
     uint32_t levels = s->regs->intr_state & s->regs->intr_enable;
@@ -286,8 +348,7 @@ static void ot_hmac_report_error(OtHMACState *s, uint32_t error)
 
 static void ot_hmac_writeback_digest_state(OtHMACState *s)
 {
-    /* copy intermediary digest to mock HMAC operation for stop/continue
-    behaviour. */
+    /* copy intermediary digest to mock HMAC's stop/continue behaviour. */
     /* TODO: add support for SHA2-384 and SHA2-512 */
     unsigned digest_length = OT_HMAC_DIGEST_LENGTH / sizeof(uint32_t);
     for (unsigned i = 0; i < digest_length; i++) {
@@ -511,8 +572,10 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_DIGEST_13:
     case R_DIGEST_14:
     case R_DIGEST_15:
-        /* We use a sha library in little endian by default, so we only need to
-        swap if the swap config is 1 (big endian digest). */
+        /*
+         * We use a sha library in little endian by default, so we only need to
+         * swap if the swap config is 1 (big endian digest).
+         */
         if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
             val32 = s->regs->digest[reg - R_DIGEST_0];
         } else {
@@ -591,6 +654,9 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
     uint32_t pc = ibex_get_current_pc();
     trace_ot_hmac_io_write(s->ot_id, (uint32_t)addr, REG_NAME(reg), val32, pc);
 
+    OtHMACDigestSize digest_size;
+    OtHMACKeyLength key_length;
+
     switch (reg) {
     case R_INTR_STATE:
         s->regs->intr_state &= ~(val32 & INTR_MASK);
@@ -614,11 +680,26 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
             break;
         }
 
-        s->regs->cfg =
-            val32 &
+        val32 &=
             (R_CFG_HMAC_EN_MASK | R_CFG_SHA_EN_MASK | R_CFG_ENDIAN_SWAP_MASK |
              R_CFG_DIGEST_SWAP_MASK | R_CFG_KEY_SWAP_MASK |
              R_CFG_DIGEST_SIZE_MASK | R_CFG_KEY_LENGTH_MASK);
+
+        /* If the digest size is invalid, it gets mapped to SHA2_NONE. */
+        digest_size = ot_hmac_get_digest_size(val32);
+        if (digest_size == HMAC_SHA2_NONE) {
+            val32 &= ~R_CFG_DIGEST_SIZE_MASK;
+            val32 |= OT_HMAC_CFG_DIGEST_SHA2_NONE << R_CFG_DIGEST_SIZE_SHIFT;
+        }
+
+        /* If the key length is invalid, it gets mapped to KEY_NONE. */
+        key_length = ot_hmac_get_key_length(val32);
+        if (key_length == HMAC_KEY_NONE) {
+            val32 &= ~R_CFG_KEY_LENGTH_MASK;
+            val32 |= OT_HMAC_CFG_KEY_LENGTH_NONE << R_CFG_KEY_LENGTH_SHIFT;
+        }
+
+        s->regs->cfg = val32;
 
         /* clear digest when SHA is disabled */
         if (!(s->regs->cfg & R_CFG_SHA_EN_MASK)) {
@@ -627,6 +708,23 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         }
         break;
     case R_CMD:
+        if (val32 & (R_CMD_HASH_START_MASK | R_CMD_HASH_CONTINUE_MASK)) {
+            digest_size = ot_hmac_get_digest_size(s->regs->cfg);
+            if (digest_size == HMAC_SHA2_NONE) {
+                ot_hmac_report_error(s, R_ERR_CODE_INVALID_CONFIG);
+                break;
+            }
+
+            if (s->regs->cfg & R_CFG_HMAC_EN_MASK) {
+                key_length = ot_hmac_get_key_length(s->regs->cfg);
+                if (key_length == HMAC_KEY_NONE ||
+                    !ot_hmac_key_length_supported(digest_size, key_length)) {
+                    ot_hmac_report_error(s, R_ERR_CODE_INVALID_CONFIG);
+                    break;
+                }
+            }
+        }
+
         if (val32 & R_CMD_HASH_START_MASK) {
             if (!(s->regs->cfg & R_CFG_SHA_EN_MASK)) {
                 ot_hmac_report_error(s,
@@ -761,8 +859,10 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
             break;
         }
 
-        /* We use a sha library in little endian by default, so we only need to
-        swap if the swap config is 0 (i.e. use big endian key). */
+        /*
+         * We use a sha library in little endian by default, so we only need to
+         * swap if the swap config is 0 (i.e. use big endian key).
+         */
         if (s->regs->cfg & R_CFG_KEY_SWAP_MASK) {
             s->regs->key[reg - R_KEY_0] = val32;
         } else {
@@ -805,8 +905,10 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
                           __func__, addr, REG_NAME(reg));
         }
 
-        /* We use a sha library in little endian by default, so we only need to
-        swap if the swap config is 1 (big endian digest). */
+        /*
+         * We use a sha library in little endian by default, so we only need to
+         * swap if the swap config is 1 (big endian digest).
+         */
         if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
             s->regs->digest[reg - R_DIGEST_0] = bswap32(val32);
         } else {

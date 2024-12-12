@@ -418,6 +418,7 @@ typedef struct {
     QEMUTimer *irq_timer; /* Timer to resume processing after a READBUF_* IRQ */
     bool loop; /* Keep reading the buffer if end is reached */
     bool watermark; /* Read watermark hit, used as flip-flop */
+    bool new_cmd; /* New command has been pushed in current SPI transaction */
 } SpiDeviceFlash;
 
 typedef struct {
@@ -811,7 +812,7 @@ static void ot_spi_device_release_cs(OtSPIDeviceState *s)
     bool update_irq = false;
     switch (ot_spi_device_get_mode(s)) {
     case CTRL_MODE_FLASH:
-        if (!fifo8_is_empty(&f->cmd_fifo)) {
+        if (!fifo8_is_empty(&f->cmd_fifo) && f->new_cmd) {
             s->spi_regs[R_INTR_STATE] |= INTR_UPLOAD_CMDFIFO_NOT_EMPTY_MASK;
             update_irq = true;
         }
@@ -857,6 +858,8 @@ static void ot_spi_device_release_cs(OtSPIDeviceState *s)
     default:
         break;
     }
+
+    f->new_cmd = false;
 
     if (update_irq) {
         ot_spi_device_update_irqs(s);
@@ -930,6 +933,7 @@ static void ot_spi_device_flash_decode_command(OtSPIDeviceState *s, uint8_t cmd)
         }
         trace_ot_spi_device_flash_upload(f->slot, f->cmd_info, set_busy);
         fifo8_push(&f->cmd_fifo, COMMAND_OPCODE(f->cmd_info));
+        f->new_cmd = true;
     }
 }
 
@@ -2120,6 +2124,7 @@ static void ot_spi_device_reset(DeviceState *dev)
 
     ot_spi_device_release_cs(s);
     f->watermark = false;
+    f->new_cmd = false;
     s->spi_regs[R_CONTROL] = 0x10u;
     s->spi_regs[R_STATUS] = 0x60u;
     s->spi_regs[R_JEDEC_CC] = 0x7fu;

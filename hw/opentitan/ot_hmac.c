@@ -413,16 +413,105 @@ static void ot_hmac_report_error(OtHMACState *s, uint32_t error)
 static void ot_hmac_writeback_digest_state(OtHMACState *s)
 {
     /* copy intermediary digest to mock HMAC's stop/continue behaviour. */
-    /* TODO: add support for SHA2-384 and SHA2-512 */
-    for (unsigned i = 0; i < 8u; i++) {
-        STORE32H(s->ctx->state.sha256.state[i], s->regs->digest + i);
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        for (unsigned idx = 0; idx < 8u; idx++) {
+            STORE32H(s->ctx->state.sha256.state[idx], s->regs->digest + idx);
+        }
+        break;
+    case HMAC_SHA2_384:
+        /*
+         * Even though SHA384 only uses the first six uint64_t values of
+         * the SHA512 digest, we must store all for intermediary computation.
+         */
+    case HMAC_SHA2_512:
+        for (unsigned idx = 0; idx < 8u; idx++) {
+            STORE64H(s->ctx->state.sha512.state[idx],
+                     s->regs->digest + 2 * idx);
+        }
+        break;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+    }
+}
+
+static void ot_hmac_restore_context(OtHMACState *s)
+{
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        s->ctx->state.sha256.curlen = 0;
+        s->ctx->state.sha256.length = s->regs->msg_length;
+        for (unsigned idx = 0; idx < 8u; idx++) {
+            LOAD32H(s->ctx->state.sha256.state[idx], s->regs->digest + idx);
+        }
+        break;
+    case HMAC_SHA2_384:
+        /*
+         * Even though SHA384 only uses the first six uint64_t values of
+         * the SHA512 digest, we must restore all for intermediary computation.
+         */
+    case HMAC_SHA2_512:
+        s->ctx->state.sha512.curlen = 0;
+        s->ctx->state.sha512.length = s->regs->msg_length;
+        for (unsigned idx = 0; idx < 8u; idx++) {
+            LOAD64H(s->ctx->state.sha512.state[idx], s->regs->digest + 2 * idx);
+        }
+        break;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when receiving the
+         * continue command to (re-)begin operation.
+         */
+        g_assert_not_reached();
+    }
+}
+
+static size_t ot_hmac_get_curlen(OtHMACState *s)
+{
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        return s->ctx->state.sha256.curlen;
+    case HMAC_SHA2_384:
+    case HMAC_SHA2_512:
+        return s->ctx->state.sha512.curlen;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+        return 0u;
     }
 }
 
 static void ot_hmac_sha_init(OtHMACState *s, bool write_back)
 {
-    /* TODO: add support for SHA2-384 and SHA2-512 */
-    sha256_init(&s->ctx->state);
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        sha256_init(&s->ctx->state);
+        break;
+    case HMAC_SHA2_384:
+        sha384_init(&s->ctx->state);
+        break;
+    case HMAC_SHA2_512:
+        sha512_init(&s->ctx->state);
+        break;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+        return;
+    }
     if (write_back) {
         ot_hmac_writeback_digest_state(s);
     }
@@ -431,8 +520,26 @@ static void ot_hmac_sha_init(OtHMACState *s, bool write_back)
 static void ot_hmac_sha_process(OtHMACState *s, const uint8_t *in, size_t inlen,
                                 bool write_back)
 {
-    /* TODO: add support for SHA2-384 and SHA2-512 */
-    sha256_process(&s->ctx->state, in, inlen);
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        sha256_process(&s->ctx->state, in, inlen);
+        break;
+    /* NOLINTNEXTLINE */
+    case HMAC_SHA2_384:
+        sha384_process(&s->ctx->state, in, inlen);
+        break;
+    case HMAC_SHA2_512:
+        sha512_process(&s->ctx->state, in, inlen);
+        break;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+        return;
+    }
     if (write_back) {
         ot_hmac_writeback_digest_state(s);
     }
@@ -440,8 +547,25 @@ static void ot_hmac_sha_process(OtHMACState *s, const uint8_t *in, size_t inlen,
 
 static void ot_hmac_sha_done(OtHMACState *s)
 {
-    /* TODO: add support for SHA2-384 and SHA2-512 */
-    sha256_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    case HMAC_SHA2_256:
+        sha256_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+        return;
+    case HMAC_SHA2_384:
+        sha384_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+        return;
+    case HMAC_SHA2_512:
+        sha512_done(&s->ctx->state, (uint8_t *)s->regs->digest);
+        return;
+    case HMAC_SHA2_NONE:
+    default:
+        /*
+         * Should never happen: digest size was validated when calling start /
+         * continue to begin operation.
+         */
+        g_assert_not_reached();
+        return;
+    }
 }
 
 static void ot_hmac_compute_digest(OtHMACState *s)
@@ -478,9 +602,9 @@ static void ot_hmac_process_fifo(OtHMACState *s)
     bool stop = s->regs->cmd & R_CMD_HASH_STOP_MASK;
 
     if (!fifo8_is_empty(&s->input_fifo) &&
-        (!stop || s->ctx->state.sha256.curlen != 0)) {
+        (!stop || ot_hmac_get_curlen(s) != 0)) {
         while (!fifo8_is_empty(&s->input_fifo) &&
-               (!stop || s->ctx->state.sha256.curlen != 0)) {
+               (!stop || ot_hmac_get_curlen(s) != 0)) {
             uint8_t value = fifo8_pop(&s->input_fifo);
             ot_hmac_sha_process(s, &value, 1u, false);
         }
@@ -496,7 +620,7 @@ static void ot_hmac_process_fifo(OtHMACState *s)
         }
     }
 
-    if (stop && s->ctx->state.sha256.curlen == 0) {
+    if (stop && ot_hmac_get_curlen(s) == 0) {
         s->regs->intr_state |= INTR_HMAC_DONE_MASK;
         s->regs->cmd = 0;
     }
@@ -641,8 +765,12 @@ static uint64_t ot_hmac_regs_read(void *opaque, hwaddr addr, unsigned size)
     case R_DIGEST_14:
     case R_DIGEST_15:
         /*
-         * We use a sha library in little endian by default, so we only need to
-         * swap if the swap config is 1 (big endian digest).
+         * We use a SHA library that computes in native (little) endian-ness,
+         * but produces a big-endian digest upon termination. To ensure
+         * consistency between digests that are read/written, we make sure the
+         * value internally in s->regs is always big endian, to match the final
+         * digest. So, we only need to swap if the swap config is 0 (i.e. the
+         * digest should be output in little endian).
          */
         if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
             val32 = s->regs->digest[reg - R_DIGEST_0];
@@ -875,12 +1003,7 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
             s->regs->cmd = R_CMD_HASH_CONTINUE_MASK;
 
-            /* Restore SHA256 context */
-            s->ctx->state.sha256.curlen = 0;
-            s->ctx->state.sha256.length = s->regs->msg_length;
-            for (unsigned i = 0; i < 8u; i++) {
-                s->ctx->state.sha256.state[i] = s->regs->digest[i];
-            }
+            ot_hmac_restore_context(s);
 
             /* trigger delayed processing of FIFO */
             ibex_irq_set(&s->clkmgr, true);
@@ -932,8 +1055,9 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         }
 
         /*
-         * We use a sha library in little endian by default, so we only need to
-         * swap if the swap config is 0 (i.e. use big endian key).
+         * We use a SHA library that operates in native (little) endian-ness,
+         * so we only need to swap if the swap config is 0 (i.e. the input key
+         * is big endian), to ensure the value in s->regs is little endian.
          */
         if (s->regs->cfg & R_CFG_KEY_SWAP_MASK) {
             s->regs->key[reg - R_KEY_0] = val32;
@@ -978,13 +1102,17 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
         }
 
         /*
-         * We use a sha library in little endian by default, so we only need to
-         * swap if the swap config is 1 (big endian digest).
+         * We use a SHA library that computes in native (little) endian-ness,
+         * but produces a big-endian digest upon termination. To ensure
+         * consistency between digests that are read/written, we make sure the
+         * value internally in s->regs is always big endian, to match the final
+         * digest. So, we only need to swap if the swap config is 0 (i.e. the
+         * input digest is little endian).
          */
         if (s->regs->cfg & R_CFG_DIGEST_SWAP_MASK) {
-            s->regs->digest[reg - R_DIGEST_0] = bswap32(val32);
-        } else {
             s->regs->digest[reg - R_DIGEST_0] = val32;
+        } else {
+            s->regs->digest[reg - R_DIGEST_0] = bswap32(val32);
         }
         break;
     case R_MSG_LENGTH_LOWER:

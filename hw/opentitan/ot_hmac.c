@@ -230,6 +230,22 @@ static const char *REG_NAMES[REGS_COUNT] = {
 };
 #undef REG_NAME_ENTRY
 
+typedef enum OtHMACDigestSize {
+    HMAC_SHA2_NONE,
+    HMAC_SHA2_256,
+    HMAC_SHA2_384,
+    HMAC_SHA2_512,
+} OtHMACDigestSize;
+
+typedef enum OtHMACKeyLength {
+    HMAC_KEY_NONE,
+    HMAC_KEY_128,
+    HMAC_KEY_256,
+    HMAC_KEY_384,
+    HMAC_KEY_512,
+    HMAC_KEY_1024,
+} OtHMACKeyLength;
+
 struct OtHMACRegisters {
     uint32_t intr_state;
     uint32_t intr_enable;
@@ -246,6 +262,7 @@ typedef struct OtHMACRegisters OtHMACRegisters;
 
 struct OtHMACContext {
     hash_state state;
+    OtHMACDigestSize digest_size_started;
 };
 typedef struct OtHMACContext OtHMACContext;
 
@@ -267,22 +284,6 @@ struct OtHMACState {
     char *ot_id;
 };
 
-typedef enum OtHMACDigestSize {
-    HMAC_SHA2_NONE,
-    HMAC_SHA2_256,
-    HMAC_SHA2_384,
-    HMAC_SHA2_512,
-} OtHMACDigestSize;
-
-typedef enum OtHMACKeyLength {
-    HMAC_KEY_NONE,
-    HMAC_KEY_128,
-    HMAC_KEY_256,
-    HMAC_KEY_384,
-    HMAC_KEY_512,
-    HMAC_KEY_1024,
-} OtHMACKeyLength;
-
 static inline OtHMACDigestSize ot_hmac_get_digest_size(uint32_t cfg_reg)
 {
     switch ((cfg_reg & R_CFG_DIGEST_SIZE_MASK) >> R_CFG_DIGEST_SIZE_SHIFT) {
@@ -298,9 +299,9 @@ static inline OtHMACDigestSize ot_hmac_get_digest_size(uint32_t cfg_reg)
     }
 }
 
-static size_t ot_hmac_get_digest_bytes(OtHMACState *s)
+static size_t ot_hmac_get_digest_bytes(OtHMACDigestSize digest_size)
 {
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (digest_size) {
     case HMAC_SHA2_256:
         return 32u;
     case HMAC_SHA2_384:
@@ -413,7 +414,7 @@ static void ot_hmac_report_error(OtHMACState *s, uint32_t error)
 static void ot_hmac_writeback_digest_state(OtHMACState *s)
 {
     /* copy intermediary digest to mock HMAC's stop/continue behaviour. */
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (s->ctx->digest_size_started) {
     case HMAC_SHA2_256:
         for (unsigned idx = 0; idx < 8u; idx++) {
             STORE32H(s->ctx->state.sha256.state[idx], s->regs->digest + idx);
@@ -442,7 +443,7 @@ static void ot_hmac_writeback_digest_state(OtHMACState *s)
 
 static void ot_hmac_restore_context(OtHMACState *s)
 {
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (s->ctx->digest_size_started) {
     case HMAC_SHA2_256:
         s->ctx->state.sha256.curlen = 0;
         s->ctx->state.sha256.length = s->regs->msg_length;
@@ -474,7 +475,7 @@ static void ot_hmac_restore_context(OtHMACState *s)
 
 static size_t ot_hmac_get_curlen(OtHMACState *s)
 {
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (s->ctx->digest_size_started) {
     case HMAC_SHA2_256:
         return s->ctx->state.sha256.curlen;
     case HMAC_SHA2_384:
@@ -493,7 +494,7 @@ static size_t ot_hmac_get_curlen(OtHMACState *s)
 
 static void ot_hmac_sha_init(OtHMACState *s, bool write_back)
 {
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (s->ctx->digest_size_started) {
     case HMAC_SHA2_256:
         sha256_init(&s->ctx->state);
         break;
@@ -520,7 +521,7 @@ static void ot_hmac_sha_init(OtHMACState *s, bool write_back)
 static void ot_hmac_sha_process(OtHMACState *s, const uint8_t *in, size_t inlen,
                                 bool write_back)
 {
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (s->ctx->digest_size_started) {
     case HMAC_SHA2_256:
         sha256_process(&s->ctx->state, in, inlen);
         break;
@@ -547,7 +548,7 @@ static void ot_hmac_sha_process(OtHMACState *s, const uint8_t *in, size_t inlen,
 
 static void ot_hmac_sha_done(OtHMACState *s)
 {
-    switch (ot_hmac_get_digest_size(s->regs->cfg)) {
+    switch (s->ctx->digest_size_started) {
     case HMAC_SHA2_256:
         sha256_done(&s->ctx->state, (uint8_t *)s->regs->digest);
         return;
@@ -590,7 +591,9 @@ static void ot_hmac_compute_digest(OtHMACState *s)
         ot_hmac_sha_init(s, false);
         ot_hmac_sha_process(s, (const uint8_t *)opad, pad_length_b, false);
         ot_hmac_sha_process(s, (const uint8_t *)s->regs->digest,
-                            ot_hmac_get_digest_bytes(s), true);
+                            ot_hmac_get_digest_bytes(
+                                s->ctx->digest_size_started),
+                            true);
     }
     ot_hmac_sha_done(s);
 }
@@ -936,6 +939,12 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
 
             ibex_irq_set(&s->clkmgr, true);
 
+            /*
+             * Hold the previous digest size until the HMAC is started with the
+             * new digest size configured
+             */
+            s->ctx->digest_size_started = ot_hmac_get_digest_size(s->regs->cfg);
+
             ot_hmac_sha_init(s, true);
 
             /* HMAC mode, process input padding */
@@ -1002,6 +1011,12 @@ static void ot_hmac_regs_write(void *opaque, hwaddr addr, uint64_t value,
             }
 
             s->regs->cmd = R_CMD_HASH_CONTINUE_MASK;
+
+            /*
+             * Hold the previous digest size until the HMAC is started with the
+             * new digest size configured
+             */
+            s->ctx->digest_size_started = ot_hmac_get_digest_size(s->regs->cfg);
 
             ot_hmac_restore_context(s);
 

@@ -2,9 +2,11 @@
  * QEMU OpenTitan HMAC device
  *
  * Copyright (c) 2022-2024 Rivos, Inc.
+ * Copyright (c) 2024 lowRISC contributors.
  *
  * Author(s):
  *  Loïc Lefort <loic@rivosinc.com>
+ *  Alex Jones <alex.jones@lowrisc.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

@@ -121,10 +121,6 @@ static const char *REG_NAMES[REGS_COUNT] = {
 static const uint8_t SBOX4[16u] = {
     12u, 5u, 6u, 11u, 9u, 0u, 10u, 13u, 3u, 14u, 15u, 8u, 4u, 7u, 1u, 2u
 };
-
-static const uint8_t SBOX4_INV[16u] = {
-    5u, 14u, 15u, 8u, 12u, 1u, 2u, 13u, 11u, 4u, 6u, 3u, 0u, 7u, 9u, 10u
-};
 /* clang-format on */
 
 static const OtKMACAppCfg KMAC_APP_CFG =
@@ -281,34 +277,10 @@ static uint64_t ot_rom_ctrl_subst_perm_enc(uint64_t in, uint64_t key,
     return state;
 }
 
-static uint64_t ot_rom_ctrl_subst_perm_dec(uint64_t in, uint64_t key,
-                                           unsigned width, unsigned num_rounds)
-{
-    uint64_t state = in;
-
-    for (unsigned ix = 0; ix < num_rounds; ix++) {
-        state ^= key;
-        state = ot_rom_ctrl_perm(state, width, true);
-        state = ot_rom_ctrl_flip(state, width);
-        state = ot_rom_ctrl_sbox(state, width, SBOX4_INV);
-    }
-
-    state ^= key;
-
-    return state;
-}
-
 static unsigned ot_rom_ctrl_addr_sp_enc(const OtRomCtrlState *s, unsigned addr)
 {
     return ot_rom_ctrl_subst_perm_enc(addr, s->addr_nonce, s->addr_width,
                                       OT_ROM_CTRL_NUM_ADDR_SUBST_PERM_ROUNDS);
-}
-
-static uint64_t ot_rom_ctrl_data_sp_dec(const OtRomCtrlState *s, uint64_t in)
-{
-    (void)s;
-    return ot_rom_ctrl_subst_perm_dec(in, 0, OT_ROM_CTRL_WORD_BITS,
-                                      OT_ROM_CTRL_NUM_DATA_SUBST_PERM_ROUNDS);
 }
 
 static uint64_t
@@ -438,8 +410,7 @@ static uint64_t
 ot_rom_ctrl_unscramble_word(const OtRomCtrlState *s, unsigned addr, uint64_t in)
 {
     uint64_t keystream = ot_rom_ctrl_get_keystream(s, addr);
-    uint64_t sp = ot_rom_ctrl_data_sp_dec(s, in);
-    return keystream ^ sp;
+    return keystream ^ in;
 }
 
 static uint32_t ot_rom_ctrl_verify_ecc_39_32_u32(

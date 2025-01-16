@@ -1,0 +1,98 @@
+{
+    aliases:
+    {
+        # should point to the top-level directory that contains the tests to run,
+        # usually some bazel directory
+        BASEDIR: ${HOME}/qemu/ot_test_all
+    }
+    testdir: ${BASEDIR}
+    default:
+    {
+        # path to the ROM file
+        rom: ${BASEDIR}/mask_rom_fpga_cw310.elf
+        # path to the OTP image file to use
+        otp: ${BASEDIR}/img_rma.24.vmem
+        timeout: 10
+        icount: 6
+        # create a embedded flash image for each test
+        embedded-flash: true
+    }
+    opts:
+    [
+        # quit VM immediately on RstMgr fatal reset
+        -global ot-rstmgr.fatal_reset=1
+    ]
+    include: [
+        #"csrng_edn_concurrency_test_fpga_cw310_rom_with_fake_keys.test_key_0.signed.bin",
+        #"aes_test_fpga_cw310_rom_with_fake_keys.test_key_0.signed.bin",
+        "aes_functest_fpga_cw310_rom_with_fake_keys.test_key_0.signed.bin"
+    ]
+    exclude:
+    [
+    ]
+    suffixes: [
+        "_fpga_cw310_rom_with_fake_keys",
+        "_fpga_cw310_test_rom",
+        "_fpga_cw310_sival",
+    ]
+    tests:
+    {
+        # override default values for these tests
+        memory_perftest:
+        {
+            timeout: 300
+        }
+        sensor_ctrl_alert_test:
+        {
+            timeout: 200
+        }
+        sigverify_dynamic_functest_wycheproof:
+        {
+            timeout: 200
+        }
+        aes_idle_test:
+        {
+            opts:
+            [
+                -global ot-aes.fast-mode=false
+            ]
+        }
+        alert_handler_lpg_reset_toggle_test:
+        {
+            timeout: 10
+        }
+        boot_data_functest:
+        {
+            icount: 1
+        }
+        otbn_rsa_test:
+        {
+            timeout: 5
+        }
+        mod_exp_otbn_functest_hardcoded:
+        {
+            icount: 0
+        }
+        ecdsa_p256_functest:
+        {
+            timeout: 5
+        }
+        ecdh_p256_functest:
+        {
+            timeout: 5
+        }
+        entropy_src_csrng_test:
+        {
+            icount: ""
+        }
+        csrng_edn_concurrency_test:
+        {
+            timeout: 200
+        }
+        csrng_smoketest:
+        {
+            timeout: 50
+        }
+    }
+}
+

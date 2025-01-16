@@ -420,24 +420,28 @@ static inline bool ot_aes_key_touch_force_reseed(OtAESRegisters *r)
                   R_CTRL_AUX_SHADOWED_KEY_TOUCH_FORCES_RESEED_MASK);
 }
 
-static void ot_aes_init_keyshare(OtAESState *s)
+static void ot_aes_init_keyshare(OtAESState *s, bool randomize)
 {
     OtAESRegisters *r = s->regs;
     OtAESContext *c = s->ctx;
 
     trace_ot_aes_init("keyshare");
-    ot_aes_randomize(s, r->keyshare, ARRAY_SIZE(r->keyshare));
+    if (randomize) {
+        ot_aes_randomize(s, r->keyshare, ARRAY_SIZE(r->keyshare));
+    }
     bitmap_zero(r->keyshare_bm, (int64_t)(PARAM_NUM_REGS_KEY * 2u));
     c->key_ready = false;
 }
 
-static void ot_aes_init_iv(OtAESState *s)
+static void ot_aes_init_iv(OtAESState *s, bool randomize)
 {
     OtAESRegisters *r = s->regs;
     OtAESContext *c = s->ctx;
 
     trace_ot_aes_init("iv");
-    ot_aes_randomize(s, r->iv, ARRAY_SIZE(r->iv));
+    if (randomize) {
+        ot_aes_randomize(s, r->iv, ARRAY_SIZE(r->iv));
+    }
     bitmap_zero(r->iv_bm, PARAM_NUM_REGS_IV);
     c->iv_ready = false;
 }
@@ -616,8 +620,8 @@ static void ot_aes_handle_trigger(OtAESState *s)
     }
 
     if (r->trigger & R_TRIGGER_KEY_IV_DATA_IN_CLEAR_MASK) {
-        ot_aes_init_keyshare(s);
-        ot_aes_init_iv(s);
+        ot_aes_init_keyshare(s, true);
+        ot_aes_init_iv(s, true);
         ot_aes_init_data(s, false);
         r->trigger &= ~R_TRIGGER_KEY_IV_DATA_IN_CLEAR_MASK;
     }
@@ -1176,8 +1180,8 @@ static void ot_aes_write(void *opaque, hwaddr addr, uint64_t val64,
              * IV and input data afterwards."
              */
             ot_aes_finalize(s, prev_mode);
-            ot_aes_init_keyshare(s);
-            ot_aes_init_iv(s);
+            ot_aes_init_keyshare(s, false);
+            ot_aes_init_iv(s, false);
             ot_aes_load_reseed_rate(s);
             break;
         case OT_SHADOW_REG_ERROR:

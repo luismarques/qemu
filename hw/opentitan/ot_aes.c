@@ -713,7 +713,7 @@ static void ot_aes_update_config(OtAESState *s)
     }
 }
 
-static void ot_aes_finalize(OtAESState *s, enum OtAESMode mode)
+static void ot_aes_finalize(OtAESState *s, enum OtAESMode mode, bool encrypt)
 {
     int rc;
 
@@ -736,6 +736,7 @@ static void ot_aes_finalize(OtAESState *s, enum OtAESMode mode)
         break;
     case AES_CFB:
         rc = c->cfb.cipher == c->aes_cipher ? cfb_done(&c->cfb) : CRYPT_OK;
+        memcpy(&s->regs->iv[0], encrypt ? c->dst : c->src, OT_AES_IV_SIZE);
         break;
     case AES_OFB:
         rc = c->ofb.cipher == c->aes_cipher ? ofb_done(&c->ofb) : CRYPT_OK;
@@ -1170,6 +1171,7 @@ static void ot_aes_write(void *opaque, hwaddr addr, uint64_t val64,
                  R_CTRL_SHADOWED_MANUAL_OPERATION_MASK |
                  R_CTRL_SHADOWED_FORCE_ZERO_MASKS_MASK;
         enum OtAESMode prev_mode = ot_aes_get_mode(s->regs);
+        bool was_encrypt = ot_aes_is_encryption(s->regs);
         switch (ot_shadow_reg_write(&r->ctrl, val32)) {
         case OT_SHADOW_REG_STAGED:
             break;
@@ -1179,7 +1181,7 @@ static void ot_aes_write(void *opaque, hwaddr addr, uint64_t val64,
              * of a new message. Hence, software needs to provide new key,
              * IV and input data afterwards."
              */
-            ot_aes_finalize(s, prev_mode);
+            ot_aes_finalize(s, prev_mode, was_encrypt);
             ot_aes_init_keyshare(s, false);
             ot_aes_init_iv(s, false);
             ot_aes_load_reseed_rate(s);

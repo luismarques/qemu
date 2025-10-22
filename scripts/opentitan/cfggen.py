@@ -313,6 +313,10 @@ class OtConfiguration:
                 continue
             pair = self._otpconst.get_digest_pair(digest, prefix)
             otp_ctrl.update(pair)
+        for key in self._otpconst.get_scrambling_keys():
+            key_value = self._otpconst.get_scrambling_key(key)
+            key = key.removesuffix("key") + "_scramble_key"
+            otp_ctrl[key] = key_value
         idx = 0
         while True:
             try:

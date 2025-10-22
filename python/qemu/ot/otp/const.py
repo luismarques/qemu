@@ -203,9 +203,16 @@ class OtpConstants:
         except KeyError as exc:
             raise ValueError("No 'digest' enum found") from exc
 
+    def get_scrambling_keys(self) -> list[str]:
+        """Return a list of parsed scrambling keys for secret partitions."""
+        try:
+            return list(self._enums['key'])
+        except KeyError as exc:
+            raise ValueError("No 'key' enum found") from exc
+
     def get_digest_pair(self, name: str, prefix: str) -> dict[str, str]:
         """Return a dict of digest pair.
-           :param name: one of the enumerated values, see #get_enums
+           :param name: one of the enumerated values, see #get_digests
            :param prefix: the prefix to add to each dict key.
         """
         try:
@@ -220,6 +227,22 @@ class OtpConstants:
                 oname = f"{prefix}_{kname.split('_', 1)[-1]}"
                 odict[oname] = values[idx]
         return odict
+
+    def get_scrambling_key(self, name: str) -> str:
+        """Get the value of a scrambling key.
+           :param name: One of the enumerated values, see #get_scrambling_keys
+        """
+        try:
+            idx = self._enums['key'][name]
+        except KeyError as exc:
+            raise ValueError(f'Unknown scrambling key {name}') from exc
+        try:
+            key_values = self._consts['key']
+        except KeyError as exc:
+            raise ValueError('No scrambling key constants found') from exc
+        if len(key_values) <= idx:
+            raise ValueError(f'No such key {name} in the key array') from exc
+        return key_values[idx]
 
     def get_partition_inv_defaults(self, partition: int) -> Optional[str]:
         """Return the invalid default values for a partition, if any.

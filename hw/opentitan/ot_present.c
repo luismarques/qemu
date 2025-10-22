@@ -217,8 +217,8 @@ void ot_present_decrypt(const OtPresentState *ps, uint64_t src, uint64_t *dst)
 
     for (unsigned round = OT_PRESENT_ROUND - 1u; round > 0; round--) {
         state = add_round_key(state, ps->keys[round]);
-        state = sbox_inv_layer(state);
         state = perm_inv_layer(state);
+        state = sbox_inv_layer(state);
     }
     state = add_round_key(state, ps->keys[0]);
 

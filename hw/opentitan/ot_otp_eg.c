@@ -418,6 +418,11 @@ REG32(LC_STATE, 2008u)
 #define DAI_DIGEST_DELAY_NS 50000u /* 50us */
 #define LCI_PROG_SCHED_NS   1000u /* 1us*/
 
+/* The size of keys used for OTP scrambling */
+#define OTP_SCRAMBLING_KEY_WIDTH 128u
+#define OTP_SCRAMBLING_KEY_BYTES ((OTP_SCRAMBLING_KEY_WIDTH) / 8u)
+
+/* Sizes of constants used for deriving scrambling keys (e.g. flash, SRAM) */
 #define FLASH_KEY_SEED_WIDTH 256u
 #define SRAM_KEY_SEED_WIDTH  128u
 #define KEY_MGR_KEY_WIDTH    256u
@@ -682,6 +687,8 @@ struct OtOTPEgState {
     uint8_t flash_data_const[16u];
     uint64_t flash_addr_iv;
     uint8_t flash_addr_const[16u];
+    /* OTP scrambling key constants, not constants for deriving other keys */
+    uint8_t *otp_scramble_keys[ARRAY_SIZE(OtOTPPartDescs)]; /* may be NULL */
     uint8_t *inv_default_parts[ARRAY_SIZE(OtOTPPartDescs)]; /* may be NULL */
 
     OtOTPStorage *otp;
@@ -703,6 +710,7 @@ struct OtOTPEgState {
     char *flash_data_const_xstr;
     char *flash_addr_iv_xstr;
     char *flash_addr_const_xstr;
+    char *otp_scramble_key_xstrs[ARRAY_SIZE(OtOTPPartDescs)]; /* may be NULL */
     char *inv_default_part_xstrs[ARRAY_SIZE(OtOTPPartDescs)]; /* may be NULL */
     uint8_t edn_ep;
     bool fatal_escalate;
@@ -3724,6 +3732,65 @@ static void ot_otp_eg_configure_sram(OtOTPEgState *s)
     s->sram_iv = ldq_le_p(sram_iv);
 }
 
+static void ot_otp_eg_configure_part_scramble_keys(OtOTPEgState *s)
+{
+    for (unsigned ix = 0u; ix < ARRAY_SIZE(OtOTPPartDescs); ix++) {
+        if (!s->otp_scramble_key_xstrs[ix]) {
+            continue;
+        }
+
+        size_t len = strlen(s->otp_scramble_key_xstrs[ix]);
+        if (len != OTP_SCRAMBLING_KEY_BYTES * 2u) {
+            error_setg(
+                &error_fatal,
+                "%s: %s Invalid OTP scrambling key length %zu for partition %u",
+                __func__, s->ot_id, len, ix);
+            return;
+        }
+
+        g_assert(!s->otp_scramble_keys[ix]);
+
+        s->otp_scramble_keys[ix] = g_new0(uint8_t, OTP_SCRAMBLING_KEY_BYTES);
+        if (ot_common_parse_hexa_str(s->otp_scramble_keys[ix],
+                                     s->otp_scramble_key_xstrs[ix],
+                                     OTP_SCRAMBLING_KEY_BYTES, true, true)) {
+            error_setg(&error_fatal,
+                       "%s: %s unable to parse otp_scramble_keys[%u]", __func__,
+                       s->ot_id, ix);
+            return;
+        }
+
+        TRACE_OTP("otp_scramble_keys[%s] %s", PART_NAME(ix),
+                  ot_otp_hexdump(s, s->otp_scramble_keys[ix],
+                                 OTP_SCRAMBLING_KEY_BYTES));
+    }
+}
+
+static void ot_otp_eg_class_add_scramble_key_props(OtOTPClass *odc)
+{
+    unsigned secret_ix = 0u;
+    for (unsigned ix = 0u; ix < ARRAY_SIZE(OtOTPPartDescs); ix++) {
+        if (!OtOTPPartDescs[ix].secret) {
+            continue;
+        }
+
+        Property *prop = g_new0(Property, 1u);
+
+        /*
+         * Assumes secret partitions are sequentially ordered and named
+         * SECRET0, SECRET1, SECRET2, etc.
+         */
+        prop->name = g_strdup_printf("secret%u_scramble_key", secret_ix++);
+        prop->info = &qdev_prop_string;
+        prop->offset = offsetof(OtOTPEgState, otp_scramble_key_xstrs) +
+                       sizeof(char *) * ix;
+
+        object_class_property_add(OBJECT_CLASS(odc), prop->name,
+                                  prop->info->name, prop->info->get,
+                                  prop->info->set, prop->info->release, prop);
+    }
+}
+
 static void ot_otp_eg_configure_inv_default_parts(OtOTPEgState *s)
 {
     for (unsigned ix = 0; ix < ARRAY_SIZE(OtOTPPartDescs); ix++) {
@@ -3943,6 +4010,7 @@ static void ot_otp_eg_realize(DeviceState *dev, Error **errp)
     ot_otp_eg_configure_digest(s);
     ot_otp_eg_configure_sram(s);
     ot_otp_eg_configure_flash(s);
+    ot_otp_eg_configure_part_scramble_keys(s);
     ot_otp_eg_configure_inv_default_parts(s);
 }
 
@@ -4050,6 +4118,7 @@ static void ot_otp_eg_class_init(ObjectClass *klass, void *data)
     oc->get_keymgr_secret = &ot_otp_eg_get_keymgr_secret;
     oc->program_req = &ot_otp_eg_program_req;
 
+    ot_otp_eg_class_add_scramble_key_props(oc);
     ot_otp_eg_class_add_inv_def_props(oc);
 }
 

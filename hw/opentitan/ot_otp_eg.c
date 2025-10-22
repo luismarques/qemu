@@ -1717,6 +1717,7 @@ static void ot_otp_eg_dai_read(OtOTPEgState *s)
     bool is_digest = ot_otp_eg_is_part_digest_offset(partition, address);
     bool is_readable = ot_otp_eg_is_readable(s, partition);
     bool is_wide = ot_otp_eg_is_wide_granule(partition, address);
+    bool is_secret = OtOTPPartDescs[partition].secret;
 
     /* "in all partitions, the digest itself is ALWAYS readable." */
     if (!is_digest && !is_readable) {
@@ -1768,6 +1769,18 @@ static void ot_otp_eg_dai_read(OtOTPEgState *s)
         } else {
             cell_count = 4u;
         }
+    }
+
+    if (is_secret) {
+        const uint8_t *scrambling_key = s->otp_scramble_keys[partition];
+        g_assert(scrambling_key);
+        uint64_t data = ((uint64_t)data_hi << 32u) | data_lo;
+        OtPresentState *ps = ot_present_new();
+        ot_present_init(ps, scrambling_key);
+        ot_present_decrypt(ps, data, &data);
+        ot_present_free(ps);
+        data_lo = data;
+        data_hi = (data >> 32u);
     }
 
     s->regs[R_DIRECT_ACCESS_RDATA_0] = data_lo;

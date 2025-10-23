@@ -3445,35 +3445,45 @@ static void ot_otp_eg_pwr_load_tokens(OtOTPEgState *s)
 {
     memset(s->tokens, 0, sizeof(*s->tokens));
 
-    const uint32_t *data = s->otp->data;
     OtOTPTokens *tokens = s->tokens;
 
     static_assert(sizeof(OtOTPTokenValue) == 16u, "Invalid token size");
 
     for (unsigned tkx = 0; tkx < OTP_TOKEN_COUNT; tkx++) {
         unsigned partition;
-        uint32_t reg;
+        uint32_t secret_addr;
 
         switch (tkx) {
         case OTP_TOKEN_TEST_UNLOCK:
             partition = OTP_PART_SECRET0;
-            reg = R_SECRET0_TEST_UNLOCK_TOKEN;
+            secret_addr = A_SECRET0_TEST_UNLOCK_TOKEN;
             break;
         case OTP_TOKEN_TEST_EXIT:
             partition = OTP_PART_SECRET0;
-            reg = R_SECRET0_TEST_EXIT_TOKEN;
+            secret_addr = A_SECRET0_TEST_EXIT_TOKEN;
             break;
         case OTP_TOKEN_RMA:
             partition = OTP_PART_SECRET2;
-            reg = R_SECRET2_RMA_TOKEN;
+            secret_addr = A_SECRET2_RMA_TOKEN;
             break;
         default:
             g_assert_not_reached();
             break;
         }
 
+        OtOTPPartController *pctrl = &s->partctrls[partition];
+        g_assert(pctrl->buffer.data != NULL);
+
+        /* byte offset of the secret within the partition */
+        unsigned secret_offset =
+            secret_addr - ot_otp_eg_part_data_offset(partition);
+        g_assert(secret_offset + sizeof(OtOTPTokenValue) <=
+                 OtOTPPartDescs[partition].size);
+
         OtOTPTokenValue value;
-        memcpy(&value, &data[reg], sizeof(OtOTPTokenValue));
+        memcpy(&value, &pctrl->buffer.data[secret_offset / sizeof(uint32_t)],
+               sizeof(OtOTPTokenValue));
+
         if (s->partctrls[partition].locked) {
             tokens->values[tkx] = value;
             tokens->valid_bm |= 1u << tkx;

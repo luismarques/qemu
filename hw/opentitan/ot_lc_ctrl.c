@@ -1284,6 +1284,7 @@ static void ot_lc_ctrl_handle_otp_ack(void *opaque, bool ack)
             s->regs[R_STATUS] |= R_STATUS_OTP_ERROR_MASK;
         }
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+        s->lc_state = LC_STATE_POST_TRANSITION;
         break;
     default:
         g_assert_not_reached();
@@ -1302,6 +1303,7 @@ static void ot_lc_ctrl_program_otp(OtLcCtrlState *s, unsigned lc_tcount,
                       __func__);
         s->regs[R_STATUS] |= R_STATUS_OTP_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+        s->lc_state = LC_STATE_POST_TRANSITION;
         return;
     }
 
@@ -1315,6 +1317,7 @@ static void ot_lc_ctrl_program_otp(OtLcCtrlState *s, unsigned lc_tcount,
         trace_ot_lc_ctrl_error(s->ot_id, "OTP program request rejected");
         s->regs[R_STATUS] |= R_STATUS_STATE_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+        s->lc_state = LC_STATE_POST_TRANSITION;
         return;
     }
 }
@@ -1362,12 +1365,14 @@ static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
                                        "Invalid volatile unlock token");
                 s->regs[R_STATUS] |= R_STATUS_TOKEN_ERROR_MASK;
                 LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+                s->lc_state = LC_STATE_POST_TRANSITION;
             }
         } else {
             trace_ot_lc_ctrl_error(s->ot_id,
                                    "Invalid state(s) for volatile unlock");
             s->regs[R_STATUS] |= R_STATUS_TRANSITION_ERROR_MASK;
             LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+            s->lc_state = LC_STATE_POST_TRANSITION;
         }
         return;
     }
@@ -1407,6 +1412,7 @@ static void ot_lc_ctrl_start_transition(OtLcCtrlState *s)
         trace_ot_lc_ctrl_error(s->ot_id, "Max transition count reached");
         s->regs[R_STATUS] |= R_STATUS_TRANSITION_COUNT_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+        s->lc_state = LC_STATE_POST_TRANSITION;
         return;
     }
 
@@ -1454,10 +1460,12 @@ static void ot_lc_ctrl_resume_transition(OtLcCtrlState *s)
         trace_ot_lc_ctrl_error(s->ot_id, "Invalid transition");
         s->regs[R_STATUS] |= R_STATUS_TRANSITION_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+        s->lc_state = LC_STATE_POST_TRANSITION;
     } else if (!ot_lc_ctrl_match_token(s, token)) {
         trace_ot_lc_ctrl_error(s->ot_id, "Invalid OTP token");
         s->regs[R_STATUS] |= R_STATUS_TOKEN_ERROR_MASK;
         LC_FSM_CHANGE_STATE(s, ST_POST_TRANS);
+        s->lc_state = LC_STATE_POST_TRANSITION;
     } else {
         trace_ot_lc_ctrl_info(s->ot_id, "Valid token");
 

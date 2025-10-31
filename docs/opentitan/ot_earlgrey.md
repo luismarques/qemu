@@ -59,6 +59,7 @@ Devices in this group implement subset(s) of the real HW.
 * KMAC
   * Masking is not supported
 * Lifecycle controller
+  * [LC controller](lc_ctrl_dmi.md) can be accessed through JTAG using a DM-TL bridge
 * [ROM controller](ot_rom_ctrl.md)
 * SRAM controller
   * Initialization and scrambling from OTP key supported

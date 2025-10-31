@@ -38,6 +38,7 @@
 #include "hw/jtag/tap_ctrl.h"
 #include "hw/jtag/tap_ctrl_rbb.h"
 #include "hw/misc/pulp_rv_dm.h"
+#include "hw/opentitan/ot_address_space.h"
 #include "hw/opentitan/ot_aes.h"
 #include "hw/opentitan/ot_alert.h"
 #include "hw/opentitan/ot_aon_timer.h"
@@ -45,6 +46,7 @@
 #include "hw/opentitan/ot_clkmgr.h"
 #include "hw/opentitan/ot_common.h"
 #include "hw/opentitan/ot_csrng.h"
+#include "hw/opentitan/ot_dm_tl.h"
 #include "hw/opentitan/ot_edn.h"
 #include "hw/opentitan/ot_entropy_src.h"
 #include "hw/opentitan/ot_flash.h"
@@ -100,6 +102,8 @@ static void ot_eg_soc_otp_ctrl_configure(
     DeviceState *dev, const IbexDeviceDef *def, DeviceState *parent);
 static void ot_eg_soc_tap_ctrl_configure(
     DeviceState *dev, const IbexDeviceDef *def, DeviceState *parent);
+static void ot_eg_soc_lc_ctrl_tap_ctrl_configure(
+    DeviceState *dev, const IbexDeviceDef *def, DeviceState *parent);
 static void ot_eg_soc_spi_device_configure(
     DeviceState *dev, const IbexDeviceDef *def, DeviceState *parent);
 static void ot_eg_soc_uart_configure(DeviceState *dev, const IbexDeviceDef *def,
@@ -111,6 +115,14 @@ static void ot_eg_soc_usbdev_configure(
 /* Constants */
 /* ------------------------------------------------------------------------ */
 
+enum OtEgMemoryRegion {
+    OT_EG_DEFAULT_MEMORY_REGION,
+    OT_EG_LC_CTRL_TAP_MEMORY_REGION,
+};
+
+#define LC_CTRL_TAP_MEMORY(_addr_) \
+    IBEX_MEMMAP_MAKE_REG((_addr_), OT_EG_LC_CTRL_TAP_MEMORY_REGION)
+
 enum OtEGSocDevice {
     OT_EG_SOC_DEV_ADC_CTRL,
     OT_EG_SOC_DEV_AES,
@@ -121,6 +133,7 @@ enum OtEGSocDevice {
     OT_EG_SOC_DEV_CSRNG,
     OT_EG_SOC_DEV_DM,
     OT_EG_SOC_DEV_DTM,
+    OT_EG_SOC_DEV_LC_CTRL_DTM,
     OT_EG_SOC_DEV_EDN0,
     OT_EG_SOC_DEV_EDN1,
     OT_EG_SOC_DEV_ENTROPY_SRC,
@@ -148,6 +161,7 @@ enum OtEGSocDevice {
     OT_EG_SOC_DEV_ROM_CTRL,
     OT_EG_SOC_DEV_RSTMGR,
     OT_EG_SOC_DEV_RV_DM,
+    OT_EG_SOC_DEV_DM_LC_CTRL,
     OT_EG_SOC_DEV_SENSOR_CTRL,
     OT_EG_SOC_DEV_SPI_DEVICE,
     OT_EG_SOC_DEV_SPI_HOST0,
@@ -155,6 +169,7 @@ enum OtEGSocDevice {
     OT_EG_SOC_DEV_SRAM_MAIN_CTRL,
     OT_EG_SOC_DEV_SYSRST_CTRL,
     OT_EG_SOC_DEV_TAP_CTRL,
+    OT_EG_SOC_DEV_LC_CTRL_TAP_CTRL,
     OT_EG_SOC_DEV_TIMER,
     OT_EG_SOC_DEV_UART0,
     OT_EG_SOC_DEV_UART1,
@@ -195,6 +210,24 @@ enum OtEGBoardDevice {
     OT_EG_BOARD_DEV_FLASH1,
     OT_EG_BOARD_DEV_COUNT,
 };
+
+/*
+ * <opentitan>/hw/ip/lc_ctrl/rtl/lc_ctrl.sv instantiates a DMI module (with
+ * abits=7) and a DMI to TL-UL adapter. Together, they create a private bus,
+ * exposing the LC Ctrl registers over JTAG <-> DTM <-> DMI <-> TL-UL. On the
+ * DMI side we have the address space [0 .. 2^7); those addresses are mapped to
+ * words on the TL-UL side, addressing [0 .. 2^7*4) bytes, and accessing the LC
+ * Ctrl registers at the appropriate (documented) offset.
+ */
+#define OT_EG_LC_CTRL_TAP_DMI_ABITS 7u
+#define OT_EG_LC_CTRL_TAP_DMI_ADDR  0x0u
+#define OT_EG_LC_CTRL_TAP_DMI_SIZE  (1u << OT_EG_LC_CTRL_TAP_DMI_ABITS)
+#define OT_EG_LC_CTRL_TAP_TL_ADDR   0x0u
+#define OT_EG_LC_CTRL_TAP_TL_SIZE   ((1u << OT_EG_LC_CTRL_TAP_DMI_ABITS) * 4u)
+
+#define OT_EG_LC_CTRL_TAP      "ot-lc_ctrl-tap"
+#define OT_EG_LC_CTRL_TAP_XBAR OT_EG_LC_CTRL_TAP ".xbar"
+#define OT_EG_LC_CTRL_TAP_AS   OT_EG_LC_CTRL_TAP ".as"
 
 #define OT_EG_IBEX_WRAPPER_NUM_REGIONS 2u
 
@@ -361,6 +394,14 @@ static const IbexDeviceDef ot_eg_soc_devices[] = {
             IBEX_DEV_UINT_PROP("idcode", EG_RV_DM_TAP_IDCODE)
         ),
     },
+    [OT_EG_SOC_DEV_LC_CTRL_TAP_CTRL] = {
+        .type = TYPE_TAP_CTRL_RBB,
+        .cfg = &ot_eg_soc_lc_ctrl_tap_ctrl_configure,
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("ir_length", IBEX_TAP_IR_LENGTH),
+            IBEX_DEV_UINT_PROP("idcode", EG_LC_CTRL_TAP_IDCODE)
+        ),
+    },
     [OT_EG_SOC_DEV_DTM] = {
         .type = TYPE_RISCV_DTM,
         .link = IBEXDEVICELINKDEFS(
@@ -368,6 +409,15 @@ static const IbexDeviceDef ot_eg_soc_devices[] = {
         ),
         .prop = IBEXDEVICEPROPDEFS(
             IBEX_DEV_UINT_PROP("abits", 7u)
+        ),
+    },
+    [OT_EG_SOC_DEV_LC_CTRL_DTM] = {
+        .type = TYPE_RISCV_DTM,
+        .link = IBEXDEVICELINKDEFS(
+            OT_EG_SOC_DEVLINK("tap-ctrl", LC_CTRL_TAP_CTRL)
+        ),
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("abits", OT_EG_LC_CTRL_TAP_DMI_ABITS)
         ),
     },
     [OT_EG_SOC_DEV_DM] = {
@@ -742,7 +792,8 @@ static const IbexDeviceDef ot_eg_soc_devices[] = {
     [OT_EG_SOC_DEV_LC_CTRL] = {
         .type = TYPE_OT_LC_CTRL,
         .memmap = MEMMAPENTRIES(
-            { .base = 0x40140000u }
+            { .base = 0x40140000u },
+            { .base = LC_CTRL_TAP_MEMORY(OT_EG_LC_CTRL_TAP_TL_ADDR) }
         ),
         .gpio = IBEXGPIOCONNDEFS(
             OT_EG_SOC_RSP(OT_PWRMGR_LC, PWRMGR),
@@ -1371,6 +1422,19 @@ static const IbexDeviceDef ot_eg_soc_devices[] = {
             OT_EG_SOC_GPIO_ALERT(0, 40)
         ),
     },
+    [OT_EG_SOC_DEV_DM_LC_CTRL] = {
+        .type = TYPE_OT_DM_TL,
+        .link = IBEXDEVICELINKDEFS(
+            OT_EG_SOC_DEVLINK("dtm", LC_CTRL_DTM),
+            OT_EG_SOC_DEVLINK("tl_dev", LC_CTRL)
+        ),
+        .prop = IBEXDEVICEPROPDEFS(
+            IBEX_DEV_UINT_PROP("dmi_addr", OT_EG_LC_CTRL_TAP_DMI_ADDR),
+            IBEX_DEV_UINT_PROP("dmi_size", OT_EG_LC_CTRL_TAP_DMI_SIZE),
+            IBEX_DEV_UINT_PROP("tl_addr", OT_EG_LC_CTRL_TAP_TL_ADDR),
+            IBEX_DEV_STRING_PROP("tl_as_name", OT_EG_LC_CTRL_TAP_AS)
+        )
+    },
     [OT_EG_SOC_DEV_PLIC] = {
         .type = TYPE_SIFIVE_PLIC,
         .memmap = MEMMAPENTRIES(
@@ -1616,6 +1680,20 @@ static void ot_eg_soc_tap_ctrl_configure(
     }
 }
 
+static void ot_eg_soc_lc_ctrl_tap_ctrl_configure(
+    DeviceState *dev, const IbexDeviceDef *def, DeviceState *parent)
+{
+    (void)parent;
+    (void)def;
+
+    Chardev *chr;
+
+    chr = ibex_get_chardev_by_id("taprbb-lc-ctrl");
+    if (chr) {
+        qdev_prop_set_chr(dev, "chardev", chr);
+    }
+}
+
 static void ot_eg_soc_spi_device_configure(
     DeviceState *dev, const IbexDeviceDef *def, DeviceState *parent)
 {
@@ -1761,9 +1839,26 @@ static void ot_eg_soc_realize(DeviceState *dev, Error **errp)
                                         ot_eg_soc_devices,
                                         ARRAY_SIZE(ot_eg_soc_devices));
 
-    MemoryRegion *mrs[] = { get_system_memory(), NULL, NULL, NULL };
-    ibex_map_devices(s->devices, mrs, ot_eg_soc_devices,
-                     ARRAY_SIZE(ot_eg_soc_devices));
+    MemoryRegion *lc_ctrl_tap_mr = g_new0(MemoryRegion, 1u);
+    memory_region_init(lc_ctrl_tap_mr, OBJECT(dev), OT_EG_LC_CTRL_TAP_XBAR,
+                       OT_EG_LC_CTRL_TAP_TL_SIZE);
+
+    MemoryRegion *mrs[IBEX_MEMMAP_REGIDX_COUNT] = {
+        [OT_EG_DEFAULT_MEMORY_REGION] = get_system_memory(),
+        [OT_EG_LC_CTRL_TAP_MEMORY_REGION] = lc_ctrl_tap_mr,
+    };
+    ibex_map_devices_mask(s->devices, mrs, ot_eg_soc_devices,
+                          ARRAY_SIZE(ot_eg_soc_devices),
+                          IBEX_MEMMAP_MAKE_REG_MASK(
+                              OT_EG_DEFAULT_MEMORY_REGION) |
+                              IBEX_MEMMAP_MAKE_REG_MASK(
+                                  OT_EG_LC_CTRL_TAP_MEMORY_REGION));
+    Object *oas;
+    AddressSpace *as = g_new0(AddressSpace, 1u);
+    address_space_init(as, lc_ctrl_tap_mr, OT_EG_LC_CTRL_TAP_AS);
+    oas = object_new(TYPE_OT_ADDRESS_SPACE);
+    object_property_add_child(OBJECT(dev), as->name, oas);
+    ot_address_space_set(OT_ADDRESS_SPACE(oas), as);
 
     qdev_connect_gpio_out_named(DEVICE(s->devices[OT_EG_SOC_DEV_RSTMGR]),
                                 OT_RSTMGR_SOC_RST, 0,

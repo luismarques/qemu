@@ -1,9 +1,9 @@
-# Darjeeling LifeCycle Controller over DTM
+# LifeCycle Controller over DTM
 
-## Communicating with the JTAG Mailbox through a JTAG connection
+## Communicating with the Life Cycle Controller through a JTAG connection
 
-In QEMU, a bridge between the Debug Transport Module (DTM) and the JTAG Mailbox is implemented
-as Debug Module bridge.
+In QEMU, a bridge between the Debug Transport Module (DTM) and the Life Cycle Controller is
+implemented as a Debug Module bridge.
 
 ```
 +----------------+
@@ -25,9 +25,16 @@ where:
   `P` is the private OT bus
   `D` is the debug bus
 
-QEMU should be started with an option such as:
+In Darjeeling, a top-level debug crossbar multiplexes debug access to several devices, including
+the Life Cycle Controller. Therefore, there is a single DTM and Debug Module bridge. In the QEMU
+implementation of Darjeeling we thus have a single JTAG server, reachable over the `taprbb`
+character device. For that machine, QEMU should be started with an option such as:
 `-chardev socket,id=taprbb,host=localhost,port=3335,server=on,wait=off` so that the JTAG server is
-instantiated and listens for incoming connection on TCP port 3335.
+instantiated and listens for incoming connections on TCP port 3335.
+
+In Earlgrey, we have multiple JTAG TAPs, including one for the Life Cycle Controller. The Life Cycle
+Controller instantiates its own DTM and Debug Module bridge. Therefore, in the QEMU implementation
+of Earlgrey we use a separate character device for that JTAG server, named instead `taprbb-lc-ctrl`.
 
 ## Communicating with JTAG server and Life Cycle controller using Python
 
